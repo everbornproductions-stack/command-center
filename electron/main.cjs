@@ -10,6 +10,7 @@ const crypto = require("node:crypto");
 const { pickFreePort, isOurServer } = require("./ports.cjs");
 const { createUpdateController, CHECK_EVERY_MS, quitInstallAction } = require("./updater.cjs");
 const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
+const inst = require("./instance.cjs");
 const { createHotkey } = require("./hotkey.cjs");
 const a11y = require("./accessibility.cjs");
 a11y.early(app); // UI Automation needs an accessibility tree from the first page (0.4.21)
@@ -37,8 +38,15 @@ let win = null, tray = null, serverStarted = false;
 
 // One copy only: a second launch focuses the window that is already open (Windows shows several
 // "Meldmind.exe" processes per copy: main, GPU, network and window helpers; that is normal).
-const single = app.requestSingleInstanceLock();
-if (!single) { app.quit(); process.exit(0); }
+// 0.4.24: a hung or dead earlier copy can no longer block this launch (resolveLock ends a holder whose engine does not
+// answer); a healthy one is still just focused. The boot below waits for the answer.
+const lockReady = inst.resolveLock({
+  requestLock: () => app.requestSingleInstanceLock(),
+  readRec: () => inst.readRecord(userData),
+  probe: async (rec) => { const r = await fetch(`http://127.0.0.1:${rec.port}/api/health`, { signal: AbortSignal.timeout(3000) }); const h = await r.json(); return r.ok && h && h.app === "command-ai"; },
+  kill: (pids) => inst.killPids(pids),
+  log: (...a) => { try { fs.appendFileSync(path.join(userData, "everborn-command.log"), new Date().toISOString() + " " + a.join(" ") + "\n"); } catch {} },
+}).then((ok) => { if (!ok) { app.quit(); process.exit(0); } return ok; });
 
 async function waitForServer(ms = 20000) {
   const t0 = Date.now();
@@ -247,6 +255,7 @@ async function startServer() {
   PORT = await pickFreePort(PREFERRED_PORT);
   if (PORT !== PREFERRED_PORT) log(`port ${PREFERRED_PORT} is busy (another program); using ${PORT}`);
   process.env.CC_PORT = String(PORT);
+  inst.writeRecord(userData, { pid: process.pid, port: PORT, instance: INSTANCE });
   delete process.env.PORT; // the server prefers PORT over CC_PORT
   if (!process.env.CC_DEMO_PORT || !(await require("./ports.cjs").isFree(Number(process.env.CC_DEMO_PORT)))) process.env.CC_DEMO_PORT = String(await pickFreePort(PORT + 52, { avoid: [PORT] }));
   exposeSafeStorage();
@@ -282,7 +291,7 @@ function createWindow() {
   if (serverStarted) win.loadURL(`http://127.0.0.1:${PORT}/`);
   else showOffline(watchdog && watchdog.reason || `the engine did not start on port ${PORT}`);
   // the engine page failed to load (engine gone): show the local "Restart engine" page instead
-  win.webContents.on("did-fail-load", (_e, code, desc, url, isMain) => { if (isMain && url.startsWith("http://127.0.0.1")) { log("window load failed:", desc); showOffline(`the window could not load the engine (${desc})`); } });
+  win.webContents.on("did-fail-load", (_e, code, desc, url, isMain) => { if (isMain && url.startsWith("http://127.0.0.1")) { log("window load failed:", desc); recoverWindow(`the window could not load the engine (${desc})`); } });
   // external links open in the system browser, not inside the app
   // 0.4.23 (audit X6): only a page of this app's own origin (exact origin, not a prefix) may open inside the app;
   // web and mail links go to the system browser; every other scheme (file:, javascript:, data: ...) is refused.
@@ -311,18 +320,42 @@ function createWindow() {
 
 // Reload-loop breaker: every main-frame load of the engine page is logged; more than 6 in 60 s means
 // something is looping, so stop and show the local engine page with Restart / Check for updates.
-const loads = [];
+const loadCounter = inst.createLoadCounter({ limit: 6, windowMs: 60000 });
 function watchReloads(w) {
   w.webContents.on("did-start-navigation", (details, oldUrl, _inPlace, oldIsMain) => {
     const url = (details && details.url) || oldUrl || "";
     const isMain = details && details.isMainFrame !== undefined ? details.isMainFrame : oldIsMain;
     if (!isMain || !url.startsWith("http://127.0.0.1")) return;
-    const t = Date.now(); loads.push(t); while (loads.length && t - loads[0] > 60000) loads.shift();
-    log(`window load #${loads.length} in 60 s: ${url.replace(/\?.*$/, "")}`);
-    if (loads.length > 6) { log("reload loop detected; showing the engine page instead"); loads.length = 0; setImmediate(() => showOffline("the window kept reloading (reload loop stopped)")); }
+    // 0.4.24: moving between tabs (#projects, #liveview) is an in-page change, not a load; it used to trip the breaker
+    const { count, loop } = loadCounter.note({ isMainFrame: true, isSameDocument: !!(details && details.isSameDocument) });
+    log(`window ${details && details.isSameDocument ? "tab change" : `load #${count} in 60 s`}: ${url.replace(/\?.*$/, "")}`);
+    if (loop) { log("reload loop detected; waiting for the engine instead"); setImmediate(() => recoverWindow("the window kept reloading")); }
   });
-  w.webContents.on("render-process-gone", (_e, d) => log("window process gone:", d && d.reason, d && d.exitCode));
+  w.webContents.on("render-process-gone", (_e, d) => {
+    log("window process gone:", d && d.reason, d && d.exitCode);
+    if (d && d.reason !== "clean-exit") setImmediate(() => recoverWindow(`the window process stopped (${d && d.reason})`));
+  });
   w.webContents.on("unresponsive", () => log("window unresponsive"));
+}
+// Wait for the engine to answer, with growing pauses (1, 2, 4, 8, then 15 s), and only then load the page once.
+// At most 5 recoveries in 10 minutes; after that the engine page stays up with its Restart button.
+let recovering = false; const recoveries = [];
+async function recoverWindow(reason) {
+  if (recovering || !win || win.isDestroyed()) return;
+  const t = Date.now(); while (recoveries.length && t - recoveries[0] > 10 * 60000) recoveries.shift();
+  if (recoveries.length >= 5) { log("window recovery limit reached; engine page stays"); showOffline(`${reason} (stopped retrying)`); return; }
+  recoveries.push(t); recovering = true;
+  try {
+    showOffline(`Waiting for the engine: ${reason}`);
+    const ok = await inst.waitForEngine({
+      probe: async () => { try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(4000) }); return r.ok && isOurServer(await r.json(), INSTANCE); } catch { return false; } },
+      onWait: (n, ms) => log(`waiting for the engine (try ${n}, next in ${ms / 1000} s)`),
+      cancelled: () => !win || win.isDestroyed(),
+    });
+    if (!win || win.isDestroyed()) return;
+    if (ok) { log("engine answers; loading the window once"); loadCounter.reset(); win.loadURL(`http://127.0.0.1:${PORT}/`); }
+    else showOffline(`${reason}; the engine did not answer`);
+  } finally { recovering = false; }
 }
 app.on("child-process-gone", (_e, d) => log("child process gone:", d && d.type, d && d.reason));
 
@@ -470,9 +503,11 @@ process.on("unhandledRejection", (e) => log("unhandled:", e && e.stack || e));
 // 0.4.21 (dogfood 10): the app once closed about 5 s after Stop with nothing in this log. These lines leave a trail
 // (who asked to quit, and the exit code) so the next time the log says why.
 app.on("before-quit", () => log("before-quit (quitting for update:", String(quittingForUpdate) + ")"));
+process.on("exit", () => inst.clearRecord(userData, process.pid));
 process.on("exit", (code) => { try { fs.appendFileSync(LOG, new Date().toISOString() + " process exit code=" + code + "\n"); } catch {} });
 
 app.whenReady().then(async () => {
+  if (!(await lockReady)) return;
   a11y.afterReady(app); // Electron only accepts this once ready
   try {
     const g = globalThis.__ccPerf = globalThis.__ccPerf || {};
@@ -496,6 +531,8 @@ app.whenReady().then(async () => {
   if (!ok) watchdog.fail(failReason ? `the engine failed to start: ${failReason}` : `the engine did not answer on port ${PORT} within 20 seconds`);
   createWindow();
   rebuildTrayMenu();
+  // we hold the lock, so any other Meldmind process of this install is a leftover: end it (keeps ports and the lock clean)
+  if (isPackaged && !process.env.CC_NO_REAP) inst.reapOrphans({ log }).catch((e) => log("orphan check failed:", e && e.message));
   if (updateWin && !updateWin.isDestroyed() && win) { try { updateWin.setParentWindow(win); } catch {} }
   if (!ok) { await launchCheck; if (!updateWin) offerEngineDialog(watchdog.reason); }
 });

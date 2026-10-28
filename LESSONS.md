@@ -51,3 +51,11 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - Rule: the old tests that said "nothing is written without a linked folder" locked in the bug. When a test asserts the broken behavior, change the test and say so in the PR.
 
 - 0.4.23.1 CI note: a document-level capture handler for the Send click ran before a browser test's own listener on the button and broke `mac-flow-0423` and `make-chat-browser`. Keep the button's own click listener; use the document handler only for keys and repaint races.
+
+## 2026-10-28: The engine runs inside Electron's main process, so a slow history read is an "engine stuck" (0.4.24)
+
+- What happened: "engine stuck ... timed out" every 10 to 60 minutes, a crashed window, "reload loop detected" while only clicking tabs, and a ghost Meldmind that kept port 4747 so the next launch moved to 4748.
+- Causes: (1) `FileStore.listMissions` read and parsed every mission file synchronously on each /api/state, websocket hello and history call, and `ledger.summary()` rescanned the whole ledger every 15 s. The server shares the main process, so the watchdog's probe (and the window) waited for it. (2) The loop breaker counted `#tab` changes (in-page navigations) as loads. (3) A second launch quit silently if a hung copy held the lock, and nothing cleaned up leftovers. (4) The dark Mac sidebar inherited the light-theme `--tx` / `--dim` because only `body[data-theme]` is dark, not `html`.
+- Fix: mission summaries are remembered per file and per summarizer, bumped on save, with the directory listing trusted for 30 s and a sliced warm-up after boot; ledger summary reused for 5 s; `electron/instance.cjs` takes over from a lock holder that fails three health probes, ends leftover Meldmind processes of the same install, and makes the window wait for the engine with 1, 2, 4, 8, 15 s pauses instead of reloading; same-document navigations are not counted.
+- Rules: anything the server does per request on the main thread must be O(1) after warm-up, never a directory scan or a whole-file parse. Count loads, not hash changes. The first log line after a restart that says "port 4747 is busy" means a ghost is alive.
+- Not proven from the log: out-of-credits spam (0 matching lines in the log) and provider polling (every 5 minutes, async). They were not the cause here.

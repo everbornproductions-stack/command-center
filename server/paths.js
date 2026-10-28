@@ -55,10 +55,10 @@ export function readJson(file, fallback) {
     return fallback;
   }
 }
-export function writeJson(file, obj) {
+export function writeJson(file, obj, { compact = false } = {}) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = file + ".tmp";
-  const text = JSON.stringify(obj, null, 2);
+  const text = compact ? JSON.stringify(obj) : JSON.stringify(obj, null, 2);
   retrySync(() => {
     fs.writeFileSync(tmp, text);
     fs.renameSync(tmp, file);
