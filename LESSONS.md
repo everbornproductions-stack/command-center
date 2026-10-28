@@ -72,3 +72,9 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - Fix: voice transcription is free first (Groq, Gemini, ElevenLabs free allowance). OpenAI is only tried last, and only when the person turns on "Use my OpenAI credits for voice" in Settings. Any 429, quota, bad key or outage moves on to the next tier instead of showing an error.
 - Rule: Meldmind saves people money. A saved paid key is not consent to spend it. Default to free, make paid an explicit switch, and fall back quietly.
 - Still paid by default (follow up): spoken replies (ElevenLabs, then OpenAI text-to-speech) and Instant voice (OpenAI Realtime) are both on by default and use a saved paid key.
+
+## 2026-10-27: 0.4.24 release (what went wrong)
+
+- Release pipeline worked: PR 130 CI green, tag v0.4.24 pushed once, Windows release run succeeded, assets published.
+- Installing on Chris's PC failed: two sessions ran the silent installer at once, the old Meldmind process could not be killed, and a direct run of the installer got Access denied. Rule: before installing, check no other session is installing (look for Meldmind-Setup processes), and do not delete the sidebar-fix watcher until the new build is verified.
+
