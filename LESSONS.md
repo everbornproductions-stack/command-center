@@ -72,3 +72,10 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - Fix: voice transcription is free first (Groq, Gemini, ElevenLabs free allowance). OpenAI is only tried last, and only when the person turns on "Use my OpenAI credits for voice" in Settings. Any 429, quota, bad key or outage moves on to the next tier instead of showing an error.
 - Rule: Meldmind saves people money. A saved paid key is not consent to spend it. Default to free, make paid an explicit switch, and fall back quietly.
 - Still paid by default (follow up): spoken replies (ElevenLabs, then OpenAI text-to-speech) and Instant voice (OpenAI Realtime) are both on by default and use a saved paid key.
+
+## 2026-10-28: Persona panel and audit on 0.4.24 (findings are in docs/plan-0.4.25.md)
+
+- What failed: the audit tools were written for Linux. On Windows `import(ROOT + "/test/helpers.js")` died with ERR_UNSUPPORTED_ESM_URL_SCHEME, so all 41 jobs "finished" in 1 s with only an error in each log and a `.done` marker; `startServer().stop()` deletes the data folder, so a restart-with-the-same-data test crashed on the second start; the Chrome path was /opt/ungoogled-chromium.
+- What fixed it: import through `pathToFileURL(...).href`, use Chrome from Program Files, copy the data folder before `stop()` and back before the second start, and judge a run by the sweep JSON files, not by `.done` markers.
+- What the panel found: contrast and overlap bugs unit tests cannot see (light sidebar headings 1.7 to 2.9 to 1, faint grey helper text 2.6 to 1, update and graphics notice bars under the Mac header). Measure contrast against the painted pixels (hide the text, screenshot its box); the CSS colour alone says nothing on glass.
+- Rules: after a default look change, hit-test every notice bar and fixed bar (`elementFromPoint`), not only the main screen. A timeout shorter than a known cold start (15 s banner vs 30 s start) always fires; set it from the measured start time. Never kill a process by a saved pid without checking it is still your program.
