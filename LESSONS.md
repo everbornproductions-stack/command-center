@@ -72,3 +72,11 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - Fix: voice transcription is free first (Groq, Gemini, ElevenLabs free allowance). OpenAI is only tried last, and only when the person turns on "Use my OpenAI credits for voice" in Settings. Any 429, quota, bad key or outage moves on to the next tier instead of showing an error.
 - Rule: Meldmind saves people money. A saved paid key is not consent to spend it. Default to free, make paid an explicit switch, and fall back quietly.
 - Still paid by default (follow up): spoken replies (ElevenLabs, then OpenAI text-to-speech) and Instant voice (OpenAI Realtime) are both on by default and use a saved paid key.
+
+## 2026-10-27: Verifying a release on the real PC (0.4.24)
+
+- Releases are published in everbornproductions-stack/command-center-releases, not command-center. `gh release view` on the wrong repo says "release not found".
+- A screenshot taken from PowerShell on a scaled display shows only the top-left part of the screen unless the script calls SetProcessDPIAware first. A What's new popup dims the whole window, so measure text colour only after dismissing it (sidebar read 255,255,255 once it was gone).
+- Close leaves Meldmind in the tray, so "quit" in a test means tray Quit or ending the processes. The per-launch API token is in index.html (`cc-token` meta); read settings with it instead of clicking.
+- The Simple/Expert choice is saved globally but a project can override it when the page paints, so a relaunch can look like the setting was lost. Check `/api/state` settings before calling it a failure.
+- Do not drive the screen while Phone Link or another agent has windows open on the same PC; focus moves under you.
