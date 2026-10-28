@@ -2,6 +2,12 @@
 
 Plain-words notes for each release, newest first. Paste the top section into `gh release create --notes` when publishing (see docs/RELEASING.md).
 
+## 0.4.24
+
+- The new Mac-style look is now on by default. The old look is still available by adding ?mac=0 to the address.
+- Files a mission names are saved even when no project folder is linked, and tests a mission runs are really run.
+- A mission only says it is done when its steps really worked, and a save step is never sent to a Grok Bot queue nobody is reading.
+
 ## 0.4.23
 
 - The Safety check now catches Stripe, SendGrid, Twilio and Supabase secret keys, checks built files (dist, build, .min.js) for keys, treats a real live key in a test folder as live, and turns red for a Social Security or card number in the words you send.

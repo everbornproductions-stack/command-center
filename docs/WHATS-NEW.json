@@ -1,4 +1,12 @@
 {
+  "0.4.24": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "The new Mac-style look is now on by default. The old look is still available by adding ?mac=0 to the address.",
+      "Files a mission names are saved even when no project folder is linked, and tests a mission runs are really run.",
+      "A mission only says it is done when its steps really worked, and a save step is never sent to a Grok Bot queue nobody is reading."
+    ]
+  },
   "0.4.23": {
     "title": "What's new in Meldmind",
     "bullets": [
