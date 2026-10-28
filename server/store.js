@@ -64,8 +64,12 @@ export function putDoc(kind, value) {
 }
 
 // ---- local store: the data/ folder ----
+const LIST_TTL_MS = 30000;
 export class FileStore {
-  constructor(dir) { this.dir = dir; fs.mkdirSync(path.join(dir, "missions"), { recursive: true }); }
+  constructor(dir) {
+    this.dir = dir; fs.mkdirSync(path.join(dir, "missions"), { recursive: true });
+    this._memo = new WeakMap(); this._versions = new Map(); this._names = null; this._namesAt = 0;
+  }
   async loadAll(c) {
     for (const [kind, file] of Object.entries(DOC_FILES)) {
       const v = readJson(path.join(this.dir, file), undefined);
@@ -84,15 +88,51 @@ export class FileStore {
   }
   putDoc(kind, value) { writeJson(path.join(this.dir, DOC_FILES[kind] || `${kind}.json`), value); }
   appendLedger(e) { const line = JSON.stringify(e) + "\n"; retrySync(() => fs.appendFileSync(path.join(this.dir, "ledger.jsonl"), line)); }
-  saveMission(m) { writeJson(path.join(this.dir, "missions", m.id + ".json"), m); }
+  // 0.4.24: the engine shares the Electron main process, so reading and parsing every mission file on every
+  // /api/state, websocket hello and history call froze the whole app (the watchdog's "engine stuck"). Results are
+  // now remembered per summarizer function and per file, keyed by a version that saveMission bumps. The directory
+  // listing is trusted for LIST_TTL_MS (missions are only written by this class), so a poll costs no disk reads.
+  saveMission(m) {
+    const file = m.id + ".json";
+    writeJson(path.join(this.dir, "missions", file), m, { compact: true });
+    this._versions.set(file, (this._versions.get(file) || 0) + 1);
+    if (this._names && !this._names.includes(file)) this._names.push(file);
+  }
+  _missionNames() {
+    const now = Date.now();
+    if (!this._names || now - this._namesAt > LIST_TTL_MS) {
+      this._names = fs.readdirSync(path.join(this.dir, "missions")).filter((f) => f.endsWith(".json"));
+      this._namesAt = now;
+    }
+    return this._names;
+  }
   listMissions(summarize) {
     const dir = path.join(this.dir, "missions"), out = [];
-    for (const f of fs.readdirSync(dir)) {
-      if (!f.endsWith(".json")) continue;
+    let memo = this._memo.get(summarize);
+    if (!memo) { memo = new Map(); this._memo.set(summarize, memo); }
+    for (const f of this._missionNames()) {
+      const ver = this._versions.get(f) || 0, hit = memo.get(f);
+      if (hit && hit.ver === ver) { if (hit.value !== undefined) out.push(hit.value); continue; }
       const m = readJson(path.join(dir, f), null);
-      if (m) out.push(summarize(m));
+      const value = m ? summarize(m) : undefined;
+      if (m) memo.set(f, { ver, value });
+      if (value !== undefined) out.push(value);
     }
     return out;
+  }
+  // Fill the memo for a summarizer a few files at a time so the first page load does not parse everything in one block.
+  async warmMissions(summarize, { chunk = 8 } = {}) {
+    let n = 0;
+    for (const f of [...this._missionNames()]) {
+      let memo = this._memo.get(summarize);
+      if (!memo) { memo = new Map(); this._memo.set(summarize, memo); }
+      const ver = this._versions.get(f) || 0, hit = memo.get(f);
+      if (!hit || hit.ver !== ver) {
+        const m = readJson(path.join(this.dir, "missions", f), null);
+        if (m) memo.set(f, { ver, value: summarize(m) });
+      }
+      if (++n % chunk === 0) await new Promise((r) => setImmediate(r));
+    }
   }
   async getMission(id) { return readJson(path.join(this.dir, "missions", id + ".json"), null); }
   // secrets are handled by vault.js (DPAPI) in local mode

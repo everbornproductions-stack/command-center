@@ -78,8 +78,20 @@ export function recordImage({ provider, model, op, cost, ms, missionId, project 
   return append({ ts: Date.now(), kind: "image", provider, model: model || null, op: op || "generate", images: 1, cost: +Number(cost || 0).toFixed(6), missionId: missionId || null, project: project || null, role: "image", ms: ms || null });
 }
 
+// 0.4.24: the 15 s UI tick and every /api/state rebuilt this from the whole ledger on the main thread. Reuse the
+// answer while the ledger has the same length and the same last entry, for up to 5 s (it also rolls over at midnight).
+const summaryCache = new WeakMap();
 export function summary() {
   const entries = ctx().ledger;
+  const last = entries[entries.length - 1];
+  const key = `${entries.length}:${last ? last.ts : 0}:${new Date().toDateString()}`;
+  const hit = summaryCache.get(entries);
+  if (hit && hit.key === key && Date.now() - hit.at < 5000) return hit.value;
+  const value = buildSummary(entries);
+  summaryCache.set(entries, { key, at: Date.now(), value });
+  return value;
+}
+function buildSummary(entries) {
   const now = new Date();
   const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
   const startDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
