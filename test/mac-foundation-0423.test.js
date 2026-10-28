@@ -22,7 +22,7 @@ test("source: parts list, one file and one css per part, registry row, no dashes
 });
 
 test("on by default: no ?mac, no stored choice and no setting still mounts the Mac layer", { skip }, async () => {
-  const t = await bootPage({ mode: "simple" });
+  const t = await bootPage({ mode: "simple", mac: "default" });
   try {
     await t.page.waitForFunction(() => document.body.dataset.style === "mac" && window.CC.mac, null, { timeout: 30000 });
     const r = await t.page.evaluate(() => ({ style: document.body.dataset.style, ls: localStorage.getItem("cc.mac") }));
@@ -31,7 +31,7 @@ test("on by default: no ?mac, no stored choice and no setting still mounts the M
 });
 
 test("off when asked: ?mac=0, cc.mac=0 or uiStyle classic leave the old look", { skip }, async () => {
-  const t = await bootPage({ mode: "simple" });
+  const t = await bootPage({ mode: "simple", mac: "default" });
   try {
     const off = () => t.page.evaluate(() => ({ style: document.body.dataset.style || "", mac: !!window.CC.mac, root: !!document.getElementById("mac-root") }));
     const want = { style: "", mac: false, root: false };
