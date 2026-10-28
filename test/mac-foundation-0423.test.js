@@ -1,4 +1,4 @@
-// 0.4.23 foundation: the Mac layer is off by default and loads every part when switched on.
+// 0.4.23 foundation: the Mac layer is on by default (0.4.24), can be switched off, and loads every part when switched on.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -21,12 +21,32 @@ test("source: parts list, one file and one css per part, registry row, no dashes
   assert.match(read("web", "perf", "registry.js"), /\{ id: "mac", shell: true \}/);
 });
 
-test("off by default: no Mac layer, body has no data-style", { skip }, async () => {
-  const t = await bootPage({ mode: "simple" });
+test("on by default: no ?mac, no stored choice and no setting still mounts the Mac layer", { skip }, async () => {
+  const t = await bootPage({ mode: "simple", mac: "default" });
   try {
+    await t.page.waitForFunction(() => document.body.dataset.style === "mac" && window.CC.mac, null, { timeout: 30000 });
+    const r = await t.page.evaluate(() => ({ style: document.body.dataset.style, ls: localStorage.getItem("cc.mac") }));
+    assert.deepEqual(r, { style: "mac", ls: null });
+  } finally { await t.close(); }
+});
+
+test("off when asked: ?mac=0, cc.mac=0 or uiStyle classic leave the old look", { skip }, async () => {
+  const t = await bootPage({ mode: "simple", mac: "default" });
+  try {
+    const off = () => t.page.evaluate(() => ({ style: document.body.dataset.style || "", mac: !!window.CC.mac, root: !!document.getElementById("mac-root") }));
+    const want = { style: "", mac: false, root: false };
+    await t.page.goto(`${t.base}/?mac=0&nosplash`);
+    await t.page.waitForFunction(() => window.CC && window.CC.S, null, { timeout: 20000 });
     await t.page.waitForTimeout(1500);
-    const r = await t.page.evaluate(() => ({ style: document.body.dataset.style || "", mac: !!window.CC.mac, root: !!document.getElementById("mac-root") }));
-    assert.deepEqual(r, { style: "", mac: false, root: false });
+    assert.deepEqual(await off(), want);
+    await t.page.evaluate(() => localStorage.setItem("cc.mac", "0"));
+    await t.page.goto(`${t.base}/?nosplash`);
+    await t.page.waitForFunction(() => window.CC && window.CC.S, null, { timeout: 20000 });
+    await t.page.waitForTimeout(1500);
+    assert.deepEqual(await off(), want);
+    await t.page.evaluate(() => localStorage.removeItem("cc.mac"));
+    const { macOn } = await t.page.evaluate(async () => ({ macOn: (await import("/mac/index.js")).macOn({ S: { settings: { uiStyle: "classic" } } }) }));
+    assert.equal(macOn, false);
   } finally { await t.close(); }
 });
 

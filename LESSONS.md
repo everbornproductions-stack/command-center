@@ -42,3 +42,33 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - What failed (Windows release run 40576260314, 604/606): test/chat-start-toast.test.js "look offer does not cover the centre of the page" measured {l:244, r:1354}. It passed locally. The test injects its own `#cc-look-offer`, but on a slow runner the app's real offer (look.js, docked full width in the notices row by design since 0.4.21) appeared first. Same id, so `querySelector` returned the real one. The CSS was not broken.
 - What fixed it: the test removes any app-made offer and measures only its own element (tagged `data-test-offer`).
 - Rule: a test that injects an element must find it by something unique, never an id the app also uses. If a test passes on a fast PC and fails on CI, look for a timing race with the app's own element before touching the CSS.
+## 2026-10-27: Saves and runs must never depend on a linked folder or an outside queue (0.4.23.1)
+
+- What happened: dogfood retests 08 to 13 on 0.4.22 showed named files never saved and tests never run, "All N steps done" on failed missions, 12 to 15 minute hangs on a dead Grok Bot queue, and the owner's private cloud-first rules inside plans.
+- Causes: files were written only for steps typed "code" and only when a project folder was linked (a full path in the task was ignored); a save step that mentioned Drive was routed to Grok Bot; Claude Code reads the owner's own CLAUDE.md; the finished line counted steps, not results; the Send button was rebuilt between press and release and Space had no handler.
+- Fix: files go to the linked folder, else a folder named by full path in the task, else the project's own Meldmind folder, and the answer says where. Text steps that say "save as x.md" are saved. Saves never go to an agent, and a Grok Bot queue with jobs unclaimed for 10 minutes is not used. The Claude Code worker runs with CLAUDE_CODE_DISABLE_CLAUDE_MDS=1 and plans are cleaned of the routine. Send is handled once on the document. Update failures on automatic checks only log.
+- Rule: a live run on the real app (Electron, mock AIs, throwaway data folder) found a bug that unit tests missed ("Node.js" read as a file name). Always do one. Keep subscription CLIs out of live runs with CC_SUBCLI_HOME and the CC_*_BIN variables, or they answer instead of the mock.
+- Rule: the old tests that said "nothing is written without a linked folder" locked in the bug. When a test asserts the broken behavior, change the test and say so in the PR.
+
+- 0.4.23.1 CI note: a document-level capture handler for the Send click ran before a browser test's own listener on the button and broke `mac-flow-0423` and `make-chat-browser`. Keep the button's own click listener; use the document handler only for keys and repaint races.
+
+## 2026-10-27: Turning a look on by default breaks every test that boots the app (0.4.24)
+
+- What happened: flipping `macOn()` to default-on made 16 browser tests fail locally. They measure the classic layout, and the Mac overlay (`#mac-root`) sits on top of it and intercepts clicks. Separately, the version bump to 0.4.24 failed CI on five test files that pin `package.json` version and on the What's new test, because a new version needs a `docs/WHATS-NEW.json` entry.
+- What fixed it: `bootPage` in test/pw-helpers.js stores `cc.mac = "0"` for tests of the classic layout unless a choice is already stored (so `bootMac` still wins), and `mac: "default"` boots like a new user. Version pins moved to 0.4.24, the guide PDF was rebuilt (`node scripts/build-guide.mjs`), and 0.4.24 got What's new and release-notes entries.
+- Rules: when a default changes, run the whole browser suite locally first, not only the test files for that feature. When bumping the version, grep tests for the old number, rebuild the bundled guide PDF, and add the What's new entry in the same commit. A fresh worktree needs `npm ci` before the guide build.
+
+## 2026-10-28: The engine runs inside Electron's main process, so a slow history read is an "engine stuck" (0.4.24)
+
+- What happened: "engine stuck ... timed out" every 10 to 60 minutes, a crashed window, "reload loop detected" while only clicking tabs, and a ghost Meldmind that kept port 4747 so the next launch moved to 4748.
+- Causes: (1) `FileStore.listMissions` read and parsed every mission file synchronously on each /api/state, websocket hello and history call, and `ledger.summary()` rescanned the whole ledger every 15 s. The server shares the main process, so the watchdog's probe (and the window) waited for it. (2) The loop breaker counted `#tab` changes (in-page navigations) as loads. (3) A second launch quit silently if a hung copy held the lock, and nothing cleaned up leftovers. (4) The dark Mac sidebar inherited the light-theme `--tx` / `--dim` because only `body[data-theme]` is dark, not `html`.
+- Fix: mission summaries are remembered per file and per summarizer, bumped on save, with the directory listing trusted for 30 s and a sliced warm-up after boot; ledger summary reused for 5 s; `electron/instance.cjs` takes over from a lock holder that fails three health probes, ends leftover Meldmind processes of the same install, and makes the window wait for the engine with 1, 2, 4, 8, 15 s pauses instead of reloading; same-document navigations are not counted.
+- Rules: anything the server does per request on the main thread must be O(1) after warm-up, never a directory scan or a whole-file parse. Count loads, not hash changes. The first log line after a restart that says "port 4747 is busy" means a ghost is alive.
+- Not proven from the log: out-of-credits spam (0 matching lines in the log) and provider polling (every 5 minutes, async). They were not the cause here.
+
+## 2026-10-27: Never default a feature to a paid API (free voice input, 0.4.24)
+
+- What happened: tap-to-talk on the desktop app tried OpenAI first. An account with no credits got "ChatGPT could not transcribe (429). You have no credits remaining." and voice input was dead, even though free Groq and Gemini keys could have done the job.
+- Fix: voice transcription is free first (Groq, Gemini, ElevenLabs free allowance). OpenAI is only tried last, and only when the person turns on "Use my OpenAI credits for voice" in Settings. Any 429, quota, bad key or outage moves on to the next tier instead of showing an error.
+- Rule: Meldmind saves people money. A saved paid key is not consent to spend it. Default to free, make paid an explicit switch, and fall back quietly.
+- Still paid by default (follow up): spoken replies (ElevenLabs, then OpenAI text-to-speech) and Instant voice (OpenAI Realtime) are both on by default and use a saved paid key.

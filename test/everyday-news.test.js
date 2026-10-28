@@ -279,7 +279,7 @@ test("voice uses local Whisper and does not submit the idea", async () => {
     fail = await startServer({ env: { ...BLANK, CC_WHISPER_BIN: whisper, FAKE_WHISPER_FAIL: "1" } });
     const missed = await fail.api("/voice/dictate", { method: "POST", body: { mime: "audio/webm", audio } });
     assert.equal(missed.status, 409, missed.text);
-    assert.match(missed.json.error, /speech-to-text key/);
+    assert.match(missed.json.error, /free key/);
     assert.equal((await fail.api("/everyday-news")).json.ideas.length, 0);
   } finally { if (fail) await fail.stop(); }
 });

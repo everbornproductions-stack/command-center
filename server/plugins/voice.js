@@ -3,7 +3,7 @@
 // settings.json, hosted user_docs kind "settings") under `voice`, so it stays
 // with the rest of the app's settings. The response is only the voice fields.
 import { DEFAULT_MODE, MODES, coerceSettings, normalizeSettings } from "../../web/features/voice-mode.js";
-import { decodeAudio, transcribeAudio } from "../speech.js";
+import { decodeAudio } from "../speech.js";
 import { transcribeWithFallback } from "../dictate.js";
 import { coerceTalk, normalizeTalk, actionList } from "../../web/features/voice-actions.js";
 import { talkStatus, synthesize, mintRealtime, realtimeTools, interpretWithModel } from "../voice-speak.js";
@@ -20,16 +20,26 @@ function read(h) {
   return coerceSettings(s.voice);
 }
 
+// Paid speech (OpenAI) is off unless the person turned it on. Free tiers never need this.
+const paidSpeech = (h) => (h.settings() || {}).speechPaid === true;
+
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/voice/, "") || "/";
   if (req.method === "POST" && p === "/transcribe") {
     const audio = decodeAudio(body);
     if (!audio) return h.json(res, 400, { error: "No audio in that recording.", code: "voice_audio" });
-    const out = await transcribeAudio(audio, {
+    const out = await transcribeWithFallback(audio, {
       hasSecret: (id) => h.hasSecret(id, h.PROVIDERS[id]?.keyEnv),
       getSecret: (id) => h.getSecret(id, h.PROVIDERS[id]?.keyEnv),
+      allowPaid: paidSpeech(h),
     });
     return h.json(res, 200, { text: out.text, provider: out.provider, model: out.model });
+  }
+  if (p === "/speech-paid" && req.method === "GET") return h.json(res, 200, { paidSpeech: paidSpeech(h) });
+  if (p === "/speech-paid" && req.method === "POST") {
+    const cur = h.settings() || {};
+    h.putDoc("settings", { ...cur, speechPaid: body?.paidSpeech === true });
+    return h.json(res, 200, { paidSpeech: body?.paidSpeech === true });
   }
   if (req.method === "POST" && p === "/dictate") {
     const audio = decodeAudio(body);
@@ -37,6 +47,7 @@ export async function routes(req, res, url, body, h) {
     const out = await transcribeWithFallback(audio, {
       hasSecret: (id) => h.hasSecret(id, h.PROVIDERS[id]?.keyEnv),
       getSecret: (id) => h.getSecret(id, h.PROVIDERS[id]?.keyEnv),
+      allowPaid: paidSpeech(h),
     });
     return h.json(res, 200, { text: out.text, provider: out.provider, model: out.model });
   }

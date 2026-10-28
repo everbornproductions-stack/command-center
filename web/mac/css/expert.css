@@ -56,3 +56,26 @@ body[data-style="mac"] #mac-launchpad .g7 { background: linear-gradient(135deg, 
 body[data-style="mac"] #mac-launchpad .g8 { background: linear-gradient(135deg, #a2f0c9, #30b0c7); }
 @media (max-width: 900px) { body[data-style="mac"] .mx-lpg { grid-template-columns: repeat(4, 1fr); padding: 10px 20px; } }
 @media (prefers-reduced-motion: reduce) { body[data-style="mac"] .mx-lpt, body[data-style="mac"] .mx-lpg, body[data-style="mac"] #mac-launchpad { transition: none; } }
+
+/* 0.4.24: dark theme sidebar. The panel stays translucent; its text used the app's light-theme colours
+   (rgb 29,29,31 and 91,102,122) and was unreadable on it. White text with a soft shadow keeps it readable over any wallpaper. */
+body[data-style="mac"][data-theme="dark"] #mac-side {
+  --tx: #fff;
+  --dim: rgba(255, 255, 255, .78);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
+}
+body[data-style="mac"][data-theme="dark"] #mac-side .si,
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-nm,
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-srch,
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-collapse,
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-all,
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-reopen { color: #fff; }
+body[data-style="mac"][data-theme="dark"] #mac-side .grp,
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-none { color: rgba(255, 255, 255, .78); }
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-srch::placeholder { color: rgba(255, 255, 255, .7); }
+body[data-style="mac"][data-theme="dark"] #mac-side .si:hover,
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-srch,
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-collapse,
+body[data-style="mac"][data-theme="dark"] #mac-side .mx-all { background: rgba(255, 255, 255, .14); }
+body[data-style="mac"][data-theme="dark"] #mac-side .si.on { color: #fff; text-shadow: none; }

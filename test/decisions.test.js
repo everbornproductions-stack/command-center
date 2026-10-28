@@ -70,7 +70,9 @@ test("reload-loop guard: no auto skipWaiting, HTML never cached, reloads only th
   assert.match(app, /if \(window\.ccDesktop\?\.desktop\) \{\s*navigator\.serviceWorker\.getRegistrations\(\)/, "the desktop app removes service workers");
   assert.match(app, /controllerchange", \(\) => \{ if \(swRefreshing\)/, "controllerchange reloads only after a Refresh click");
   const main = read("electron", "main.cjs");
-  assert.match(main, /loads\.length > 6/);
+  // 0.4.24: the counter moved to electron/instance.cjs (same limit: more than 6 real loads in 60 s; tab changes no longer count)
+  assert.match(main, /createLoadCounter\(\{ limit: 6, windowMs: 60000 \}\)/);
+  assert.match(read("electron", "instance.cjs"), /loads\.length > limit/);
   assert.match(main, /storages: \["serviceworkers", "cachestorage"\]/);
   assert.match(main, /handle\("app:log-reload"/);
 });

@@ -357,7 +357,7 @@ test("server helpers: talk status, no-key line, speech order, instant tokens, mo
   assert.equal(talkStatus(() => false).line, NO_KEY_LINE);
   assert.match(NO_KEY_LINE, /^Add a key to talk \(OpenAI, Groq, ElevenLabs or Gemini\)\.$/);
   const t1 = talkStatus((id) => id === "openai");
-  assert.equal(t1.needsKey, false); assert.equal(t1.speaker, "openai"); assert.equal(t1.realtime, "openai"); assert.equal(t1.listen, "openai");
+  assert.equal(t1.needsKey, false); assert.equal(t1.speaker, "openai"); assert.equal(t1.realtime, "openai"); assert.equal(t1.listen, "", "OpenAI alone is paid, so voice typing does not listen through it unless opted in");
   const t2 = talkStatus((id) => id === "elevenlabs", { elevenAgentId: "agent_1" });
   assert.equal(t2.speaker, "elevenlabs"); assert.equal(t2.realtime, "elevenlabs");
   assert.equal(talkStatus((id) => id === "elevenlabs").realtime, "", "an agent id is needed");

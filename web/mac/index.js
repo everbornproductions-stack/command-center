@@ -1,6 +1,6 @@
-// 0.4.23 Mac-style GUI entry. Nothing here runs unless the Mac style is on, so the 0.4.21 look is untouched.
+// 0.4.23 Mac-style GUI entry. On by default since 0.4.24 (Chris, Oct 27: "it should come out switched on").
 // On: ?mac=1 in the address, localStorage cc.mac = "1", or the saved setting uiStyle = "mac".
-// Off: ?mac=0, localStorage cc.mac = "0", or no setting. (The lead flips the default at the end of the build.)
+// Off: ?mac=0, localStorage cc.mac = "0", or the saved setting uiStyle = "classic". With none of these, it is on.
 // See docs/mac-style-0423.md for the part contract.
 import { PARTS } from "/mac/parts.js";
 
@@ -13,7 +13,8 @@ export function macOn(CC = window.CC) {
     if (ls === "1") return true;
     if (ls === "0") return false;
   } catch { /* storage blocked: fall through to the setting */ }
-  return (CC?.S?.settings?.uiStyle ?? "") === "mac";
+  const style = CC?.S?.settings?.uiStyle ?? "";
+  return style !== "classic";
 }
 
 function link(part) {
@@ -50,6 +51,11 @@ export async function startMac(CC = window.CC) {
     } catch (e) { console.warn(`[mac] part ${p} failed:`, e); }
   }
   mac.bus.emit("mode", CC.uiMode?.() || "simple");
+  // Remember the look in settings.json so it survives a restart and a cleared browser store.
+  if (CC.S?.settings && !CC.S.settings.uiStyle) {
+    CC.S.settings.uiStyle = "mac";
+    CC.api?.("/settings", { method: "POST", body: { uiStyle: "mac" } }).catch(() => {});
+  }
   return mac;
 }
 

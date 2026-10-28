@@ -40,7 +40,7 @@ import { isNavStateEnabled } from "./web-config.js";
 import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
 import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
-import { saveNamedFile, writeProjectFile, codeFor, isWritableName, NOT_SAVED_LINE } from "./named-file.js";
+import { saveNamedFile, writeProjectFile, codeFor, fileBody, isWritableName, NOT_SAVED_LINE } from "./named-file.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
 import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE } from "./run-node-test.js";
 import { isLocalSaveStep, SAVE_LINE, savePost, splitPost, stripHelperNotes } from "./mindmedia-step.js";
@@ -49,7 +49,9 @@ import { localizeImagePlan, drawLocally, namedImage, localDrawNote } from "./loc
 import fs from "node:fs";
 import path from "node:path";
 import { extractHeadline, overlayPng, isPng } from "./overlay.js";
-import { namedSources, attachSources, sourceBlock, projectFolders, find as findInFolder } from "./code-source.js";
+import { namedSources, attachSources, sourceBlock, projectFolders, namedFolders, find as findInFolder } from "./code-source.js";
+import { cleanPlan, stripPrivateRules } from "./private-rules.js";
+import { safeMediaDir } from "./project-media.js";
 
 // ---- Never-say-no planner workaround chain (Slice A5, Item 9) ----
 // Order: 1. installed_app -> 2. browser_helper -> 3. smaller_steps -> 4. closest_option.
@@ -678,7 +680,10 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   context = withMemory(context, projectId, `${goal}\n${context}`);
   const memNote = memBlock ? `\n\n${memBlock}` : "";
   // the folders a code step may write into: only the project's own, never another project's
-  const codeFolders = () => (projectId ? projectFolders(projectId) : []);
+  // 0.4.23.1: plus the folder of any full path the task itself names. With no folder at all, files are still saved, in the
+  // project's own Meldmind media folder, and the answer says where. A save never waits on a folder nobody linked.
+  const codeFolders = () => [...new Set([...(projectId ? projectFolders(projectId) : []), ...namedFolders(goal)])];
+  const writeFolders = () => { const f = codeFolders(); if (f.length) return f; try { return [safeMediaDir(String(projectId || "") || "unfiled")]; } catch { return []; } };
   const mission = restore || { id, kind: "mission", prompt: goal, projectId: projectId || null, private: !!isPrivate, mode, qa, budgetUsd, status: "planning", startedAt: t0, tasks: [], plan: null, cost: 0, deliverable: null, log: [], sources: [], toolCalls: [], fallbacks: [], memory: carriesMemory(context), ...(toneId ? { tone: toneId } : {}) };
   // AI employees picked for this mission: each step goes to the best fit and runs with its job script
   const crew = resolveCrew(restore ? restore.employees : employees);
@@ -845,11 +850,13 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       plan = { title: goal.slice(0, 40), tasks: [{ id: "t1", title: "Do the job", capability: cls.capability, difficulty: cls.difficulty, needWeb: cls.needWeb, deps: [], instructions: goal, deliverable: "The complete answer" }], assembly: "Use the single task output." };
     }
     plan.tasks = plan.tasks.slice(0, maxTasks).map((t, i) => ({ ...t, id: t.id || `t${i + 1}`, deps: (t.deps || []).filter(Boolean) }));
+    // 0.4.23.1: the owner's private storage routine (commit and push, back up to GitHub or Drive) is never part of a plan
+    { const cl = cleanPlan(plan, goal); plan = cl.plan; if (cl.dropped) log(`Left out ${cl.dropped} step${cl.dropped === 1 ? "" : "s"} that only repeated a private storage routine you did not ask for.`); }
     mission.plan = { title: plan.title, assembly: plan.assembly };
     mission.title = plan.title;
     // 0.4.21 (dogfood 12): a code step that names a file can only save it when the project folder is known. Say so before any work starts.
     if (plan.tasks.some((t) => stepFileNames(t).some((n) => !/\.html?$/i.test(n))) && !codeFolders().length) {
-      mission.planNote = `Heads up before we start: ${NOT_SAVED_LINE} Link your project folder to this project to have files written there.`;
+      mission.planNote = "Heads up before we start: no project folder is linked, so files are saved in this project's Meldmind folder. Link your project folder to have them written there instead.";
       log(mission.planNote);
     }
     // 0.4.21 (dogfood 13): no image AI connected. A flat graphic is drawn here (no "render with Pillow" step that cannot run);
@@ -887,7 +894,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       // a step that needs signed-in browsing, Gmail, Drive, Calendar or teammate bots goes to the agent
       const fit = agentOn ? MA.want({ prompt: `${t.title}. ${t.instructions || ""}`, explicit: MA.id === GROKBOT ? grokbot : browser }) : null;
-      if (agentOn && (t.capability === "agent" || (fit.use && fit.needs.length))) {
+      // 0.4.23.1: saving a named file is done here, never by an outside agent; and nothing goes into a queue nobody is pulling
+      const savesLocally = stepFileNames({ ...t, capability: t.capability === "agent" ? "code" : t.capability }).length > 0 && !(fit?.needs || []).some((n) => n !== "drive");
+      if (agentOn && fit?.stale) log(`${fit.reason} "${t.title}" is done by another AI instead.`, { level: "error" });
+      if (agentOn && !fit?.stale && !savesLocally && (t.capability === "agent" || (fit.use && fit.needs.length))) {
         const needs = [...new Set([...(Array.isArray(t.needs) ? t.needs.filter((x) => MA.TAGS.includes(x)) : []), ...fit.needs])];
         mission.tasks.push({ ...t, capability: "agent", needs, agent: true, status: "queued", provider: MA.id, model: MA.id, agentName: `${MA.name} · ${needs.map((x) => MA.TAG_LABEL[x]).join(", ") || (MA.id === GROKBOT ? "its own computer" : "its own window")}`, estCost: 0, output: null, review: null, cost: 0 });
         continue;
@@ -900,7 +910,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         continue;
       }
       if (t.capability === "media") t.capability = "creative"; // not a kind a media provider makes: a text AI writes the brief
-      if (t.capability === "agent") t.capability = "research"; // nobody to hand it to: the best text AI does what it can
+      if (t.capability === "agent") t.capability = savesLocally ? "writing" : "research"; // nobody to hand it to: the best text AI does what it can
       // An allowed app takes a step of its own task type. Writing stays with a text model.
       // Grok Bot and the browser helper already took their agent steps above.
       // 0.4.22: Freebuff (free coder) takes a code step first when it is set up. A private run never uses it.
@@ -1036,7 +1046,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           t.status = "failed"; t.error = "Mission aborted";
         } else {
           // still out: dependents go on without it; its result is added to this mission when it comes back
-          t.status = "waiting"; outputs[t.id] = `(${ANAME} is still working on "${t.title}"; its result is added to this mission when it comes back.)`;
+          t.status = "waiting"; t.error = `${ANAME} did not answer in time, so this step is not done. Its result is added here if it comes back.`; outputs[t.id] =`(${ANAME} is still working on "${t.title}"; its result is added to this mission when it comes back.)`;
           log(`${ANAME} is still on "${t.title}" (${MA.STATUS_LABEL[t.agentJob.status].toLowerCase()}). The mission goes on; the result is added here when it comes back${AID === GROKBOT ? `, or paste it in on the ${ANAME} card` : ""}.`);
           emit("agent.done", { agent, provider: AID, model: AID, missionId: id, taskId: t.id, ms: Date.now() - s, cost: 0 });
         }
@@ -1063,8 +1073,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     // the code of a code step goes to the file the step names, inside the project folder only
     const codeWrite = (t) => {
       if (t.save || t.run || t.media || t.agent) return;
-      const folders = codeFolders();
-      const names = stepFileNames(t).filter((n) => folders.length || !/\.html?$/i.test(n)); // a page with no folder is still kept as a MindMedia item at the end
+      const folders = writeFolders();
+      const names = stepFileNames(t).filter((n) => codeFolders().length || !/\.html?$/i.test(n)); // a page with no folder is still kept as a MindMedia item at the end
       if (!names.length) return;
       t.wantFiles = names;
       t.writes = [];
@@ -1072,6 +1082,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       const prim = primaryName(t, names);
       let jobs = names.map((n) => ({ name: n, code: codeFor(text, n) })).filter((j) => j.code);
       if (!jobs.length) { const c = codeFor(text, prim, { onlyName: true }); if (c) jobs = [{ name: prim, code: c }]; }
+      // 0.4.23.1: a plain text file (notes, a list, a readme) is the step's whole answer
+      if (!jobs.length && t.capability !== "code" && /\.(?:md|txt|csv)$/i.test(prim) && text.trim() && !isEmptyOutput(text)) jobs = [{ name: prim, code: fileBody(text, prim) }];
       const bad = [];
       const lines = [];
       if (!jobs.length) bad.push(folders.length ? `Not saved: there was no code for ${prim} in this answer.` : NOT_SAVED_LINE);
@@ -1121,7 +1133,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       t.status = "running"; t.startedAt = Date.now();
       emit("task.update", { missionId: id, task: pubTask(t) });
       const text = `${t.title}\n${t.instructions || ""}\n${t.deliverable || ""}`;
-      const folders = codeFolders();
+      const folders = writeFolders();
       const depWrites = (t.deps || []).flatMap((d) => mission.tasks.find((x) => x.id === d)?.writes || []);
       let found = findNodeCommand(text);
       if (!found && !asksOtherCommand(text)) {
@@ -1795,6 +1807,9 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       mission.deliverable = stripSearchLeaks(mission.deliverable || "");
       for (const t of mission.tasks) if (typeof t.output === "string" && !t.media) t.output = stripSearchLeaks(t.output);
     }
+    // 0.4.23.1: the owner's private routine never shows in the answer
+    mission.deliverable = stripPrivateRules(mission.deliverable || "", goal);
+    for (const t of mission.tasks) if (typeof t.output === "string" && t.output && !t.media) t.output = stripPrivateRules(t.output, goal);
     const want = namedFile(goal);
     const fext = fileExt(want) || (mission.classification?.capability === "code" ? "html" : "");
     const tr = checkTruncation(mission.deliverable || "", { ext: fext, capability: mission.classification?.capability, stop: mission.assemblerStop });
@@ -1870,8 +1885,12 @@ export function stepsReport(m) {
 function stepIsNotDone(t) { return stepNotDone(t) || !!t?.notSaved || !!t?.notRun; }
 // the files a code step names ("save in place as cronwords.js", "add cronwords.test.js"), by the step's own words
 function stepFileNames(t) {
-  if (!t || t.capability !== "code" || t.save || t.run || t.media || t.agent) return [];
-  return namedSources(`${t.title || ""}\n${t.instructions || ""}\n${t.deliverable || ""}`).filter(isWritableName);
+  if (!t || t.save || t.run || t.media || t.agent) return [];
+  const text = `${t.title || ""}\n${t.instructions || ""}\n${t.deliverable || ""}`;
+  // 0.4.23.1: a writing step that says "save it as followups.md" is saved too, not only code steps
+  if (t.capability !== "code" && !(["writing", "creative", "analysis", "reasoning", "research", "agent"].includes(t.capability) && /\b(save|saves|saved|write|writes|create|creates|add|put|store|name it|called|named)\b/i.test(text))) return [];
+  // a writing step saves plain text files only; pages and code come from code steps
+  return namedSources(text).filter(isWritableName).filter((n) => t.capability === "code" || /\.(?:md|txt|csv)$/i.test(n));
 }
 // which of several named files this step is mostly about: the one in its title, else a test file for a test step, else the first non-test file
 function primaryName(t, names) {

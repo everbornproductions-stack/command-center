@@ -20,7 +20,9 @@ export function findBrowser() {
 
 const HIDE = "#demo-bar,#cc-desktop-prompt,#ea-news-overlay,.cc-tour-invite,#cc-look-offer{display:none!important}";
 
-// Starts the real server and a headless browser. opts: {width,height,mode,theme,env,seed,hidePopups}
+// Starts the real server and a headless browser. opts: {width,height,mode,theme,env,seed,hidePopups,mac}
+// The Mac-style GUI is on by default since 0.4.24. Tests of the classic layout stay on it (cc.mac = "0" unless a choice is
+// already stored); pass mac: "default" to boot exactly as a new user would.
 export async function bootPage(opts = {}) {
   const exe = findBrowser();
   if (!exe) return null;
@@ -39,6 +41,7 @@ export async function bootPage(opts = {}) {
     if (opts.theme) await api("/themes", { body: { mode: opts.theme, background: opts.theme === "light" ? "paper" : undefined } });
     browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
     const ctx = await browser.newContext({ viewport: { width: opts.width || 1366, height: opts.height || 768 } });
+    if (opts.mac !== "default") await ctx.addInitScript(() => { try { if (localStorage.getItem("cc.mac") === null) localStorage.setItem("cc.mac", "0"); } catch {} });
     const page = await ctx.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));

@@ -2,7 +2,7 @@
 id: safety-and-sending
 title: Check before you send
 summary: Try the send guard on a message, see the send log, test your monthly budget, and check your connections. Nothing is sent by these.
-lastUpdatedVersion: 0.4.23
+lastUpdatedVersion: 0.4.24
 ---
 
 # Check before you send

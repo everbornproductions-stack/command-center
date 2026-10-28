@@ -269,26 +269,21 @@ test("mission: a rewrite that drops cronToWords is not written, and QA fails the
   } finally { await s.stop(); await m.close(); rm(dir); }
 });
 
-test("mission: with no project folder nothing is written, the steps say 'Not saved', the plan says so up front, the run says 'Not run'", { timeout: 300000 }, async () => {
+test("mission: with no project folder the files are saved in the Meldmind folder (0.4.23.1) and the plan says where", { timeout: 300000 }, async () => {
   const m = await mocks(script(false));
   const s = await boot(m);
   try {
     const run = await runMission(s, { goal: GOAL, mode: "economy", qa: true, budgetUsd: 2 });
-    assert.match(run.planNote, /Not saved: Meldmind can only show this code here\./);
-    assert.ok(run.log.some((l) => /Not saved: Meldmind can only show this code here\./.test(l.text || l.msg || JSON.stringify(l))), "the plan line is in the log");
+    assert.match(run.planNote, /no project folder is linked, so files are saved in this project's Meldmind folder/);
+    const writes = run.toolCalls.filter((c) => c.tool === "write_file");
+    assert.equal(writes.length, 2, JSON.stringify(run.toolCalls));
+    for (const w of writes) assert.ok(fs.existsSync(w.path), w.path);
     const t1 = run.tasks.find((t) => t.id === "t1");
-    assert.equal(t1.notSaved.line, "Not saved: Meldmind can only show this code here.");
-    assert.equal(t1.notDone, true, "no green dot");
-    assert.match(t1.output, /Not saved: Meldmind can only show this code here\./);
-    assert.equal(run.toolCalls.filter((c) => c.tool === "write_file").length, 0);
+    assert.equal(t1.notSaved, null);
+    assert.match(t1.wroteLine, /^Wrote cronwords.js/);
     const t3 = run.tasks.find((t) => t.id === "t3");
-    assert.equal(t3.notDone, true);
-    assert.match(t3.output, /^Not run: /);
-    assert.equal(run.savedFile.ok, false);
-    assert.match(run.savedFile.error, /^Not saved: Meldmind can only show this code here\./);
-    assert.match(run.deliverable, /Not saved: Meldmind can only show this code here\./);
-    assert.notEqual(run.status, "done");
-    assert.ok(run.incomplete.reasons.some((r) => r.kind === "not-saved"));
+    assert.match(t3.output, /Exit code: 0/);
+    assert.equal(run.toolCalls.filter((c) => c.tool === "run").length, 1);
   } finally { await s.stop(); await m.close(); }
 });
 

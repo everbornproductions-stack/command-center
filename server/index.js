@@ -1503,6 +1503,8 @@ scheduler.register({
 async function initContext() {
   await loadVault();
   loadLedger();
+  // 0.4.24: read the mission files in small slices after boot, so the first page load does not parse them all in one block
+  if (!HOSTED) { const st = ctx().store; if (st && st.warmMissions) setTimeout(() => st.warmMissions(summarize).catch(() => {}), 1500).unref(); }
   pricingRules();
   loadProjects();
   loadSubscriptions();
