@@ -393,10 +393,15 @@ function renderSettings(el) {
     <div class="dim small" style="margin-top:6px">Stop on silence applies to tap to talk only. A hold is never cut off by a pause, a timeout, or the pointer sliding off the button.</div>
     <label class="row small" style="gap:6px;margin-top:10px"><input type="checkbox" id="vo-auto-set"> Auto-send</label>
     <div class="dim small" style="margin-top:6px">When recording stops and words were heard, the orders go out without a second click. Off: the words wait in the box for you to check and send.</div>
+    <label class="row small" style="gap:6px;margin-top:10px"><input type="checkbox" id="vo-paid-set"> Use my OpenAI credits for voice</label>
+    <div class="dim small" style="margin-top:6px">Voice typing is free by default (Groq or Google Gemini free plans). Turn this on only if you want OpenAI, which costs credits, as a last resort when the free ones are busy.</div>
   </div>`;
   el.querySelectorAll("#vo-mode button").forEach((b) => b.addEventListener("click", () => { savePrefs({ mode: b.dataset.mode }).catch(() => paint()); }));
   el.querySelector("#vo-silence-set").addEventListener("change", (e) => { savePrefs({ silenceStop: e.target.checked }).catch(() => { e.target.checked = !!session.silenceStop; }); });
   el.querySelector("#vo-auto-set").addEventListener("change", (e) => { savePrefs({ autoSend: e.target.checked }).catch(() => { e.target.checked = !!session.autoSend; }); });
+  const paid = el.querySelector("#vo-paid-set");
+  api("/voice/speech-paid").then((r) => { paid.checked = !!r.paidSpeech; }).catch(() => {});
+  paid.addEventListener("change", () => { api("/voice/speech-paid", { method: "POST", body: { paidSpeech: paid.checked } }).catch((e) => { paid.checked = !paid.checked; toast(e.message, true); }); });
   paint();
   syncFromServer();
 }
