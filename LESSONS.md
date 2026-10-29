@@ -73,6 +73,12 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - Rule: Meldmind saves people money. A saved paid key is not consent to spend it. Default to free, make paid an explicit switch, and fall back quietly.
 - Still paid by default (follow up): spoken replies (ElevenLabs, then OpenAI text-to-speech) and Instant voice (OpenAI Realtime) are both on by default and use a saved paid key.
 
+## 2026-10-27: 0.4.24 release (what went wrong)
+
+- Release pipeline worked: PR 130 CI green, tag v0.4.24 pushed once, Windows release run succeeded, assets published.
+- Installing on Chris's PC failed: two sessions ran the silent installer at once, the old Meldmind process could not be killed, and a direct run of the installer got Access denied. Rule: before installing, check no other session is installing (look for Meldmind-Setup processes), and do not delete the sidebar-fix watcher until the new build is verified.
+
+
 ## 2026-10-28: Persona panel and audit on 0.4.24 (findings are in docs/plan-0.4.25.md)
 
 - What failed: the audit tools were written for Linux. On Windows `import(ROOT + "/test/helpers.js")` died with ERR_UNSUPPORTED_ESM_URL_SCHEME, so all 41 jobs "finished" in 1 s with only an error in each log and a `.done` marker; `startServer().stop()` deletes the data folder, so a restart-with-the-same-data test crashed on the second start; the Chrome path was /opt/ungoogled-chromium.
