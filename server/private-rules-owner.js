@@ -11,7 +11,7 @@ import { phraseMatchers } from "./private-rules.js";
 const tierNow = () => { try { return String(currentTier() || "free").toLowerCase(); } catch { return "free"; } };
 const settingsNow = () => { try { return doc("settings", () => ({})) || {}; } catch { return {}; } };
 
-/** The owner's own phrases, or [] for anyone who is not on the owner licence. */
+/** The owner's own phrases, or [] for anyone who is not on the owner license. */
 export function ownerPhrases({ tier, settings } = {}) {
   if ((tier === undefined ? tierNow() : String(tier || "").toLowerCase()) !== "owner") return [];
   const s = settings === undefined ? settingsNow() : settings || {};

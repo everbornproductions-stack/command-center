@@ -237,8 +237,9 @@ export default {
       const panel = (CC.uiMode?.() || "simple") === "simple" ? "history" : "sidebar";
       bus.emit("open", { panel, open: false });
     };
-    document.addEventListener("keydown", onKey);
-    CLEANUPS.push(() => document.removeEventListener("keydown", onKey));
+    // Capture phase: the History drawer stops Escape from bubbling once it has focus, which left the side marked open.
+    document.addEventListener("keydown", onKey, true);
+    CLEANUPS.push(() => document.removeEventListener("keydown", onKey, true));
   },
 
   unmount() {

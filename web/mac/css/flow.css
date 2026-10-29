@@ -13,9 +13,9 @@ body[data-style="mac"] #mac-flow .mf-crumb { color: var(--mf-dim); font-size: 13
 body[data-style="mac"] #mac-flow .mf-back, body[data-style="mac"] #mac-flow .mf-link { border: 0; background: transparent; color: var(--mf-acc); font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 8px; cursor: pointer; min-height: 40px; }
 body[data-style="mac"] #mac-flow .mf-back:hover, body[data-style="mac"] #mac-flow .mf-link:hover { background: rgba(120,120,128,.15); }
 /* 0.4.25 (item 8): "Use the 3 steps" sits in the title bar next to the page name, never over the sidebar. */
-body[data-style="mac"] .mf-return { flex: none; border: 0; border-radius: 999px; padding: 5px 12px; min-height: 30px; background: #0062d6; color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; pointer-events: auto; }
+body[data-style="mac"] .mf-return { flex: none; border: 0; border-radius: 999px; padding: 5px 12px; min-height: 30px; background: var(--mac-acc-btn, #0062d6); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; pointer-events: auto; }
 body[data-style="mac"] .mf-return[hidden] { display: none; }
-body[data-style="mac"] .mf-return:hover { background: #0053b5; }
+body[data-style="mac"] .mf-return:hover { background: var(--mac-acc-btn-hover, #0053b5); }
 body[data-style="mac"] .mf-return:focus-visible { outline: 2px solid var(--mac-acc, #0a84ff); outline-offset: 2px; }
 @media (max-width: 760px) {
   body[data-style="mac"] #mac-titlebar:has(.mf-return:not([hidden])) .mac-title { display: none; }
