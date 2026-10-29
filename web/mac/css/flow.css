@@ -1,8 +1,8 @@
 /* Mac part flow (0.4.23): styles live under body[data-style="mac"] only. */
 body[data-style="mac"] #mac-root > #mac-flow { position: fixed; inset: 0; }
-body[data-style="mac"] #mac-flow { --mf-acc: #0a84ff; --mf-tx: var(--tx, #1d1d1f); --mf-dim: var(--dim, #6e6e73); --mf-glass: var(--glass2, rgba(255,255,255,.85)); --mf-line: var(--line, rgba(0,0,0,.1)); --mf-ok: #30d158; --mf-warn: #ff9f0a;
+body[data-style="mac"] #mac-flow { --mf-acc: #0062d6; --mf-acc-solid: #0062d6; --mf-tx: var(--tx, #1d1d1f); --mf-dim: #55555c; --mf-glass: var(--glass2, rgba(255,255,255,.85)); --mf-line: var(--line, rgba(0,0,0,.1)); --mf-ok: #30d158; --mf-warn: #ff9f0a;
   position: absolute; inset: 0; z-index: 5; overflow: auto; padding: 22px 34px 30px; color: var(--mf-tx); background: var(--mac-window-bg, var(--bg, #f5f6fa)); font: 14px/1.4 -apple-system, "SF Pro Text", "Segoe UI", Inter, Roboto, sans-serif; }
-body[data-style="mac"].dark #mac-flow, body[data-style="mac"][data-theme="dark"] #mac-flow { --mf-tx: var(--tx, #f5f5f7); --mf-dim: var(--dim, #a1a1a6); --mf-glass: var(--glass2, rgba(44,44,52,.85)); --mf-line: var(--line, rgba(255,255,255,.12)); background: var(--mac-window-bg, var(--bg, #14151a)); }
+body[data-style="mac"].dark #mac-flow, body[data-style="mac"][data-theme="dark"] #mac-flow { --mf-acc: #0a84ff; --mf-tx: var(--tx, #f5f5f7); --mf-dim: #b6b6be; --mf-glass: var(--glass2, rgba(44,44,52,.85)); --mf-line: var(--line, rgba(255,255,255,.12)); background: var(--mac-window-bg, var(--bg, #14151a)); }
 body[data-style="mac"] #mac-flow[hidden] { display: none; }
 body[data-style="mac"] #mac-flow.mf-off { background: transparent; pointer-events: none; overflow: visible; }
 body[data-style="mac"] #mac-flow.mf-off .mf { display: none; }
@@ -10,15 +10,25 @@ body[data-style="mac"] #mac-flow .mf { max-width: 980px; margin: 0 auto; }
 body[data-style="mac"] #mac-flow .mf-head { display: flex; align-items: center; gap: 10px; min-height: 36px; }
 body[data-style="mac"] #mac-flow .mf-sp { flex: 1; }
 body[data-style="mac"] #mac-flow .mf-crumb { color: var(--mf-dim); font-size: 13px; }
-body[data-style="mac"] #mac-flow .mf-back, body[data-style="mac"] #mac-flow .mf-link, body[data-style="mac"] #mac-flow .mf-return { border: 0; background: transparent; color: var(--mf-acc); font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 8px; cursor: pointer; min-height: 40px; }
+body[data-style="mac"] #mac-flow .mf-back, body[data-style="mac"] #mac-flow .mf-link { border: 0; background: transparent; color: var(--mf-acc); font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 8px; cursor: pointer; min-height: 40px; }
 body[data-style="mac"] #mac-flow .mf-back:hover, body[data-style="mac"] #mac-flow .mf-link:hover { background: rgba(120,120,128,.15); }
-body[data-style="mac"] #mac-flow .mf-return { position: fixed; left: 24px; bottom: 120px; pointer-events: auto; background: var(--mf-glass); border: 1px solid var(--mf-line); box-shadow: 0 6px 20px rgba(0,0,0,.18); font-weight: 600; z-index: 6; }
+/* 0.4.25 (item 8): "Use the 3 steps" sits in the title bar next to the page name, never over the sidebar. */
+body[data-style="mac"] .mf-return { flex: none; border: 0; border-radius: 999px; padding: 5px 12px; min-height: 30px; background: #0062d6; color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; pointer-events: auto; }
+body[data-style="mac"] .mf-return[hidden] { display: none; }
+body[data-style="mac"] .mf-return:hover { background: #0053b5; }
+body[data-style="mac"] .mf-return:focus-visible { outline: 2px solid var(--mac-acc, #0a84ff); outline-offset: 2px; }
+@media (max-width: 760px) {
+  body[data-style="mac"] #mac-titlebar:has(.mf-return:not([hidden])) .mac-title { display: none; }
+  /* a phone title bar has room for two short words only; the button's name stays "Use the 3 steps" */
+  body[data-style="mac"] #mac-titlebar .mf-return { font-size: 0 !important; padding: 5px 10px; }
+  body[data-style="mac"] #mac-titlebar .mf-return::after { content: "3 steps"; font-size: 16px; }
+}
 body[data-style="mac"] #mac-flow .mf-title { font-size: 30px; margin: 6px 0 4px; letter-spacing: -.02em; outline: 0; }
 body[data-style="mac"] #mac-flow .mf-sub { color: var(--mf-dim); margin: 0 0 6px; font-size: 15px; }
 body[data-style="mac"] #mac-flow .mf-note { margin: 8px 0; padding: 8px 12px; border-radius: 10px; background: rgba(255,159,10,.15); }
 body[data-style="mac"] #mac-flow .mf-steps { display: flex; gap: 8px; margin: 8px 0 18px; padding: 0; list-style: none; flex-wrap: wrap; }
 body[data-style="mac"] #mac-flow .mf-steps li { font-size: 13px; padding: 4px 12px; border-radius: 999px; background: rgba(120,120,128,.15); color: var(--mf-dim); }
-body[data-style="mac"] #mac-flow .mf-steps li.on { background: var(--mf-acc); color: #fff; }
+body[data-style="mac"] #mac-flow .mf-steps li.on { background: var(--mf-acc-solid); color: #fff; }
 body[data-style="mac"] #mac-flow .mf-art { display: block; height: 130px; }
 body[data-style="mac"] #mac-flow .g1 { background: linear-gradient(135deg,#5ac8fa,#0a84ff); }
 body[data-style="mac"] #mac-flow .g2 { background: linear-gradient(135deg,#ff9f0a,#ff375f); }
@@ -36,7 +46,7 @@ body[data-style="mac"] #mac-flow .mf-path:focus-visible, body[data-style="mac"] 
 body[data-style="mac"] #mac-flow .mf-box { display: flex; gap: 10px; align-items: center; background: var(--mf-glass); border: 1px solid var(--mf-line); border-radius: 16px; padding: 8px 8px 8px 16px; margin-top: 14px; }
 body[data-style="mac"] #mac-flow .mf-box input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 17px; color: inherit; outline: 0; padding: 8px 0; }
 body[data-style="mac"] #mac-flow .mf-cost { color: var(--mf-dim); font-size: 14px; white-space: nowrap; }
-body[data-style="mac"] #mac-flow .mf-go, body[data-style="mac"] #mac-flow .mf-finish { border: 0; background: var(--mf-acc); color: #fff; border-radius: 12px; padding: 12px 22px; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; min-height: 44px; }
+body[data-style="mac"] #mac-flow .mf-go, body[data-style="mac"] #mac-flow .mf-finish { border: 0; background: var(--mf-acc-solid); color: #fff; border-radius: 12px; padding: 12px 22px; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; min-height: 44px; }
 body[data-style="mac"] #mac-flow .mf-go:disabled { opacity: .45; cursor: default; }
 body[data-style="mac"] #mac-flow .mf-finish { width: 100%; font-size: 18px; padding: 16px; }
 body[data-style="mac"] #mac-flow .mf-soft { border: 0; background: rgba(120,120,128,.18); color: inherit; border-radius: 10px; padding: 11px 16px; font: inherit; font-weight: 500; cursor: pointer; min-height: 44px; }
@@ -58,7 +68,7 @@ body[data-style="mac"] #mac-flow .mf-side { flex: 0 0 270px; display: flex; flex
 body[data-style="mac"] #mac-flow .mf-badge { border: 2px solid var(--mf-warn); background: rgba(255,159,10,.14); border-radius: 12px; padding: 10px 12px; }
 body[data-style="mac"] #mac-flow .mf-vers { display: flex; gap: 6px; flex-wrap: wrap; }
 body[data-style="mac"] #mac-flow .mf-ver { border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; background: rgba(120,120,128,.18); color: inherit; cursor: pointer; }
-body[data-style="mac"] #mac-flow .mf-ver.on { background: var(--mf-acc); color: #fff; }
+body[data-style="mac"] #mac-flow .mf-ver.on { background: var(--mf-acc-solid); color: #fff; }
 body[data-style="mac"] #mac-flow .mf-meta { margin: 0; color: var(--mf-dim); font-size: 13px; }
 /* the borrowed result: show the picture, the page or the words big, and keep only the helpers a person needs */
 body[data-style="mac"] #mac-flow #simple-answer { display: block !important; background: transparent; border: 0; box-shadow: none; padding: 0; margin: 0; max-width: none; width: auto; }

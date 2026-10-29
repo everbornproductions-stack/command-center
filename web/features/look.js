@@ -152,6 +152,7 @@ function offerBar(text, buttons) {
   bar.setAttribute("aria-label", "Look");
   const p = document.createElement("span");
   p.textContent = text;
+  p.title = text; // 0.4.25 (item 10): one line; a narrow window cuts the words, the full line is in the tip
   bar.append(p);
   for (const b of buttons) {
     const el = document.createElement("button");
@@ -159,6 +160,12 @@ function offerBar(text, buttons) {
     el.addEventListener("click", () => { bar.remove(); b.run(); });
     bar.append(el);
   }
+  // 0.4.25 (item 10): close it without choosing. It is not asked again on this computer.
+  const x = document.createElement("button");
+  x.type = "button"; x.className = "ghost small cc-look-x"; x.textContent = "×";
+  x.setAttribute("aria-label", "Hide this"); x.title = "Hide this";
+  x.addEventListener("click", () => bar.remove());
+  bar.append(x);
   const dock = document.getElementById("notices");
   if (dock) { bar.classList.add("docked"); dock.appendChild(bar); } else document.body.appendChild(bar);
   // One quiet line: it goes away by itself so it can never sit over a button for long.
