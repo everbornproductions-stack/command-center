@@ -31,6 +31,7 @@ let placeholder = null;  // where #simple-answer lived before the done step borr
 let lastSig = "";
 let cardsList = null;
 let homeIdeas = false;
+let returnBtn = null;    // "Use the 3 steps": lives in the title bar (0.4.25 item 8), not over the sidebar footer
 
 const simple = () => (CC.uiMode?.() || CC.S?.uiMode || "simple") === "simple";
 const S = () => CC.S || {};
@@ -42,6 +43,26 @@ function ensureSlot() {
   let el = document.getElementById(SLOT);
   if (!el) { el = document.createElement("div"); el.id = SLOT; (document.getElementById("mac-main") || root).appendChild(el); }
   return el;
+}
+
+// 0.4.25 (item 8): the way back from "Just chat instead" sat fixed in the bottom-left corner, over the
+// sidebar's "Settings and more". It now has its own place in the title bar, next to the page name.
+function ensureReturn() {
+  let b = document.getElementById("mf-return");
+  if (!b) {
+    b = document.createElement("button");
+    b.type = "button"; b.className = "mf-return"; b.id = "mf-return"; b.hidden = true;
+    b.textContent = "Use the 3 steps";
+    b.setAttribute("aria-label", "Use the 3 steps");
+  }
+  const bar = document.getElementById("mac-titlebar");
+  const after = bar?.querySelector(".mac-title");
+  if (after) after.after(b); else if (b.parentElement !== slot) slot.appendChild(b);
+  b.addEventListener("click", onClick);
+  return b;
+}
+function paintReturn() {
+  if (returnBtn) returnBtn.hidden = !(chatOnly && slot && !slot.hidden);
 }
 
 // ---------- state ----------
@@ -107,7 +128,7 @@ function shell() {
     </div>
     <h1 class="mf-title" id="mf-title" tabindex="-1" aria-live="polite">${esc(F.stepTitle(state))}</h1>
     <div class="mf-body" id="mf-body"></div>
-  </div><button type="button" class="mf-return" id="mf-return" hidden>Use the 3 steps</button>`;
+  </div>`;
   return $("#mf-body", slot);
 }
 
@@ -116,7 +137,7 @@ function render() {
   releaseAnswer();
   const body = shell();
   slot.classList.toggle("mf-off", chatOnly);
-  $("#mf-return", slot).hidden = !chatOnly;
+  paintReturn();
   ({ home: renderHome, style: renderStyle, tell: renderTell, working: renderWorking, done: renderResult, incomplete: renderResult }[state.step] || renderHome)(body);
   if (note) { const n = document.createElement("p"); n.className = "mf-note"; n.setAttribute("role", "status"); n.textContent = note; body.prepend(n); note = ""; }
   const focus = $("#mf-text", slot) || $("#mf-ask", slot) || $("#mf-title", slot);
@@ -523,6 +544,7 @@ function sync() {
   const show = wanted();
   slot.hidden = !show;
   document.body.dataset.macFlow = show && !chatOnly ? "on" : "off";
+  paintReturn();
   if (!show) { releaseAnswer(); return; }
   if (chatOnly) { releaseAnswer(); }
   if (state.step === "home" && !!CC.layout?.IDEAS !== homeIdeas) render();
@@ -551,6 +573,7 @@ export default {
     slot = ensureSlot();
     slot.hidden = !wanted();
     slot.addEventListener("click", onClick);
+    returnBtn = ensureReturn();
     document.addEventListener("keydown", onKey);
     offBus = [
       bus.on("flow", (d) => {
@@ -575,6 +598,8 @@ export default {
     offBus.forEach((f) => f?.()); offBus = [];
     releaseAnswer();
     slot?.removeEventListener("click", onClick);
+    returnBtn?.removeEventListener("click", onClick);
+    returnBtn?.remove(); returnBtn = null;
     slot?.remove(); slot = null;
     delete document.body.dataset.macFlow;
     if (CC?.mac) delete CC.mac.flow;

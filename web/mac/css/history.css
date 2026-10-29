@@ -175,7 +175,7 @@ body[data-style="mac"][data-theme="dark"] .mac-hist-item.focused {
 }
 
 .mac-hist-redo-btn:hover {
-  background: var(--mac-acc, #3b82f6);
+  background: #0062d6;
   color: #fff;
 }
 

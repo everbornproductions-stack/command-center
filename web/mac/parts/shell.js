@@ -43,6 +43,50 @@ function backdropOk() {
   } catch { return true; }
 }
 
+// 0.4.25 (item 3, audit A1): the notice row (update, demo, graphics offer, Expert setup card) lives inside #app,
+// and the Mac window header and the Simple flow sit over #app, so its buttons could not be seen or clicked.
+// In the Mac look the row moves into its own strip right under the title bar, and the window body starts
+// below it (--mac-note-h). Unmount puts it back where it was, so the classic look is unchanged.
+let NOTICE_HOME = null;
+function mountNotices(root) {
+  const notices = document.getElementById("notices");
+  if (!notices) return;
+  const strip = slot("mac-notices", root);
+  strip.setAttribute("role", "region");
+  strip.setAttribute("aria-label", "Notices");
+  if (notices.parentElement !== strip) {
+    NOTICE_HOME = { parent: notices.parentElement, next: notices.nextSibling };
+    strip.prepend(notices);
+    // Anything already placed right after the row (the Expert setup card) comes along.
+    for (let n = NOTICE_HOME.next; n && n.id === "cc-expert-card"; n = NOTICE_HOME.next) { NOTICE_HOME.next = n.nextSibling; strip.appendChild(n); }
+  }
+  const paint = () => {
+    const shown = [...strip.querySelectorAll(":scope > :not(#notices), #notices > *")].some((e) => e.getBoundingClientRect().height > 0);
+    strip.classList.toggle("on", shown);
+    const h = shown ? Math.ceil(strip.getBoundingClientRect().height) : 0;
+    const v = `${h}px`;
+    if (document.body.style.getPropertyValue("--mac-note-h") !== v) document.body.style.setProperty("--mac-note-h", v);
+  };
+  const ro = typeof ResizeObserver === "function" ? new ResizeObserver(paint) : null;
+  ro?.observe(strip);
+  for (const c of strip.children) ro?.observe(c);
+  // New bars are added and removed by other code; watch the row so the window follows.
+  const mo = new MutationObserver(() => { for (const c of strip.children) ro?.observe(c); paint(); });
+  mo.observe(strip, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "hidden", "class"] });
+  paint();
+  CLEANUPS.push(() => {
+    ro?.disconnect(); mo.disconnect();
+    document.body.style.removeProperty("--mac-note-h");
+    if (NOTICE_HOME?.parent?.isConnected) {
+      const extra = [...strip.children].filter((c) => c !== notices);
+      NOTICE_HOME.parent.insertBefore(notices, NOTICE_HOME.next && NOTICE_HOME.next.parentElement === NOTICE_HOME.parent ? NOTICE_HOME.next : null);
+      for (const c of extra) notices.after(c);
+    }
+    NOTICE_HOME = null;
+    strip.remove();
+  });
+}
+
 export default {
   id: "shell",
 
@@ -62,6 +106,7 @@ export default {
     slot("mac-panel", root);
 
     if (!titlebar.querySelector(".mac-tl")) titlebar.innerHTML = TITLEBAR;
+    mountNotices(root);
 
     const $ = (id) => document.getElementById(id);
     const sideBtn = $("mac-sidebtn"), crumbEl = $("mac-crumb"), readyEl = $("mac-ready-txt");
