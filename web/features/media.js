@@ -2,6 +2,7 @@
 // The estimate always comes first: Generate stays off until the estimate for the current choices is on screen,
 // and it sends that estimate back. A mission's paid media step waits here (and under its deliverable) for Approve.
 import { mountBar } from "../next-actions-ui.js";
+import { mediaKeyLine } from "./key-hints.js";
 const { S, api, apiBlobUrl, toast, esc, money, pname, pcolor, go } = window.CC;
 
 let providers = [];
@@ -18,7 +19,8 @@ function form(prefill = {}) {
       <select id="md-proj" style="width:auto"><option value="">No project</option>${S.projects.map((p) => `<option value="${p.id}" ${p.id === S.project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
     <label class="lbl">Prompt / text</label><textarea id="md-prompt" style="min-height:80px">${esc(prefill.prompt || "")}</textarea>
     <div class="row" style="margin-top:8px"><label class="small" id="md-img-l">First-frame image URL <input type="text" id="md-img" placeholder="https://… (needed for image-to-video)" style="width:320px;padding:5px 8px"></label><label class="small" id="md-dur-l">Seconds <input type="number" id="md-dur" value="5" min="3" max="10" style="width:70px;padding:5px 8px"></label><input type="text" id="md-model" placeholder="model (optional)" style="width:220px;padding:5px 8px"></div>
-    <div class="row" style="margin-top:10px"><button class="btn sm" id="md-est">See the price</button><span class="small" id="md-est-out"></span><button class="btn sm primary" id="md-go" style="margin-left:auto" disabled>Generate</button></div></div>`;
+    <div class="row" style="margin-top:10px"><button class="btn sm" id="md-est">See the price</button><span class="small" id="md-est-out"></span><button class="btn sm primary" id="md-go" style="margin-left:auto">Generate</button></div>
+    <div class="small dim" id="md-need" style="margin-top:6px"${mediaKeyLine(providers, prefill.kind || "video", pv[0]?.id) ? "" : " hidden"}>${esc(mediaKeyLine(providers, prefill.kind || "video", pv[0]?.id))} <a href="#" data-keys="1">Open Settings</a></div></div>`;
 }
 
 function wireForm(root, after) {
@@ -26,10 +28,19 @@ function wireForm(root, after) {
   let seen = null; // the estimate on screen; Generate sends it back
   let autoT = 0;   // the price is worked out a moment after the last change (0.4.21)
   const stale = () => { seen = null; const g = root.querySelector("#md-go"); g.disabled = false; g.textContent = "Generate"; g.title = "Shows the price first"; root.querySelector("#md-est-out").innerHTML = ""; clearTimeout(autoT); autoT = setTimeout(() => { if (root.isConnected && seen == null && root.querySelector("#md-prompt").value.trim()) estimate(); }, 700); };
-  const refreshProv = () => { const sel = root.querySelector("#md-prov"); sel.innerHTML = providers.filter((p) => p.kinds.includes(kind)).map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : p.connected ? " (MCP)" : " (needs a key: practice only)"}</option>`).join(""); root.querySelector("#md-img-l").style.display = kind === "voice" ? "none" : ""; root.querySelector("#md-dur-l").style.display = kind === "video" ? "" : "none"; stale(); };
+  // 0.4.25 (audit A5): Generate is never a silent button. With no key for the chosen service, one short line says so.
+  const showNeed = () => {
+    const box = root.querySelector("#md-need"); if (!box) return;
+    const line = mediaKeyLine(providers, kind, root.querySelector("#md-prov").value);
+    box.hidden = !line;
+    box.firstChild.textContent = line ? line + " " : "";
+  };
+  root.querySelector("#md-need")?.querySelector("[data-keys]")?.addEventListener("click", (e) => { e.preventDefault(); window.CC.openSettings?.("keys"); });
+  const refreshProv = () => { const sel = root.querySelector("#md-prov"); sel.innerHTML = providers.filter((p) => p.kinds.includes(kind)).map((p) => `<option value="${p.id}">${esc(p.name)}${p.keyed ? "" : p.connected ? " (MCP)" : " (needs a key: practice only)"}</option>`).join(""); root.querySelector("#md-img-l").style.display = kind === "voice" ? "none" : ""; root.querySelector("#md-dur-l").style.display = kind === "video" ? "" : "none"; showNeed(); stale(); };
   root.querySelector("#md-proj")?.addEventListener("change", (e) => { if (S.flags?.projectbar) window.CC.setWorkingProject?.(e.target.value); });
   root.querySelector("#md-kind").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; kind = b.dataset.k; root.querySelectorAll("#md-kind button").forEach((x) => x.classList.toggle("on", x === b)); refreshProv(); });
   for (const sel of ["#md-prov", "#md-prompt", "#md-img", "#md-dur", "#md-model"]) root.querySelector(sel).addEventListener("input", stale);
+  root.querySelector("#md-prov").addEventListener("change", showNeed);
   const params = () => ({ prompt: root.querySelector("#md-prompt").value.trim(), text: root.querySelector("#md-prompt").value.trim(), imageUrl: root.querySelector("#md-img").value.trim() || undefined, duration: Number(root.querySelector("#md-dur").value) || 5, model: root.querySelector("#md-model").value.trim() || undefined });
   const estimate = async () => {
     try {

@@ -7,6 +7,7 @@ const fs = require("node:fs");
 
 app.setName("Everborn Command"); // KEEP: app-data folder %APPDATA%\Everborn Command holds settings, keys and history; the product is shown as "Meldmind"
 const crypto = require("node:crypto");
+const LAUNCHED_AT = Date.now(); // 0.4.25: the watchdog and the lock use this to give a cold start time to finish
 const { pickFreePort, isOurServer } = require("./ports.cjs");
 const { createUpdateController, CHECK_EVERY_MS, quitInstallAction } = require("./updater.cjs");
 const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
@@ -45,10 +46,16 @@ const lockReady = inst.resolveLock({
   readRec: () => inst.readRecord(userData),
   probe: async (rec) => { const r = await fetch(`http://127.0.0.1:${rec.port}/api/health`, { signal: AbortSignal.timeout(3000) }); const h = await r.json(); return r.ok && h && h.app === "command-ai"; },
   kill: (pids) => inst.killPids(pids),
+  // 0.4.25: only a holder that has been silent longer than a cold start, and whose pid is still this install's exe, is ended
+  exeOf: (pid) => inst.exeOfPid(pid),
+  execPath: process.execPath,
+  silentMs: inst.COLD_START_MS,
   log: (...a) => { try { fs.appendFileSync(path.join(userData, "everborn-command.log"), new Date().toISOString() + " " + a.join(" ") + "\n"); } catch {} },
 }).then((ok) => { if (!ok) { app.quit(); process.exit(0); } return ok; });
 
-async function waitForServer(ms = 20000) {
+// 0.4.25: a cold start with many missions takes about 30 s, so wait up to 45 s before calling it failed.
+const SERVER_START_MS = 45000;
+async function waitForServer(ms = SERVER_START_MS) {
   const t0 = Date.now();
   while (Date.now() - t0 < ms) {
     try { const r = await fetch(`http://127.0.0.1:${PORT}/api/health`); if (r.ok && isOurServer(await r.json(), INSTANCE)) return true; } catch {}
@@ -207,10 +214,20 @@ globalThis.__ccHotkey = { desktop: true, apply: (cfg) => { const st = hotkey.app
 
 // Engine watchdog: if the local server stops answering for 15 s, tell the window (it shows a
 // "Restart engine" panel) and offer Restart / Install update in a native dialog, once per outage.
-let watchdog = null, engineDialogOpen = false, engineDialogAt = 0;
+// 0.4.25: in the first 90 s after launch the limit is 45 s, because a cold start keeps the engine busy for about 30 s.
+let watchdog = null, engineDialogOpen = false, engineDialogAt = 0, beatAt = 0;
+// While the engine answers, refresh instance.json every 15 s, so a second launch can tell a slow copy from a dead one.
+function heartbeat() {
+  if (Date.now() - beatAt < 15000) return;
+  beatAt = Date.now();
+  inst.writeRecord(userData, { pid: process.pid, port: PORT, instance: INSTANCE });
+}
 function setupWatchdog() {
   watchdog = createWatchdog({
     thresholdMs: 15000,
+    startupThresholdMs: 45000,
+    startupMs: 90000,
+    startedAt: LAUNCHED_AT,
     probe: async () => {
       try {
         const ctl = AbortSignal.timeout(4000);
@@ -222,7 +239,7 @@ function setupWatchdog() {
     onStuck: (reason) => { log("engine stuck:", reason); sendAll("engine:status", { stuck: true, reason }); rebuildTrayMenu(); offerEngineDialog(reason); },
     onRecovered: () => { log("engine answering again"); sendAll("engine:status", { stuck: false, reason: null }); rebuildTrayMenu(); },
   });
-  setInterval(() => watchdog.tick().catch(() => {}), 3000).unref();
+  setInterval(() => watchdog.tick().then((st) => { if (st && !st.stuck && !st.reason) heartbeat(); }).catch(() => {}), 3000).unref();
 }
 async function offerEngineDialog(reason) {
   // 0.4.23.1: look at /api/health again before bothering anyone, ask at most once every 10 minutes, and never put a native
@@ -528,7 +545,7 @@ app.whenReady().then(async () => {
   log(ok ? `server ready on ${PORT}` : "server did not answer");
   setupWatchdog();
   await clearStaleWebState();
-  if (!ok) watchdog.fail(failReason ? `the engine failed to start: ${failReason}` : `the engine did not answer on port ${PORT} within 20 seconds`);
+  if (!ok) watchdog.fail(failReason ? `the engine failed to start: ${failReason}` : `the engine did not answer on port ${PORT} within ${SERVER_START_MS / 1000} seconds`);
   createWindow();
   rebuildTrayMenu();
   // we hold the lock, so any other Meldmind process of this install is a leftover: end it (keeps ports and the lock clean)

@@ -16,12 +16,18 @@ function devRoot(id, fallback) {
 }
 const fail = (status, message, code) => Object.assign(new Error(message), { status, code });
 
+// 0.4.25: a saved paid key is not consent to spend it. Spoken replies through ElevenLabs or OpenAI and Instant voice
+// (OpenAI Realtime, ElevenLabs Agent) run only when the person turned on paid voice ("Use my OpenAI credits for voice",
+// settings.speechPaid), the same switch voice typing uses. Otherwise the built-in voice speaks and the normal
+// listen / think / speak path runs, with no message.
+export const PAID_VOICE_OFF = "Instant voice uses paid keys. Turn on \"Use my OpenAI credits for voice\" in Settings to use it.";
+
 // What this PC can do right now, from which keys are saved. No key value is returned.
-export function talkStatus(has, saved = {}) {
-  const listen = pickSpeechTarget(has);
-  const speaker = has("elevenlabs") ? "elevenlabs" : has("openai") ? "openai" : "browser";
-  const realtime = has("openai") ? "openai" : (has("elevenlabs") && saved.elevenAgentId) ? "elevenlabs" : "";
-  const anyKey = !!listen || has("elevenlabs") || has("openai");
+export function talkStatus(has, saved = {}, { allowPaid = false } = {}) {
+  const listen = pickSpeechTarget(has, allowPaid);
+  const speaker = !allowPaid ? "browser" : has("elevenlabs") ? "elevenlabs" : has("openai") ? "openai" : "browser";
+  const realtime = !allowPaid ? "" : has("openai") ? "openai" : (has("elevenlabs") && saved.elevenAgentId) ? "elevenlabs" : "";
+  const anyKey = !!listen || !!realtime;
   return {
     listen: listen ? listen.id : "",
     speaker,
@@ -56,10 +62,11 @@ async function openaiSpeak(text, key, fetchImpl) {
 
 // ElevenLabs if there is a key, else OpenAI, else tell the page to use the built-in Windows or browser voice.
 // A provider that fails moves on to the next; the last step is always the built-in voice, then text only.
-export async function synthesize(text, { hasSecret, getSecret, fetchImpl = fetch } = {}) {
+// Both voices cost money, so they are tried only with allowPaid (paid voice turned on); otherwise the free built-in voice.
+export async function synthesize(text, { hasSecret, getSecret, fetchImpl = fetch, allowPaid = false } = {}) {
   const t = String(text || "").replace(/\u0000/g, "").trim().slice(0, MAX_SPEAK);
   if (!t) throw fail(400, "Nothing to say.", "voice_speak_empty");
-  const has = typeof hasSecret === "function" ? hasSecret : () => false;
+  const has = typeof hasSecret === "function" && allowPaid ? hasSecret : () => false;
   const tries = [["elevenlabs", elevenSpeak], ["openai", openaiSpeak]];
   const errors = [];
   for (const [id, fn] of tries) {
@@ -86,9 +93,10 @@ export function realtimeTools(actions) {
 
 export const REALTIME_INSTRUCTIONS = "You are Meld, the voice of Meldmind. Speak briefly and plainly. To move around or do anything, call a tool; never claim you did something unless the tool result says so. If a tool result says it is waiting for the user's yes, tell them what you asked and wait. Never read out passwords, keys or account numbers.";
 
-// Mint a short-lived browser token. The real key stays on this PC.
-export async function mintRealtime({ hasSecret, getSecret, fetchImpl = fetch, saved = {}, tools = [] } = {}) {
+// Mint a short-lived browser token. The real key stays on this PC. Paid, so only with allowPaid.
+export async function mintRealtime({ hasSecret, getSecret, fetchImpl = fetch, saved = {}, tools = [], allowPaid = false } = {}) {
   const has = typeof hasSecret === "function" ? hasSecret : () => false;
+  if (!allowPaid) return { engine: "none", line: (has("openai") || has("elevenlabs")) ? PAID_VOICE_OFF : NO_KEY_LINE };
   if (has("openai")) {
     const key = getSecret?.("openai")?.key;
     if (key) {

@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.20
+lastUpdatedVersion: 0.4.25
 ---
 
 # Getting started
@@ -188,3 +188,7 @@ A new helper persona, Rin, tests how the menus and buttons feel. The Missions, C
 - Prompt suggestions show only while you type, match what you are doing, and keep the words you typed.
 - Clearer menus: People is under Connect, and the two setups are now Find my AIs and Get everything connected. Typing boxes are easy to read everywhere.
 - Anonymous usage counts follow the same rule as the welcome screen: on by default with a note, off and ask in the EU and the UK. Anonymous results (track records) are kept on this computer for now. Settings shows what leaves this computer.
+
+## Simple, Expert and easier to read text (0.4.25)
+
+A project can keep its own Simple or Expert setting. When it differs from the rest of the app, a note says so with a button to use one mode everywhere. Text is easier to read in the light and dark looks, and notice bars and buttons are no longer hidden under the window header or the bottom bars.

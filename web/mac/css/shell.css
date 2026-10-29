@@ -12,7 +12,7 @@ body[data-style="mac"] {
   --mac-line: rgba(0, 0, 0, .08);
   --mac-acc: #0a84ff;
   --mac-tx: #1d1d1f;
-  --mac-dim: #6e6e73;
+  --mac-dim: #47474d; /* 0.4.25: was #6e6e73, under 4.5:1 on the glass */
   --mac-ok: #30d158;
   --mac-bad: #ff453a;
   --mac-bg1: #c9d8ff;
@@ -37,7 +37,7 @@ body[data-style="mac"][data-theme="dark"] {
   --mac-solid2: #26272f;
   --mac-line: rgba(255, 255, 255, .1);
   --mac-tx: #f5f5f7;
-  --mac-dim: #a1a1a6;
+  --mac-dim: #c0c0c6; /* 0.4.25: was #a1a1a6 (the Expert switch measured 4.0:1) */
   --mac-bg1: #1b2140;
   --mac-bg2: #3a1730;
   --mac-bg3: #0f2b2a;
@@ -60,7 +60,7 @@ body[data-style="mac"] .topbar {
 /* ---------- the window: the existing #app, reframed ---------- */
 body[data-style="mac"] #app {
   position: fixed;
-  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  top: calc(var(--mac-win-t) + var(--mac-title-h) + var(--mac-note-h, 0px));
   left: var(--mac-win-x);
   right: var(--mac-win-x);
   bottom: var(--mac-win-b);
@@ -107,6 +107,34 @@ body[data-style="mac"].mac-noblur #app::before {
   }
   body[data-style="mac"][data-ui="simple"]:not(.show-ais) #app {
     grid-template-rows: 0 minmax(0, 1fr) 0 56px;
+  }
+}
+
+/* 0.4.25 (audit A2/A3): the page column holds the project bar, the page, the Talk bar and the chat dock.
+   On a short window (1024 x 768 with notices showing) they added up to more than the window, and the chat
+   dock spilled over the AI strip below it, which then took the clicks on Send. The column now scrolls
+   instead of spilling, and the page keeps a little room of its own. */
+body[data-style="mac"] .view-col {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+body[data-style="mac"] .view-col > .view {
+  min-height: min(140px, 25vh);
+}
+
+/* Phone width: the Asset Tray head gets its own band between the window and the dock. The window's bottom
+   edge moves up by the tray's height, so the tray never sits over the window's tab bar, Send or the 3 steps. */
+@media (max-width: 760px) {
+  body[data-style="mac"]:has(#cc-asset-tray:not([hidden])) {
+    --mac-win-b: 164px;
+  }
+  html body[data-style="mac"] #cc-asset-tray {
+    right: calc(var(--mac-win-x) + 6px);
+    bottom: 94px;
+  }
+  body[data-style="mac"] #mac-titlebar {
+    gap: 6px;
+    padding: 0 10px;
   }
 }
 
@@ -272,6 +300,77 @@ body[data-style="mac"].mac-noblur .mac-knob {
   background: var(--mac-solid2);
 }
 
+/* ---------- the notice row (0.4.25): inside the window, right under the title bar ----------
+   shell.js moves #notices here and sets --mac-note-h to this strip's height, and the window body
+   (#app, #mac-main, the sidebar and the panel) starts below it, so a notice never sits under the
+   header and never covers the page. Empty, it takes no space. */
+body[data-style="mac"] #mac-notices {
+  position: fixed;
+  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  left: var(--mac-win-x);
+  right: var(--mac-win-x);
+  z-index: 55;
+  box-sizing: border-box;
+  max-height: 40vh;
+  overflow: auto;
+  border: 1px solid var(--mac-line);
+  border-top: 0;
+  border-bottom: 0;
+  background: var(--mac-glass2);
+  backdrop-filter: blur(30px) saturate(1.6);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  color: var(--mac-tx);
+  pointer-events: auto;
+}
+body[data-style="mac"] #mac-notices:not(.on) {
+  visibility: hidden;
+  border: 0;
+}
+body[data-style="mac"] #mac-notices.on {
+  padding: 4px 0 6px;
+  border-bottom: 1px solid var(--mac-line);
+}
+body[data-style="mac"].mac-noblur #mac-notices {
+  background: var(--mac-solid2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+body[data-style="mac"] #mac-notices .notices { gap: 4px; }
+body[data-style="mac"] #mac-notices .update-bar,
+body[data-style="mac"] #mac-notices #cc-look-offer.docked,
+body[data-style="mac"] #mac-notices .dock-card {
+  margin: 4px 12px 0;
+  padding: 3px 10px;
+  min-height: 0;
+  color: var(--mac-tx);
+}
+body[data-style="mac"] #mac-notices .btn,
+body[data-style="mac"] #mac-notices .ghost {
+  min-height: 28px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-size: 13px;
+  line-height: 20px;
+}
+/* One line each on a computer: the words are cut with "..." and the buttons stay whole, so three notices
+   take about 100px, not 140 (item 10). A phone lets them wrap; the strip scrolls past 30% of the height. */
+@media (min-width: 761px) {
+  body[data-style="mac"] #mac-notices .update-bar,
+  body[data-style="mac"] #mac-notices .dock-card,
+  body[data-style="mac"] #mac-notices #cc-look-offer.docked { flex-wrap: nowrap; white-space: nowrap; }
+  body[data-style="mac"] #mac-notices .update-bar > :not(a):not(button):not(.btn),
+  body[data-style="mac"] #mac-notices .dock-card > :not(a):not(button):not(.btn) { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  body[data-style="mac"] #mac-notices .update-bar > a,
+  body[data-style="mac"] #mac-notices .update-bar > button,
+  body[data-style="mac"] #mac-notices .dock-card > button { flex: none; }
+}
+@media (max-width: 760px) {
+  body[data-style="mac"] #mac-notices { max-height: 30vh; }
+}
+body[data-style="mac"] #mac-notices .update-bar.quiet,
+body[data-style="mac"] #mac-notices .update-bar.quiet b { color: var(--mac-tx); }
+body[data-style="mac"] #mac-notices .update-bar .small { color: var(--mac-dim); }
+
 /* ---------- the banner that flashes when the switch moves ---------- */
 body[data-style="mac"] .mac-flash {
   position: absolute;
@@ -305,7 +404,7 @@ body[data-style="mac"].mac-noblur .mac-flash {
 /* ---------- the window body: the overlay the flow draws into ---------- */
 body[data-style="mac"] #mac-main {
   position: fixed;
-  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  top: calc(var(--mac-win-t) + var(--mac-title-h) + var(--mac-note-h, 0px));
   left: var(--mac-win-x);
   right: var(--mac-win-x);
   bottom: var(--mac-win-b);
@@ -333,7 +432,7 @@ body[data-style="mac"] #mac-flow:empty {
 body[data-style="mac"] #mac-side {
   position: fixed;
   left: var(--mac-win-x);
-  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  top: calc(var(--mac-win-t) + var(--mac-title-h) + var(--mac-note-h, 0px));
   bottom: var(--mac-win-b);
   box-sizing: border-box;
   width: 0;
@@ -361,7 +460,7 @@ body[data-style="mac"].mac-noblur #mac-side {
 /* ---------- the right settings panel ---------- */
 body[data-style="mac"] #mac-panel {
   position: fixed;
-  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  top: calc(var(--mac-win-t) + var(--mac-title-h) + var(--mac-note-h, 0px));
   right: var(--mac-win-x);
   bottom: var(--mac-win-b);
   box-sizing: border-box;
@@ -391,7 +490,7 @@ body[data-style="mac"].mac-noblur #mac-panel {
 /* ---------- the All tools launchpad ---------- */
 body[data-style="mac"] #mac-launchpad {
   position: fixed;
-  top: calc(var(--mac-win-t) + var(--mac-title-h));
+  top: calc(var(--mac-win-t) + var(--mac-title-h) + var(--mac-note-h, 0px));
   left: var(--mac-win-x);
   right: var(--mac-win-x);
   bottom: var(--mac-win-b);

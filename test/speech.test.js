@@ -41,6 +41,7 @@ test("transcribe route is free first: Groq, Gemini, ElevenLabs, then OpenAI only
   const seen = [];
   let missMini = false;
   let groqDown = 0;
+  let groqQuiet = ""; // "empty": 200 with no words; "short": 400 audio too short (a silent clip, 0.4.25 A8)
   let geminiDown = false;
   const srv = http.createServer(async (req, res) => {
     const chunks = [];
@@ -59,6 +60,8 @@ test("transcribe route is free first: Groq, Gemini, ElevenLabs, then OpenAI only
       if (url.startsWith("/oa/") && text.includes("whisper-1")) return send(200, { text: "from whisper" });
       if (url.startsWith("/oa/")) return send(200, { text: "from mini" });
       if (url.startsWith("/gq/") && groqDown) return send(groqDown, { error: { message: "rate limit" } });
+      if (url.startsWith("/gq/") && groqQuiet === "empty") return send(200, { text: "" });
+      if (url.startsWith("/gq/") && groqQuiet === "short") return send(400, { error: { message: "Audio file is too short. Minimum audio length is 0.01 seconds." } });
       if (url.startsWith("/gq/")) return send(200, { text: "from groq" });
     }
     if (url.includes("/speech-to-text")) return send(200, { text: "from scribe" });
@@ -105,6 +108,17 @@ test("transcribe route is free first: Groq, Gemini, ElevenLabs, then OpenAI only
     assert.equal(groqHit.authorization, `Bearer ${KEYS.groq}`);
     assert.equal(groqHit.text.includes("whisper-large-v3-turbo"), true);
     leaks(r.text);
+
+    // 0.4.25 (A8): a silent clip blames the quiet, not the service
+    for (const mode of ["empty", "short"]) {
+      groqQuiet = mode;
+      r = await s.api("/voice/transcribe", { method: "POST", body: clip });
+      assert.equal(r.status, 422, mode + " " + JSON.stringify(r.json));
+      assert.equal(r.json.code, "voice_silent");
+      assert.equal(r.json.error, "We did not hear anything. Try again a little closer to the mic.");
+      assert.doesNotMatch(r.json.error, /free service/);
+    }
+    groqQuiet = "";
 
     // OpenAI costs credits: saving a key does not make voice use it.
     saved = await s.api("/keys", { method: "POST", body: { provider: "openai", key: KEYS.openai } });

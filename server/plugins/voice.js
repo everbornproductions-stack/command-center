@@ -3,9 +3,10 @@
 // settings.json, hosted user_docs kind "settings") under `voice`, so it stays
 // with the rest of the app's settings. The response is only the voice fields.
 import { DEFAULT_MODE, MODES, coerceSettings, normalizeSettings } from "../../web/features/voice-mode.js";
-import { decodeAudio } from "../speech.js";
+import { decodeAudio, speechTargets } from "../speech.js";
+import { resolveWhisper } from "../local-whisper.js";
 import { transcribeWithFallback } from "../dictate.js";
-import { coerceTalk, normalizeTalk, actionList } from "../../web/features/voice-actions.js";
+import { coerceTalk, normalizeTalk, actionList, MIC_NO_KEY_LINE } from "../../web/features/voice-actions.js";
 import { talkStatus, synthesize, mintRealtime, realtimeTools, interpretWithModel } from "../voice-speak.js";
 import { cheapest } from "../router.js";
 import { completeFallback } from "../fallback.js";
@@ -20,7 +21,8 @@ function read(h) {
   return coerceSettings(s.voice);
 }
 
-// Paid speech (OpenAI) is off unless the person turned it on. Free tiers never need this.
+// Paid speech is off unless the person turned it on. Free tiers never need this. It covers voice typing through
+// OpenAI and, from 0.4.25, spoken replies (ElevenLabs, OpenAI) and Instant voice too.
 const paidSpeech = (h) => (h.settings() || {}).speechPaid === true;
 
 export async function routes(req, res, url, body, h) {
@@ -34,6 +36,13 @@ export async function routes(req, res, url, body, h) {
       allowPaid: paidSpeech(h),
     });
     return h.json(res, 200, { text: out.text, provider: out.provider, model: out.model });
+  }
+  // 0.4.25 (audit A5): can the Mic turn a recording into words right now? Local Whisper or a speech key the person
+  // may use. The page asks before it records, so a Mic press with no key says what is missing instead of nothing.
+  if (p === "/ready" && req.method === "GET") {
+    const has = (id) => h.hasSecret(id, h.PROVIDERS[id]?.keyEnv);
+    const ready = !!resolveWhisper() || speechTargets(has, paidSpeech(h)).length > 0;
+    return h.json(res, 200, { ready, line: ready ? "" : MIC_NO_KEY_LINE, keysLink: "settings:keys" });
   }
   if (p === "/speech-paid" && req.method === "GET") return h.json(res, 200, { paidSpeech: paidSpeech(h) });
   if (p === "/speech-paid" && req.method === "POST") {
@@ -59,7 +68,7 @@ export async function routes(req, res, url, body, h) {
   // Talk-back (0.4.21): settings, what this PC can do, spoken replies, instant voice tokens, a cheap model for loose phrases.
   if (p === "/talk" && req.method === "GET") {
     const saved = talkSaved();
-    return h.json(res, 200, { settings: saved, status: talkStatus(secrets().hasSecret, saved), actions: actionList() });
+    return h.json(res, 200, { settings: saved, status: talkStatus(secrets().hasSecret, saved, { allowPaid: paidSpeech(h) }), actions: actionList() });
   }
   if (p === "/talk" && req.method === "POST") {
     let next;
@@ -67,19 +76,19 @@ export async function routes(req, res, url, body, h) {
     catch (e) { return h.json(res, e.status || 400, { error: e.message, code: e.code || "voice_invalid" }); }
     const cur = h.settings() || {};
     h.putDoc("settings", { ...cur, voiceTalk: next });
-    return h.json(res, 200, { settings: next, status: talkStatus(secrets().hasSecret, next) });
+    return h.json(res, 200, { settings: next, status: talkStatus(secrets().hasSecret, next, { allowPaid: paidSpeech(h) }) });
   }
   if (p === "/speak" && req.method === "POST") {
     const text = String(body?.text || "").trim();
     if (!text) return h.json(res, 400, { error: "Nothing to say.", code: "voice_speak_empty" });
     if (!talkSaved().speak) return h.json(res, 200, { engine: "text", text });
-    const out = await synthesize(text, { ...secrets(), fetchImpl: fetch });
+    const out = await synthesize(text, { ...secrets(), fetchImpl: fetch, allowPaid: paidSpeech(h) });
     return h.json(res, 200, out.engine === "browser" ? { engine: "browser", text: out.text } : out);
   }
   if (p === "/realtime" && req.method === "POST") {
     const saved = talkSaved();
     if (!saved.instant) return h.json(res, 200, { engine: "none", line: "Instant voice is off." });
-    const out = await mintRealtime({ ...secrets(), saved, fetchImpl: fetch, tools: realtimeTools(actionList()) });
+    const out = await mintRealtime({ ...secrets(), saved, fetchImpl: fetch, tools: realtimeTools(actionList()), allowPaid: paidSpeech(h) });
     return h.json(res, 200, out);
   }
   if (p === "/interpret" && req.method === "POST") {
