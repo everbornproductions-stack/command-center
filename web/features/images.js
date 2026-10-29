@@ -2,6 +2,7 @@
 // orders, "Make an image from this" under the deliverable, and the Replicate / fal keys in Settings.
 // The price is always shown first; Generate stays off until the estimate for the current choices is on screen.
 import { mountBar } from "../next-actions-ui.js";
+import { imageKeyLine } from "./key-hints.js";
 const { S, api, apiBlobUrl, toast, esc, money, go } = window.CC;
 
 const OP_LABEL = { generate: "New image", edit: "Edit", variation: "Variation", photo: "Photo edit" };
@@ -36,7 +37,8 @@ function formHtml(pre = {}) {
       <label class="small">How many <input type="number" id="im-n" value="1" min="1" max="4" style="width:60px;padding:5px 8px"></label>
       <select id="im-proj" style="width:auto"><option value="">No project</option>${(S.projects || []).map((p) => `<option value="${p.id}" ${p.id === S.project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
     <div class="row small" id="im-src-row" style="margin-top:8px;display:none"><span>Source image:</span><span id="im-src" class="dim">none yet: click Edit or Variation on a gallery image, or upload one</span><label class="btn sm">Upload<input type="file" id="im-up" accept="image/png,image/jpeg,image/webp" style="display:none"></label></div>
-    <div class="row" style="margin-top:10px"><button class="btn sm" id="im-est">See the price</button><span class="small" id="im-est-out"></span><button class="btn sm primary" id="im-go" style="margin-left:auto" disabled>Generate</button></div>
+    <div class="row" style="margin-top:10px"><button class="btn sm" id="im-est">See the price</button><span class="small" id="im-est-out"></span><button class="btn sm primary" id="im-go" style="margin-left:auto">Generate</button></div>
+    <div class="small dim" id="im-need" style="margin-top:6px"${imageKeyLine(st.providers, op, first?.id) ? "" : " hidden"}>${esc(imageKeyLine(st.providers, op, first?.id))} <a href="#" data-keys="1">Open Settings</a></div>
     <div id="im-new" class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"></div><div id="im-na"></div></div>`;
 }
 
@@ -50,6 +52,15 @@ function wireForm(root, after) {
     clearTimeout(st.autoEst);
     st.autoEst = setTimeout(() => { if (root.isConnected && !st.est) $("#im-est")?.click(); }, 600);
   };
+  // 0.4.25 (audit A5): no image key means one short line, never a silent button
+  const needLine = () => imageKeyLine(st.providers, op, $("#im-prov").value);
+  const showNeed = () => {
+    const box = $("#im-need"); if (!box) return;
+    const line = needLine();
+    box.hidden = !line;
+    box.firstChild.textContent = line ? line + " " : "";
+  };
+  $("#im-need")?.querySelector("[data-keys]")?.addEventListener("click", (e) => { e.preventDefault(); window.CC.openSettings?.("keys"); });
   const showSrc = () => {
     $("#im-src-row").style.display = op === "generate" ? "none" : "";
     $("#im-src").textContent = st.source ? (st.source.imageId ? `gallery image ${st.source.label || st.source.imageId}` : `upload: ${st.source.name}`) : "none yet: click Edit or Variation on a gallery image, or upload one";
@@ -61,10 +72,10 @@ function wireForm(root, after) {
     $("#im-prov").innerHTML = provOptions(op, cur);
     $("#im-model").innerHTML = modelOptions($("#im-prov").value, op);
     $("#im-prompt").placeholder = op === "variation" ? "Optional: what to change. Empty makes a fresh take on the same image." : op === "edit" ? "What to change, e.g. make the sky stormy" : "A cosy bakery window at dawn, warm light, film photo";
-    showSrc(); stale();
+    showSrc(); showNeed(); stale();
   };
   root.querySelector("#im-op").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setOp(b.dataset.op); });
-  $("#im-prov").addEventListener("change", () => { $("#im-model").innerHTML = modelOptions($("#im-prov").value, op); stale(); });
+  $("#im-prov").addEventListener("change", () => { $("#im-model").innerHTML = modelOptions($("#im-prov").value, op); showNeed(); stale(); });
   for (const s of ["#im-model", "#im-size", "#im-quality", "#im-n"]) $(s).addEventListener("change", stale);
   $("#im-up").addEventListener("change", (e) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -81,8 +92,9 @@ function wireForm(root, after) {
       const can = e.ready != null ? e.ready : e.keyed;
       const warn = !can ? `<span class="chip amber">${esc(e.keyMessage)}</span>` : e.capped ? `<span class="chip red">at its spend cap</span>` : e.wouldExceed ? `<span class="chip red">would pass the spend cap ($${e.capLeft} left)</span>` : "";
       $("#im-est-out").innerHTML = `about <b>${money(e.usd, 3)}</b> <span class="dim">${esc(e.note)}</span> ${warn}`;
-      $("#im-go").disabled = !can || e.capped || e.wouldExceed;
-      $("#im-go").title = $("#im-go").disabled ? (!can ? (e.keyMessage || "Add a key first") : "Over the spend cap") : "";
+      // a missing key keeps Generate pressable: the press says what is missing (audit A5)
+      $("#im-go").disabled = !!(can && (e.capped || e.wouldExceed));
+      $("#im-go").title = !can ? (e.keyMessage || "Add a key first") : $("#im-go").disabled ? "Over the spend cap" : "";
       $("#im-go").textContent = can && !e.capped && !e.wouldExceed ? `Generate (about ${money(e.usd, 3)})` : "Generate";
       return e;
     } catch (er) { toast(er.message, true); return null; }
@@ -91,6 +103,7 @@ function wireForm(root, after) {
   $("#im-proj")?.addEventListener("change", (e) => { if (S.flags?.projectbar) window.CC.setWorkingProject?.(e.target.value); });
   $("#im-go").addEventListener("click", async () => {
     // One step (0.4.21): the first press shows the price, the next press makes the picture. Nothing is spent unseen.
+    if (needLine()) return toast(st.est?.keyMessage || needLine(), true);
     if (!st.est) {
       if (!$("#im-prompt").value.trim()) return toast("Write what the image should show first.", true);
       const e = await estimate();
@@ -173,17 +186,21 @@ CC.register({
   command: { order: 30, async render(el) {
     await loadProviders();
     const keyedOnes = st.providers.filter((p) => ready(p));
-    el.innerHTML = `<div class="row small" style="margin-top:8px;gap:6px"><span class="dim">Image from these orders:</span><select id="imc-prov" style="width:auto">${provOptions("generate", keyedOnes[0]?.id)}</select><button class="btn sm" id="imc-est">Price</button><span id="imc-out"></span><button class="btn sm primary" id="imc-go" disabled>Generate</button></div><div id="imc-new" class="row" style="gap:6px;flex-wrap:wrap"></div>`;
+    el.innerHTML = `<div class="row small" style="margin-top:8px;gap:6px"><span class="dim">Image from these orders:</span><select id="imc-prov" style="width:auto">${provOptions("generate", keyedOnes[0]?.id)}</select><button class="btn sm" id="imc-est">Price</button><span id="imc-out"></span><button class="btn sm primary" id="imc-go">Generate</button></div><div id="imc-new" class="row" style="gap:6px;flex-wrap:wrap"></div>`;
     let est = null;
     const prompt = () => (document.getElementById("orders")?.value || "").trim();
-    el.querySelector("#imc-prov").addEventListener("change", () => { est = null; el.querySelector("#imc-go").disabled = true; el.querySelector("#imc-out").textContent = ""; });
+    el.querySelector("#imc-prov").addEventListener("change", () => { est = null; el.querySelector("#imc-out").textContent = ""; });
     el.querySelector("#imc-est").addEventListener("click", async () => {
       if (!prompt()) return toast("Type the orders first", true);
-      try { est = await api("/images/estimate", { method: "POST", body: { provider: el.querySelector("#imc-prov").value } }); const can = est.ready != null ? est.ready : est.keyed; el.querySelector("#imc-out").innerHTML = can ? (est.capped || est.wouldExceed ? `<span class="chip red">spend cap</span>` : `about <b>${money(est.usd, 3)}</b>`) : `<span class="chip amber">${esc(est.keyMessage)}</span>`; el.querySelector("#imc-go").disabled = !can || est.capped || est.wouldExceed; }
+      try { est = await api("/images/estimate", { method: "POST", body: { provider: el.querySelector("#imc-prov").value } }); const can = est.ready != null ? est.ready : est.keyed; el.querySelector("#imc-out").innerHTML = can ? (est.capped || est.wouldExceed ? `<span class="chip red">spend cap</span>` : `about <b>${money(est.usd, 3)}</b>`) : `<span class="chip amber">${esc(est.keyMessage)}</span>`; el.querySelector("#imc-go").disabled = !!(can && (est.capped || est.wouldExceed)); }
       catch (e) { toast(e.message, true); }
     });
     el.querySelector("#imc-go").addEventListener("click", async () => {
-      if (!est || !prompt()) return;
+      // 0.4.25 (audit A5): say what is missing instead of doing nothing
+      if (!prompt()) return toast("Type the orders first", true);
+      const need = imageKeyLine(st.providers, "generate", el.querySelector("#imc-prov").value);
+      if (need) return toast(need, true);
+      if (!est) { el.querySelector("#imc-est").click(); return toast("Getting the price. Press Generate again to make it."); }
       const b = el.querySelector("#imc-go"); b.disabled = true; b.textContent = "Generating...";
       try {
         const row = await api("/images", { method: "POST", body: { provider: est.provider, model: est.model, prompt: prompt(), estimate: est.usd, projectId: S.project || null, runId: S.live?.id || null } });

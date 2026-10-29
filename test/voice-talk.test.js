@@ -7,7 +7,7 @@ import path from "node:path";
 import http from "node:http";
 import { ROOT, startServer } from "./helpers.js";
 import {
-  ACTIONS, SCREENS, NO_MATCH, CONFIRM_MS, TALK_DEFAULTS, NO_KEY_LINE, parseCommand, createController, helpFor, coerceTalk, normalizeTalk,
+  ACTIONS, SCREENS, NO_MATCH, CONFIRM_MS, TALK_DEFAULTS, NO_KEY_LINE, MIC_NO_KEY_LINE, parseCommand, createController, helpFor, coerceTalk, normalizeTalk,
   comboOf, stripWake, sentences, isStop, isYes, isNo, findProject, actionList,
 } from "../web/features/voice-actions.js";
 import { handleOpenAIEvent, handleElevenEvent, toolOutput } from "../web/features/voice-realtime.js";
@@ -355,20 +355,36 @@ test("instant voice events: tool calls go through the controller; stop and barge
 test("server helpers: talk status, no-key line, speech order, instant tokens, model fallback (mocked network)", async () => {
   assert.equal(talkStatus(() => false).needsKey, true);
   assert.equal(talkStatus(() => false).line, NO_KEY_LINE);
-  assert.match(NO_KEY_LINE, /^Add a key to talk \(OpenAI, Groq, ElevenLabs or Gemini\)\.$/);
-  const t1 = talkStatus((id) => id === "openai");
-  assert.equal(t1.needsKey, false); assert.equal(t1.speaker, "openai"); assert.equal(t1.realtime, "openai"); assert.equal(t1.listen, "", "OpenAI alone is paid, so voice typing does not listen through it unless opted in");
-  const t2 = talkStatus((id) => id === "elevenlabs", { elevenAgentId: "agent_1" });
+  // 0.4.25: free keys named first, never OpenAI first
+  assert.match(NO_KEY_LINE, /^Add a free Groq or Gemini key to talk\.$/);
+  // 0.4.25: a saved paid key is not consent. Paid off (the default): built-in voice, no Instant voice, no listening through OpenAI.
+  const t0 = talkStatus((id) => id === "openai");
+  assert.equal(t0.speaker, "browser"); assert.equal(t0.realtime, ""); assert.equal(t0.listen, ""); assert.equal(t0.needsKey, true); assert.equal(t0.line, NO_KEY_LINE);
+  assert.equal(talkStatus((id) => id === "elevenlabs", { elevenAgentId: "agent_1" }).speaker, "browser", "ElevenLabs voice is paid too");
+  assert.equal(talkStatus((id) => id === "elevenlabs", { elevenAgentId: "agent_1" }).realtime, "");
+  const paid = { allowPaid: true };
+  const t1 = talkStatus((id) => id === "openai", {}, paid);
+  assert.equal(t1.needsKey, false); assert.equal(t1.speaker, "openai"); assert.equal(t1.realtime, "openai"); assert.equal(t1.listen, "openai", "opted in: OpenAI may listen as the last tier");
+  const t2 = talkStatus((id) => id === "elevenlabs", { elevenAgentId: "agent_1" }, paid);
   assert.equal(t2.speaker, "elevenlabs"); assert.equal(t2.realtime, "elevenlabs");
-  assert.equal(talkStatus((id) => id === "elevenlabs").realtime, "", "an agent id is needed");
+  assert.equal(talkStatus((id) => id === "elevenlabs", {}, paid).realtime, "", "an agent id is needed");
   assert.equal(talkStatus((id) => id === "groq").speaker, "browser");
+  assert.equal(talkStatus((id) => id === "groq").needsKey, false, "a free key is enough to talk");
   // speech: ElevenLabs first, then OpenAI, then the built-in voice
   const calls = [];
   const audio = Buffer.alloc(400, 1);
   const fetchImpl = async (url, o) => { calls.push({ url: String(url), headers: o?.headers }); if (String(url).includes("fail")) return { ok: false, status: 500 }; return { ok: true, status: 200, arrayBuffer: async () => audio, json: async () => ({ value: "ek_test_secret", expires_at: 5, signed_url: "wss://x/y" }) }; };
   const keys = { elevenlabs: { key: "el_k" }, openai: { key: "sk-k" } };
-  const deps = (has) => ({ hasSecret: (id) => has.includes(id), getSecret: (id) => keys[id], fetchImpl });
-  let out = await synthesize("Hello there.", deps(["elevenlabs", "openai"]));
+  const deps = (has) => ({ hasSecret: (id) => has.includes(id), getSecret: (id) => keys[id], fetchImpl, allowPaid: true });
+  // paid voice off (the default): the free built-in voice, and nothing is sent to ElevenLabs or OpenAI
+  const before = calls.length;
+  let out = await synthesize("Hello there.", { ...deps(["elevenlabs", "openai"]), allowPaid: false });
+  assert.equal(out.engine, "browser"); assert.equal(calls.length, before, "no paid call without the switch");
+  let quiet = await mintRealtime({ ...deps(["openai"]), allowPaid: false });
+  assert.equal(quiet.engine, "none"); assert.match(quiet.line, /Use my OpenAI credits for voice/); assert.equal(calls.length, before);
+  quiet = await mintRealtime({ hasSecret: () => false, fetchImpl });
+  assert.equal(quiet.engine, "none"); assert.equal(quiet.line, NO_KEY_LINE);
+  out = await synthesize("Hello there.", deps(["elevenlabs", "openai"]));
   assert.equal(out.engine, "elevenlabs"); assert.equal(out.mime, "audio/mpeg");
   assert.match(calls.at(-1).url, /text-to-speech/);
   out = await synthesize("Hello there.", deps(["openai"]));
@@ -377,7 +393,7 @@ test("server helpers: talk status, no-key line, speech order, instant tokens, mo
   out = await synthesize("Hello there.", deps([]));
   assert.equal(out.engine, "browser"); assert.equal(out.text, "Hello there.");
   const failing = async () => ({ ok: false, status: 500 });
-  out = await synthesize("Hello.", { hasSecret: () => true, getSecret: (id) => keys[id], fetchImpl: failing });
+  out = await synthesize("Hello.", { hasSecret: () => true, getSecret: (id) => keys[id], fetchImpl: failing, allowPaid: true });
   assert.equal(out.engine, "browser", "a failing provider falls through to the built-in voice");
   await assert.rejects(() => synthesize("  ", deps([])), /Nothing to say/);
   // instant token: minted by the server, key never in the reply
@@ -416,7 +432,7 @@ test("talk routes: settings persist, no-key line, spoken reply order, instant to
   });
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   const origin = `http://127.0.0.1:${srv.address().port}`;
-  const blank = { CC_STATUS_PAGES: "off", CC_BASE_URL_OPENAI: `${origin}/oa/v1`, CC_BASE_URL_ELEVENLABS: `${origin}/el`, OPENAI_API_KEY: "", GROQ_API_KEY: "", ELEVENLABS_API_KEY: "", GEMINI_API_KEY: "", ANTHROPIC_API_KEY: "" };
+  const blank = { CC_STATUS_PAGES: "off", CC_WHISPER_BIN: "off", CC_BASE_URL_OPENAI: `${origin}/oa/v1`, CC_BASE_URL_ELEVENLABS: `${origin}/el`, OPENAI_API_KEY: "", GROQ_API_KEY: "", ELEVENLABS_API_KEY: "", GEMINI_API_KEY: "", ANTHROPIC_API_KEY: "" };
   const s = await startServer({ env: blank });
   try {
     let r = await s.api("/voice/talk");
@@ -440,8 +456,23 @@ test("talk routes: settings persist, no-key line, spoken reply order, instant to
     assert.equal(r.status, 400);
     // the older tap/hold settings are untouched
     assert.equal((await s.api("/voice")).json.mode, "tap");
-    // OpenAI key: spoken reply and instant token come from the mocks
+    // 0.4.25: the Mic asks first; no key means one short line
+    r = await s.api("/voice/ready");
+    assert.equal(r.status, 200); assert.equal(r.json.ready, false); assert.equal(r.json.line, MIC_NO_KEY_LINE);
+    // OpenAI key saved but paid voice off (the default): built-in voice, no Instant voice, nothing sent anywhere
     assert.equal((await s.api("/keys", { method: "POST", body: { provider: "openai", key: "sk-proj-talktest00000001" } })).status, 200);
+    const sent = seen.filter((x) => /audio\/speech|text-to-speech|realtime/.test(x.url)).length;
+    r = await s.api("/voice/talk");
+    assert.equal(r.json.status.speaker, "browser"); assert.equal(r.json.status.realtime, "");
+    r = await s.api("/voice/speak", { method: "POST", body: { text: "Hello." } });
+    assert.equal(r.json.engine, "browser");
+    r = await s.api("/voice/realtime", { method: "POST", body: {} });
+    assert.equal(r.json.engine, "none");
+    assert.equal(seen.filter((x) => /audio\/speech|text-to-speech|realtime/.test(x.url)).length, sent, "a saved paid key is not consent to spend it");
+    assert.equal((await s.api("/voice/ready")).json.ready, false, "OpenAI alone does not make the Mic ready while paid voice is off");
+    // paid voice turned on: spoken reply and instant token come from the mocks
+    assert.equal((await s.api("/voice/speech-paid", { method: "POST", body: { paidSpeech: true } })).json.paidSpeech, true);
+    assert.equal((await s.api("/voice/ready")).json.ready, true);
     r = await s.api("/voice/talk");
     assert.equal(r.json.status.needsKey, false); assert.equal(r.json.status.speaker, "openai"); assert.equal(r.json.status.realtime, "openai");
     r = await s.api("/voice/speak", { method: "POST", body: { text: "Hello." } });

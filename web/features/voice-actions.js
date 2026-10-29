@@ -417,7 +417,11 @@ function shortLine(t) { const s = String(t).replace(/\s+/g, " ").trim(); return 
 
 // ---- talk-back settings (saved under settings.voiceTalk; the older tap/hold settings stay under settings.voice) ----
 export const TALK_DEFAULTS = Object.freeze({ talk: false, speak: true, handsFree: false, hotkey: "Ctrl+Space", wakeWord: false, instant: true, elevenAgentId: "" });
-export const NO_KEY_LINE = "Add a key to talk (OpenAI, Groq, ElevenLabs or Gemini).";
+// 0.4.25: voice is free first, so the hint names the free keys only. Paid voices (OpenAI, ElevenLabs spoken replies,
+// Instant voice) are used only after "Use my OpenAI credits for voice" is turned on.
+export const NO_KEY_LINE = "Add a free Groq or Gemini key to talk.";
+// The Mic button with no key (audit A5): one short line instead of nothing.
+export const MIC_NO_KEY_LINE = "Add a free Groq or Gemini key in Settings to talk.";
 export const HANDS_FREE_AUTO_OFF_MS = 10 * 60 * 1000;
 const HOTKEY = /^(?:(?:Ctrl|Alt|Shift|Meta)\+){0,3}(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|Space|Enter|Tab|`|;|,|\.|\/)$/;
 

@@ -28,7 +28,8 @@ test("Talk bar: toggle, strip, navigation, publish needs yes, help card, numbers
     // no keys saved: one plain line with a link to the keys screen
     await page.waitForFunction(() => !document.getElementById("vt-line").hidden, null, { timeout: WAIT });
     const line = await page.evaluate(() => document.getElementById("vt-line").textContent);
-    assert.match(line, /Add a key to talk \(OpenAI, Groq, ElevenLabs or Gemini\)\./);
+    assert.match(line, /Add a free Groq or Gemini key to talk\./);
+    assert.doesNotMatch(line, /OpenAI/, "free keys first (0.4.25)");
     assert.ok(await page.evaluate(() => !!document.getElementById("vt-keys")));
     // the bar sits above the chat dock, not over it
     const placed = await page.evaluate(() => { const b = document.getElementById("vt-bar"), d = document.getElementById("cc-dock"); return d ? b.nextElementSibling === d : b.parentElement.classList.contains("view-col"); });

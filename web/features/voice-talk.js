@@ -327,6 +327,8 @@ async function transcribeBlob(blob, ms) {
     if (t) await onTranscript(t, { ptt: pttHeld });
   } catch (e) {
     transcribing = false; paint();
+    // 0.4.25: a quiet clip in hands-free is normal (a cough, a door). Say so only when the person held the key to talk.
+    if (e?.code === "voice_silent" && cfg.handsFree && !pttHeld) return;
     toast(e.message || "Could not hear that.", true);
   }
 }
@@ -418,7 +420,7 @@ async function talkStart() {
   micState = "ready";
   paint();
   if (status.needsKey && !SR()) { paint(); return; }
-  // Instant two-way voice when a key for it exists; otherwise the normal listen / think / speak path.
+  // Instant two-way voice when paid voice is on and a key for it exists; otherwise the normal listen / think / speak path.
   if (cfg.instant && status.realtime) {
     try {
       const session = await api("/voice/realtime", { method: "POST", body: {} });
@@ -690,7 +692,7 @@ function renderSettings(el) {
     ${row("vts-speak", "Speak the answers out loud", cfg.speak, "Off: answers only appear as text")}
     ${row("vts-hands", "Hands-free (keeps the microphone open, turns off after 10 quiet minutes)", cfg.handsFree, "A red dot shows when it is listening")}
     ${row("vts-wake", 'Wake word: say "Hey Meld" first (off by default)', cfg.wakeWord, "Only used in hands-free. The shortcut always works.")}
-    ${row("vts-instant", "Instant two-way voice when a key for it is saved", cfg.instant, "Uses OpenAI Realtime or an ElevenLabs Agent")}
+    ${row("vts-instant", "Instant two-way voice (uses paid keys, only when paid voice is on)", cfg.instant, "Uses OpenAI Realtime or an ElevenLabs Agent. Turn on Use my OpenAI credits for voice under Voice orders first.")}
     <div class="row small" style="gap:8px;margin-top:10px;align-items:center"><span>Talk shortcut</span><input type="text" id="vts-key" value="${esc(cfg.hotkey)}" style="width:150px;font-family:var(--mono)" title="Click, then press the keys"><button class="btn sm" type="button" id="vts-key-default">Use Ctrl+Space</button></div>
     <div class="row small" style="gap:8px;margin-top:10px;align-items:center"><span>ElevenLabs agent id (optional)</span><input type="text" id="vts-agent" value="${esc(cfg.elevenAgentId)}" style="width:220px" placeholder="agent_..."></div>
     <div class="row small" style="gap:8px;margin-top:10px"><button class="btn sm" type="button" id="vts-help">What can I say?</button></div></div>`;

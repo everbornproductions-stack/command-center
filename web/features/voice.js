@@ -4,6 +4,7 @@
 // cancel, lost capture, blur and the recognizer ending on its own do not stop a hold.
 // The choice is saved with the app settings (GET/POST /api/voice).
 import { buttonLabel, buttonTitle, captureMode, createSession, formatElapsed, heardNote, hint, reduce, shouldAutoSend, speechFailure } from "./voice-mode.js";
+import { MIC_NO_KEY_LINE } from "./voice-actions.js";
 
 const { $, toast, api } = window.CC;
 const SR = () => window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -43,6 +44,19 @@ let startFails = 0;
 let rev = 0;
 let synced = false;
 let globals = false;
+let speechReady = null; // last answer of GET /api/voice/ready; a yes is trusted for a minute
+const MIC_BLOCKED_LINE = "Meldmind cannot use the microphone. Allow it, then try again.";
+
+// 0.4.25 (audit A5): the desktop sends the recording to a speech service. Ask first whether one can be used, so a Mic
+// press with no key shows one short line instead of recording for nothing. If the engine cannot be asked, record anyway.
+async function micReady() {
+  if (speechReady?.ready && Date.now() - speechReady.at < 60000) return speechReady;
+  try {
+    const r = await api("/voice/ready");
+    speechReady = { ready: r.ready !== false, line: r.line || "", at: Date.now() };
+  } catch { return { ready: true }; }
+  return speechReady;
+}
 
 function paint() {
   const btn = document.getElementById("vo-mic");
@@ -169,9 +183,14 @@ async function begin({ keep = false } = {}) {
     baseText = ($("#orders")?.value || "").trim();
   }
   startClock();
+  if (wantServer()) {
+    const rd = await micReady();
+    if (myGen !== generation || !session.recording) return;
+    if (!rd.ready) { note = MIC_NO_KEY_LINE; toast(note, true); apply({ type: "stop" }); return; }
+  }
   const ok = await ensureMic();
   if (myGen !== generation || !session.recording) { if (!session.recording) closeMic(); return; }
-  if (!ok) { apply({ type: "error", code: "not-allowed" }); return; }
+  if (!ok) { toast(MIC_BLOCKED_LINE, true); apply({ type: "error", code: "not-allowed" }); return; }
   if (wantServer()) {
     if (!startRecorder()) {
       note = "Could not capture audio from the microphone.";
@@ -255,7 +274,7 @@ function finish() {
   }
   closeMic();
   const text = finalText.trim();
-  const sticky = note === "microphone blocked" || note === "speech service stopped";
+  const sticky = note === "microphone blocked" || note === "speech service stopped" || note === MIC_NO_KEY_LINE;
   if (!sticky) note = heardNote(text);
   finalText = "";
   if (shouldAutoSend(session, text, sticky)) $("#go")?.click();
@@ -283,6 +302,7 @@ async function finishServer(cap, myGen) {
     if (myGen !== generation) { closeMic(); return; }
     note = e.message || "Transcription failed";
     toast(note, true);
+    if (e.code === "voice_no_speech_key") speechReady = null; // ask again next time
   }
   closeMic();
   const sticky = note !== "captured";
@@ -394,7 +414,7 @@ function renderSettings(el) {
     <label class="row small" style="gap:6px;margin-top:10px"><input type="checkbox" id="vo-auto-set"> Auto-send</label>
     <div class="dim small" style="margin-top:6px">When recording stops and words were heard, the orders go out without a second click. Off: the words wait in the box for you to check and send.</div>
     <label class="row small" style="gap:6px;margin-top:10px"><input type="checkbox" id="vo-paid-set"> Use my OpenAI credits for voice</label>
-    <div class="dim small" style="margin-top:6px">Voice typing is free by default (Groq or Google Gemini free plans). Turn this on only if you want OpenAI, which costs credits, as a last resort when the free ones are busy.</div>
+    <div class="dim small" style="margin-top:6px">Voice is free by default (Groq or Google Gemini free plans, and the built-in voice for spoken answers). Turn this on only if you want to pay for voice: OpenAI as a last resort for voice typing, ElevenLabs or OpenAI voices for spoken answers, and Instant voice.</div>
   </div>`;
   el.querySelectorAll("#vo-mode button").forEach((b) => b.addEventListener("click", () => { savePrefs({ mode: b.dataset.mode }).catch(() => paint()); }));
   el.querySelector("#vo-silence-set").addEventListener("change", (e) => { savePrefs({ silenceStop: e.target.checked }).catch(() => { e.target.checked = !!session.silenceStop; }); });
