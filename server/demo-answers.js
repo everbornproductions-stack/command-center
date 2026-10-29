@@ -178,6 +178,24 @@ function answer(req, v) {
 
 const BUILDERS = { post, email, plan, summary, code, list, answer };
 
+// The heading over a practice answer (0.4.25). It used to be the first 70 characters, which cut
+// "Write a week of Instagram posts for my two-location bakery. Save them as posts.md." to "...Save them".
+// Now: the whole request when it fits in 90 characters; else its whole first sentence when that fits;
+// else the request cut at the last word boundary before 90 characters, with "...". A full stop inside a
+// word (posts.md, 2.5) is not the end of a sentence.
+export const TITLE_MAX = 90;
+export function answerTitle(req, max = TITLE_MAX) {
+  const t = String(req || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  const tidy = (x) => x.replace(/\.$/, "").trim();
+  if (t.length <= max) return tidy(t);
+  const first = t.match(/^.+?[.!?](?=\s|$)/)?.[0];
+  if (first && first.length <= max) return tidy(first);
+  const cut = t.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  return (space > max / 2 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:.!?-]+$/, "") + "...";
+}
+
 // The answer body (no heading, no footer) for this request and this pretend AI.
 export function practiceBody(user, model) {
   const req = requestOf(user);
@@ -188,7 +206,7 @@ export function practiceBody(user, model) {
 // The whole practice answer the pretend AI streams back.
 export function practiceAnswer(user, model, lead = []) {
   const req = requestOf(user);
-  const topic = req.slice(0, 70) || "Your request";
+  const topic = answerTitle(req) || "Your request";
   return [...lead, `## ${topic}`, practiceBody(user, model), practiceFooter(model)].join("\n\n");
 }
 
@@ -226,5 +244,5 @@ export function practiceVerdict(user, model) {
   const credits = seats.length
     ? seats.map((s, i) => `- Answer ${s.letter} (${s.name}): ${["the warm opening", "the structure", "the short version"][i % 3]}.`).join("\n")
     : "- Every answer added something.";
-  return [`## ${req.slice(0, 70) || "Council verdict"}`, merged, `**Where the council disagreed**\n${disagreed.map((d) => `- ${d}`).join("\n")}`, `**Credits**\n${credits}`, practiceFooter(model)].join("\n\n");
+  return [`## ${answerTitle(req) || "Council verdict"}`, merged, `**Where the council disagreed**\n${disagreed.map((d) => `- ${d}`).join("\n")}`, `**Credits**\n${credits}`, practiceFooter(model)].join("\n\n");
 }
