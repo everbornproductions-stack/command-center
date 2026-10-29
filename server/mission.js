@@ -51,6 +51,7 @@ import path from "node:path";
 import { extractHeadline, overlayPng, isPng } from "./overlay.js";
 import { namedSources, attachSources, sourceBlock, projectFolders, namedFolders, find as findInFolder } from "./code-source.js";
 import { cleanPlan, stripPrivateRules } from "./private-rules.js";
+import { ownerRuleOpts } from "./private-rules-owner.js";
 import { safeMediaDir } from "./project-media.js";
 
 // ---- Never-say-no planner workaround chain (Slice A5, Item 9) ----
@@ -851,7 +852,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     }
     plan.tasks = plan.tasks.slice(0, maxTasks).map((t, i) => ({ ...t, id: t.id || `t${i + 1}`, deps: (t.deps || []).filter(Boolean) }));
     // 0.4.23.1: the owner's private storage routine (commit and push, back up to GitHub or Drive) is never part of a plan
-    { const cl = cleanPlan(plan, goal); plan = cl.plan; if (cl.dropped) log(`Left out ${cl.dropped} step${cl.dropped === 1 ? "" : "s"} that only repeated a private storage routine you did not ask for.`); }
+    { const cl = cleanPlan(plan, goal, ownerRuleOpts()); plan = cl.plan; if (cl.dropped) log(`Left out ${cl.dropped} step${cl.dropped === 1 ? "" : "s"} that only repeated a private storage routine you did not ask for.`); }
     mission.plan = { title: plan.title, assembly: plan.assembly };
     mission.title = plan.title;
     // 0.4.21 (dogfood 12): a code step that names a file can only save it when the project folder is known. Say so before any work starts.
@@ -1808,8 +1809,9 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       for (const t of mission.tasks) if (typeof t.output === "string" && !t.media) t.output = stripSearchLeaks(t.output);
     }
     // 0.4.23.1: the owner's private routine never shows in the answer
-    mission.deliverable = stripPrivateRules(mission.deliverable || "", goal);
-    for (const t of mission.tasks) if (typeof t.output === "string" && t.output && !t.media) t.output = stripPrivateRules(t.output, goal);
+    { const ruleOpts = ownerRuleOpts(); // 0.4.25: the owner's own folder names apply on the owner licence only
+      mission.deliverable = stripPrivateRules(mission.deliverable || "", goal, ruleOpts);
+      for (const t of mission.tasks) if (typeof t.output === "string" && t.output && !t.media) t.output = stripPrivateRules(t.output, goal, ruleOpts); }
     const want = namedFile(goal);
     const fext = fileExt(want) || (mission.classification?.capability === "code" ? "html" : "");
     const tr = checkTruncation(mission.deliverable || "", { ext: fext, capability: mission.classification?.capability, stop: mission.assemblerStop });

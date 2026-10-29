@@ -21,7 +21,9 @@ const rm = (d) => { try { fs.rmSync(d, { recursive: true, force: true }); } catc
 // ---------- unit ----------
 test("private rules: the owner's commit-and-push and cloud routine is removed, the user's own words are kept", () => {
   const leak = "Write the notes.\nCommit and push to the private GitHub repo when done.\nSave media to G:\\My Drive\\Everborn Cloud\\notes.";
-  assert.equal(stripPrivateRules(leak, "write me 3 ideas"), "Write the notes.");
+  // 0.4.25 (A7): one person's folder names are not in the shared product code; the owner's phrases come in as options
+  assert.equal(stripPrivateRules(leak, "write me 3 ideas"), "Write the notes.\n\nSave media to G:\\My Drive\\Everborn Cloud\\notes.");
+  assert.equal(stripPrivateRules(leak, "write me 3 ideas", { phrases: ["Everborn Cloud"] }), "Write the notes.");
   assert.equal(stripPrivateRules(leak, "write notes and push to github"), leak, "the user asked for it");
   assert.equal(stripPrivateRules("A plain answer. Nothing has been saved anywhere yet.", "x"), "A plain answer.");
   const plan = { title: "t", assembly: "Assemble. Commit and push to GitHub.", tasks: [
