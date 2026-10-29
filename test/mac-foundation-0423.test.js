@@ -12,7 +12,7 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8").replace(/\
 
 test("source: parts list, one file and one css per part, registry row, no dashes", async () => {
   const { PARTS } = await import("../web/mac/parts.js");
-  assert.deepEqual(PARTS, ["shell", "dock", "cards", "flow", "history", "expert", "runbar", "liveops", "panel"]);
+  assert.deepEqual(PARTS, ["shell", "dock", "cards", "flow", "history", "expert", "runbar", "liveops", "panel", "inside"]); // 0.4.26 adds "inside" (Chaos paper for the Expert inside)
   for (const p of PARTS) {
     assert.ok(fs.existsSync(path.join(ROOT, "web", "mac", "parts", `${p}.js`)), p);
     assert.ok(fs.existsSync(path.join(ROOT, "web", "mac", "css", `${p}.css`)), p);
@@ -55,8 +55,8 @@ test("on with cc.mac=1: every part mounts and the page has no errors", { skip },
   try {
     const r = await t.page.evaluate(() => ({ style: document.body.dataset.style, parts: Object.keys(window.CC.mac.parts), css: document.querySelectorAll("link[data-mac-css]").length }));
     assert.equal(r.style, "mac");
-    assert.equal(r.parts.length, 9);
-    assert.equal(r.css, 9);
+    assert.equal(r.parts.length, 10);
+    assert.equal(r.css, 10);
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }
 });
