@@ -9,6 +9,14 @@ import { providerMessage } from "./health.js";
 export const NO_SPEECH_KEY = "Voice typing is free, but it needs a free key. Add a Groq or Google Gemini key in Settings (both have a free plan). OpenAI and ElevenLabs keys work too.";
 export const PAID_OFF_NOTE = "Your OpenAI key is saved but not used for voice, because it costs credits. Add a free Groq or Google Gemini key in Settings, or turn on \"Use my OpenAI credits for voice\".";
 export const ALL_BUSY = "Voice typing could not reach a free service right now. Wait a minute and try again.";
+// 0.4.25 (audit A8): a quiet recording is not the service's fault. Every service answered with no words,
+// or said the audio was empty or too short, so say that instead of "could not reach a free service".
+export const NOTHING_HEARD = "We did not hear anything. Try again a little closer to the mic.";
+// A provider reply that means "there was no speech in that audio", not "we are down".
+const SILENT_REPLY = /\b(too short|no speech|no audio|empty (audio|file|recording)|silen(t|ce)|audio (is |was )?empty|could not (process|decode) (the )?(audio|file)|invalid (audio|media) file|duration)\b/i;
+export function soundsSilent(status, detail = "") {
+  return (status === 400 || status === 422) && SILENT_REPLY.test(String(detail || ""));
+}
 
 export const SPEECH_CHAIN = [
   { id: "groq", kind: "openai", model: "whisper-large-v3-turbo" },
@@ -44,8 +52,8 @@ function devRoot(id, fallback) {
   return String(process.env[`CC_BASE_URL_${id.toUpperCase()}`] || fallback).replace(/\/$/, "");
 }
 
-function fail(status, message, code) {
-  return Object.assign(new Error(message), { status, code });
+function fail(status, message, code, extra = {}) {
+  return Object.assign(new Error(message), { status, code }, extra);
 }
 
 function multipart(fields, file) {
@@ -96,7 +104,7 @@ async function openaiTranscribe(target, audio, key, fetchImpl) {
   if (missing) hit = await once(target.fallbackModel);
   if (!hit.res.ok) {
     const why = providerMessage(hit.reply.json, hit.reply.text) || `HTTP ${hit.res.status}`;
-    throw fail(502, `${provider?.name || target.id} could not transcribe (${hit.res.status}). ${why}`.trim(), "voice_transcribe");
+    throw fail(502, `${provider?.name || target.id} could not transcribe (${hit.res.status}). ${why}`.trim(), "voice_transcribe", { silent: soundsSilent(hit.res.status, why) });
   }
   const text = String(hit.reply.json?.text || "").trim();
   return { text, provider: target.id, model: hit.model };
@@ -113,7 +121,7 @@ async function elevenTranscribe(target, audio, key, fetchImpl) {
   const reply = await readReply(res);
   if (!res.ok) {
     const why = providerMessage(reply.json, reply.text) || `HTTP ${res.status}`;
-    throw fail(502, `ElevenLabs could not transcribe (${res.status}). ${why}`.trim(), "voice_transcribe");
+    throw fail(502, `ElevenLabs could not transcribe (${res.status}). ${why}`.trim(), "voice_transcribe", { silent: soundsSilent(res.status, why) });
   }
   const text = String(reply.json?.text || reply.json?.transcripts?.[0]?.text || "").trim();
   return { text, provider: "elevenlabs", model: target.model };
@@ -137,7 +145,7 @@ async function geminiTranscribe(target, audio, key, fetchImpl) {
   const reply = await readReply(res);
   if (!res.ok) {
     const why = providerMessage(reply.json, reply.text) || `HTTP ${res.status}`;
-    throw fail(502, `Google Gemini could not transcribe (${res.status}). ${why}`.trim(), "voice_transcribe");
+    throw fail(502, `Google Gemini could not transcribe (${res.status}). ${why}`.trim(), "voice_transcribe", { silent: soundsSilent(res.status, why) });
   }
   const parts = reply.json?.candidates?.[0]?.content?.parts || [];
   const text = String(parts.map((p) => p.text || "").join("") || reply.json?.text || "").trim();
@@ -159,15 +167,18 @@ export async function transcribeAudio(audio, { hasSecret, getSecret, fetchImpl =
     throw fail(409, paidOnly ? PAID_OFF_NOTE : NO_SPEECH_KEY, "voice_no_speech_key");
   }
   let tried = 0;
+  let quiet = 0; // services that answered with no words, or said the audio was empty
   for (const target of targets) {
     const key = (typeof getSecret === "function" ? getSecret(target.id) : null)?.key;
     if (!key) continue;
     tried += 1;
     try {
       const out = await runTarget(target, audio, key, fetchImpl);
-      if (out.text || target === targets.at(-1)) return out;
-    } catch { /* quota, no credits, bad key or outage: try the next tier */ }
+      if (out.text) return out;
+      quiet += 1;
+    } catch (e) { if (e?.silent) quiet += 1; /* quota, no credits, bad key or outage: try the next tier */ }
   }
   if (!tried) throw fail(409, NO_SPEECH_KEY, "voice_no_speech_key");
+  if (quiet) throw fail(422, NOTHING_HEARD, "voice_silent");
   throw fail(502, ALL_BUSY, "voice_transcribe");
 }
