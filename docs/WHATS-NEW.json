@@ -1,4 +1,14 @@
 {
+  "0.4.25": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "While Meldmind starts up it shows a calm starting up line, and the engine warning waits longer before it appears.",
+      "Spoken replies and Instant voice only use a paid voice key when you turn on paid voice. Voice typing asks for a free Groq or Gemini key.",
+      "When a project has its own Simple or Expert setting, a note says so and offers to use one mode everywhere.",
+      "Text is easier to read in the light and dark looks, and notice bars and buttons are no longer hidden under the window header or the bottom bars.",
+      "Couldn't check for updates no longer shows when the update check really worked."
+    ]
+  },
   "0.4.24": {
     "title": "What's new in Meldmind",
     "bullets": [

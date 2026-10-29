@@ -2,7 +2,7 @@
 id: api-keys
 title: Adding API keys
 summary: Paste a key. Gemini AQ. and older AIza keys, plus Claude, ChatGPT, Grok, OpenRouter, and Groq.
-lastUpdatedVersion: 0.4.3
+lastUpdatedVersion: 0.4.25
 ---
 
 # Adding API keys
@@ -26,3 +26,7 @@ Each provider shows how it connects: No key, Not connected, Handoff, or Local ap
 CapCut connects with its MCP sign-in, not an API key. The strip says Not connected until you Connect, then Connected. CapCut lists that MCP as available outside the US, with US access coming soon. If it cannot connect, the card says that instead of an error.
 
 Set a provider to Free, Paid, or Unknown. Simple mode can prefer free AIs when quality is similar. You can turn that off under Free AIs and upgrade tips.
+
+## Voice keys and paid voice (0.4.25)
+
+Voice typing asks for a free Groq or Gemini key first. Spoken replies and Instant voice only use a paid voice key (OpenAI or ElevenLabs) when you turn on paid voice in Settings. With paid voice off, the built-in voice speaks the answer. If the Mic or a Generate button needs a key, a short line under it says which key to add.

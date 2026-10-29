@@ -2,7 +2,7 @@
 id: updates
 title: Updates
 summary: Check for updates from Help. Nothing downloads until you click.
-lastUpdatedVersion: 0.4.10
+lastUpdatedVersion: 0.4.25
 ---
 
 # Updates
@@ -26,3 +26,7 @@ A packaged install includes what the engine needs to start. If the app did not o
 ## Mac
 
 The Mac build is unsigned. On macOS 15 or later, open System Settings, then Privacy and Security, then Open Anyway. Automatic updates for Mac are coming soon. Until then, Install now opens the download page. Drag the app to Applications and choose Replace. Your settings, keys, and projects stay in `~/Library/Application Support/Everborn Command`.
+
+## Starting up and update checks (0.4.25)
+
+While Meldmind starts up, a calm line says "Meldmind is starting up. This can take up to a minute." The engine warning only appears if the engine still does not answer after about 45 seconds. Couldn't check for updates now only shows when the update check really failed, not when it worked but the app was busy starting.
