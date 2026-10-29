@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { bootPage, findBrowser } from "./pw-helpers.js";
 import { waitBudget } from "./helpers.js";
-import { paintedContrast } from "./paint-helpers.js";
+import { paintedContrast, ratio } from "./paint-helpers.js";
 
 const skip = findBrowser() ? false : "no Chrome installed";
 const WAIT = waitBudget(30000);
@@ -50,8 +50,9 @@ async function go(t, view) {
 const low = (list, min = 4.5) => list.filter((x) => x.ratio < min).map((x) => `${x.ratio} "${x.text}" fg ${x.fg} on ${x.bg}`);
 
 // Computed styles of every element matching each selector, with the inside stylesheet on and then off.
-async function stylesOnOff(page, selectors, props) {
-  return page.evaluate(({ selectors, props }) => {
+// sheets: which Mac part sheets to switch off ("inside" = inside.css, "inside-dock" = the light dock and search colours).
+async function stylesOnOff(page, selectors, props, sheets = ["inside"]) {
+  return page.evaluate(({ selectors, props, sheets }) => {
     const snap = () => {
       const out = {};
       for (const sel of selectors) {
@@ -62,13 +63,14 @@ async function stylesOnOff(page, selectors, props) {
       }
       return out;
     };
-    const link = document.querySelector('link[data-mac-css="inside"]');
+    const links = sheets.map((n) => document.querySelector(`link[data-mac-css="${n}"]`));
+    if (links.some((l) => !l || !l.sheet)) return { on: {}, off: { missing: sheets.join(",") }, count: 0 };
     const on = snap();
-    link.sheet.disabled = true;
+    links.forEach((l) => { l.sheet.disabled = true; });
     const off = snap();
-    link.sheet.disabled = false;
+    links.forEach((l) => { l.sheet.disabled = false; });
     return { on, off, count: Object.keys(on).length };
-  }, { selectors, props });
+  }, { selectors, props, sheets });
 }
 const diff = ({ on, off }) => Object.keys({ ...on, ...off }).filter((k) => on[k] !== off[k]).slice(0, 8).map((k) => `${k}\n  on:  ${on[k]}\n  off: ${off[k]}`);
 const FRAME_PROPS = ["background-color", "background-image", "color", "border-top-color", "border-top-width", "border-radius", "font-size", "font-family", "font-weight", "padding-top", "padding-left", "height", "width", "backdrop-filter", "box-shadow", "opacity"];
@@ -173,7 +175,9 @@ test("paper: the inside is opaque with no blur, and its theme follows the Mac bu
 
 // ---------- the frame and Simple stay as they were ----------
 
-test("frame: the title bar, sidebar, dock, Talk bar and chat dock compute the same with the inside part on and off", { skip }, async () => {
+// inside.css alone never reaches the frame. The light colours of the Talk bar, chat dock and sidebar search come from
+// the second sheet (inside-dock.css) and are checked in the "light dock" tests below.
+test("frame: the title bar, sidebar, dock, Talk bar and chat dock compute the same with inside.css on and off", { skip }, async () => {
   for (const theme of ["dark", "light"]) {
     const t = await bootNew({ theme, width: 1440, height: 900 });
     try {
@@ -182,7 +186,10 @@ test("frame: the title bar, sidebar, dock, Talk bar and chat dock compute the sa
       for (const v of ["command", "chat"]) {
         await go(t, v);
         const sels = ["#mac-titlebar", "#mac-titlebar *", "#mac-side", "#mac-side .si", "#mac-side .grp", "#mac-dock", "#mac-dock *", "#vt-bar", "#vt-bar *", ".cc-dock", ".cc-dock *"];
-        const r = await stylesOnOff(t.page, sels, FRAME_PROPS);
+        // The second sheet reads inside.css's tokens, so it is held off for both snapshots: this compares inside.css alone.
+        const dockSheet = (off) => t.page.evaluate((o) => { const l = document.querySelector('link[data-mac-css="inside-dock"]'); if (l?.sheet) l.sheet.disabled = o; }, off);
+        await dockSheet(true);
+        const r = await stylesOnOff(t.page, sels, FRAME_PROPS).finally(() => dockSheet(false));
         assert.ok(r.count > 40, `${theme} ${v}: compared ${r.count} elements`);
         assert.deepEqual(diff(r), [], `${theme} ${v}: frame changed`);
       }
@@ -197,7 +204,8 @@ test("Simple: nothing changes (computed styles the same with the inside part on 
     await t.page.waitForSelector("#mac-flow .mf-path", { timeout: WAIT });
     assert.equal(await t.page.evaluate(() => document.body.dataset.ui), "simple");
     const sels = ["#mac-root *", "#app", "#app *"];
-    const r = await stylesOnOff(t.page, sels, FRAME_PROPS);
+    const BOTH = ["inside", "inside-dock"];
+    const r = await stylesOnOff(t.page, sels, FRAME_PROPS, BOTH);
     assert.ok(r.count > 100, `compared ${r.count} elements`);
     assert.deepEqual(diff(r), [], "Simple changed");
     // Expert and back: the header, notice row and letter squares go away again, and the bars are back where they were.
@@ -212,7 +220,7 @@ test("Simple: nothing changes (computed styles the same with the inside part on 
       barsHome: ["fpbar", "mmbar", "projbar"].map((id) => document.getElementById(id)).filter(Boolean).every((b) => b.parentElement.classList.contains("view-col")),
     }));
     assert.deepEqual(left, { head: 0, notes: 0, av: 0, barsHome: true });
-    const again = await stylesOnOff(t.page, sels, FRAME_PROPS);
+    const again = await stylesOnOff(t.page, sels, FRAME_PROPS, BOTH);
     assert.deepEqual(diff(again), [], "Simple changed after a trip to Expert");
   } finally { await t.close(); }
 });
@@ -221,8 +229,8 @@ test("classic look (?mac=0): the inside part is not loaded and adds nothing", { 
   const t = await bootPage({ width: 1366, height: 800, mode: "expert" });
   try {
     await t.page.waitForTimeout(1200);
-    const got = await t.page.evaluate(() => ({ style: document.body.dataset.style || "", css: !!document.querySelector('link[data-mac-css="inside"]'), head: !!document.querySelector(".cx-head"), notes: !!document.querySelector(".cx-notes") }));
-    assert.deepEqual(got, { style: "", css: false, head: false, notes: false });
+    const got = await t.page.evaluate(() => ({ style: document.body.dataset.style || "", css: !!document.querySelector('link[data-mac-css="inside"]'), dockCss: !!document.querySelector('link[data-mac-css="inside-dock"]'), head: !!document.querySelector(".cx-head"), notes: !!document.querySelector(".cx-notes") }));
+    assert.deepEqual(got, { style: "", css: false, dockCss: false, head: false, notes: false });
   } finally { await t.close(); }
 });
 
@@ -261,9 +269,196 @@ test("header: Command, Projects, Credits and Settings get a page header that sur
     const gone = await t.page.evaluate(async () => {
       const mod = await import("/mac/index.js");
       mod.stopMac(window.CC);
-      const left = { head: document.querySelectorAll(".cx-head").length, notes: document.querySelectorAll(".cx-notes").length, newpHome: !!document.querySelector(".projects-grid #newp") || !document.getElementById("newp") };
+      const left = { head: document.querySelectorAll(".cx-head").length, notes: document.querySelectorAll(".cx-notes").length, newpHome: !!document.querySelector(".projects-grid #newp") || !document.getElementById("newp"), sheets: document.querySelectorAll('link[data-mac-css^="inside"]').length };
       return left;
     });
-    assert.deepEqual(gone, { head: 0, notes: 0, newpHome: true });
+    assert.deepEqual(gone, { head: 0, notes: 0, newpHome: true, sheets: 0 });
   } finally { await t.close(); }
+});
+
+// ---------- 0.4.26 polish: light Talk bar, chat dock, sidebar search, strip labels, notice row ----------
+
+const DOCK_SCOPE = 'body[data-style="mac"][data-ui="expert"][data-theme="light"]';
+// Colour-only properties: nothing here can move or resize anything.
+const COLOUR_PROPS = new Set(["color", "background", "background-color", "border-color", "border-top-color", "box-shadow", "filter", "caret-color", "color-scheme", "opacity", "outline", "outline-offset"]);
+
+test("source: inside-dock.css is light only, scoped to Mac + Expert, colour only, and loaded and removed by the inside part", () => {
+  const css = read("web", "mac", "css", "inside-dock.css");
+  const js = read("web", "mac", "parts", "inside.js");
+  assert.equal(/[–—]/.test(css), false, "no dashes");
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules = [...bare.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+  assert.ok(rules.length > 15, `parsed ${rules.length} rules`);
+  const unscoped = [], layout = [];
+  for (const [, prelude, body] of rules) {
+    for (const sel of prelude.split(/,(?![^(]*\))/).map((x) => x.trim()).filter(Boolean)) if (!sel.startsWith(DOCK_SCOPE)) unscoped.push(sel);
+    for (const decl of body.split(";").map((d) => d.trim()).filter(Boolean)) {
+      const prop = decl.slice(0, decl.indexOf(":")).trim();
+      if (!prop.startsWith("--") && !COLOUR_PROPS.has(prop)) layout.push(decl);
+    }
+  }
+  assert.deepEqual(unscoped, [], "every selector is light + Mac + Expert");
+  assert.deepEqual(layout, [], "colour-only declarations");
+  assert.equal(/@media|@import/.test(bare), false, "no media queries or imports");
+  assert.match(js, /\/mac\/css\/inside-dock\.css/);
+  assert.match(js, /macCss = "inside-dock"/, "tagged so stopMac removes it");
+});
+
+// Boot in demo mode (three pretend AIs fill the status strip), Expert, Mac theme as asked.
+async function bootDemo(theme) {
+  const t = await bootPage({ mac: "default", hidePopups: false, theme, width: 1440, height: 900 });
+  if (!t) return null;
+  try {
+    await t.api("/demo", { body: { on: true } });
+    await t.page.reload({ waitUntil: "domcontentloaded" });
+    await t.page.waitForFunction(() => window.CC && window.CC.mac && Object.keys(window.CC.mac.parts).length >= window.CC.mac.PARTS.length, null, { timeout: WAIT });
+    await t.page.waitForFunction(() => window.CC.featuresReady === true, null, { timeout: WAIT }).catch(() => {});
+    await t.page.addStyleTag({ content: `${POPUPS}{display:none!important}` });
+    await t.page.waitForTimeout(1500);
+    await toExpert(t);
+    await macTheme(t, theme);
+    return t;
+  } catch (e) { await t.close(); throw e; }
+}
+
+// Contrast of a typing field's placeholder (or typed text) against the pixels painted behind it.
+async function fieldContrast(page, sel, kind) {
+  const box = await page.evaluate(({ sel, kind }) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    el.scrollIntoView({ block: "nearest" });
+    if (kind === "text") el.value = "Plan the launch";
+    const cs = getComputedStyle(el);
+    const fg = getComputedStyle(el, kind === "placeholder" ? "::placeholder" : null).color;
+    const r = el.getBoundingClientRect();
+    const x = r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
+    const y = r.top + parseFloat(cs.borderTopWidth) + parseFloat(cs.paddingTop);
+    el.dataset.ccField = "1";
+    return { fg, x: Math.floor(x), y: Math.floor(y), w: Math.max(40, Math.min(220, Math.floor(r.right - x - 8))), h: Math.max(8, Math.min(18, Math.floor(r.bottom - y - 2))) };
+  }, { sel, kind });
+  if (!box) return null;
+  await page.addStyleTag({ content: "[data-cc-field].cc-field-hide, [data-cc-field].cc-field-hide::placeholder { color: transparent !important; -webkit-text-fill-color: transparent !important; caret-color: transparent !important; }" });
+  await page.evaluate(() => document.querySelector("[data-cc-field]").classList.add("cc-field-hide"));
+  const png = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.w, height: box.h }, animations: "disabled" });
+  const bg = await page.evaluate(async ({ b64, kind }) => {
+    const el = document.querySelector("[data-cc-field]");
+    el.classList.remove("cc-field-hide");
+    delete el.dataset.ccField;
+    if (kind === "text") el.value = "";
+    const img = new Image();
+    img.src = "data:image/png;base64," + b64;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const g = c.getContext("2d");
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const px = [];
+    for (let i = 0; i < d.length; i += 4) px.push([d[i], d[i + 1], d[i + 2]]);
+    const L = (p) => 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2];
+    px.sort((p, q) => L(p) - L(q));
+    return px[Math.floor(px.length / 2)];
+  }, { b64: png.toString("base64"), kind });
+  const m = box.fg.match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+))?/);
+  const a = m[4] === undefined ? 1 : Number(m[4]);
+  const fg = [1, 2, 3].map((i, k) => Math.round(Number(m[i]) * a + bg[k] * (1 - a)));
+  return { text: `${sel} ${kind}`, fg, bg, ratio: Math.round(ratio(fg, bg) * 100) / 100 };
+}
+
+test("light dock: chat input text and placeholder, Send, the Talk bar, the sidebar search and the strip labels are at least 4.5:1 on the painted pixels", { skip }, async () => {
+  const t = await bootDemo("light");
+  try {
+    await go(t, "projects"); // the chat dock shows under Projects
+    await t.page.waitForSelector(".cc-dock:not([hidden]) #cc-dock-input", { timeout: WAIT });
+    await t.page.waitForSelector("#vt-bar .vt-state", { timeout: WAIT });
+    await t.page.waitForSelector("#app .strip .tile .badge", { timeout: WAIT });
+    // The dock is light now: a white card, not the old navy, and Send is solid blue with white words.
+    const bg = await t.page.evaluate(() => [getComputedStyle(document.querySelector(".cc-dock")).backgroundColor, getComputedStyle(document.getElementById("vt-bar")).backgroundColor, getComputedStyle(document.getElementById("cc-dock-send")).backgroundColor, getComputedStyle(document.getElementById("cc-dock-send")).color]);
+    assert.deepEqual(bg, ["rgb(255, 255, 255)", "rgb(255, 255, 255)", "rgb(10, 111, 214)", "rgb(255, 255, 255)"], "dock, Talk bar and Send colours");
+
+    const fields = [];
+    for (const [sel, kind] of [["#cc-dock-input", "placeholder"], ["#cc-dock-input", "text"], ["#mac-side .mx-srch", "placeholder"], ["#mac-side .mx-srch", "text"]]) {
+      const r = await fieldContrast(t.page, sel, kind);
+      assert.ok(r, `${sel} found`);
+      fields.push(r);
+    }
+    assert.deepEqual(low(fields), [], "typing fields");
+
+    const send = await paintedContrast(t.page, "#cc-dock-send", { max: 1 });
+    assert.equal(send.length, 1, "Send measured");
+    const talk = await paintedContrast(t.page, "#vt-bar .vt-state, #vt-bar .vt-strip, #vt-bar label, #vt-bar .btn, #vt-bar .vt-line", { max: 12 });
+    assert.ok(talk.some((x) => x.text.startsWith("Talk")), "Talk bar measured");
+    const dock = await paintedContrast(t.page, ".cc-dock .dock-ctx, .cc-dock .dock-chip, .cc-dock .btn, .cc-dock .ghost, .cc-dock .dock-toggle, .cc-dock .dock-modes button", { max: 20 });
+    assert.ok(dock.some((x) => x.text === "Council"), "mode chips measured");
+    const strip = await paintedContrast(t.page, "#app .strip .tile .name, #app .strip .tile .sub, #app .strip .tile .badge", { max: 20 });
+    assert.ok(strip.some((x) => x.text === "Connected"), "strip labels measured");
+    assert.deepEqual(low([...send, ...talk, ...dock, ...strip]), [], "dock, Talk bar and strip");
+    // No monospace left on the strip tiles.
+    const mono = await t.page.evaluate(() => [...document.querySelectorAll("#app .strip .tile :is(.sub, .badge)")].filter((e) => /mono/i.test(getComputedStyle(e).fontFamily)).length);
+    assert.equal(mono, 0, "strip sub lines and labels use Inter");
+  } finally { await t.close(); }
+});
+
+// Every box in the Talk bar and the chat dock, as numbers.
+const dockBoxes = (page) => page.evaluate(() => [...document.querySelectorAll(".cc-dock, .cc-dock *, #vt-bar, #vt-bar *")].map((e) => {
+  const r = e.getBoundingClientRect();
+  return `${e.id || e.className || e.tagName} ${[r.x, r.y, r.width, r.height].map((n) => Math.round(n * 10) / 10).join(",")}`;
+}));
+const LAYOUT_PROPS = ["display", "position", "width", "height", "padding-top", "padding-right", "padding-bottom", "padding-left", "margin-top", "margin-bottom", "border-top-width", "border-left-width", "border-radius", "font-size", "font-family", "font-weight", "line-height", "gap", "flex-wrap"];
+const COLOUR_CHECK = ["background-color", "background-image", "color", "border-top-color", "border-left-color", "box-shadow", "opacity", "filter", "caret-color"];
+
+test("light dock: same boxes in light and dark (colour only), and the dark Talk bar and chat dock colours are unchanged", { skip }, async () => {
+  const t = await bootDemo("dark");
+  try {
+    await go(t, "projects");
+    await t.page.waitForSelector(".cc-dock:not([hidden]) #cc-dock-input", { timeout: WAIT });
+    await t.page.waitForSelector("#vt-bar .vt-state", { timeout: WAIT });
+    const SELS = [".cc-dock", ".cc-dock *", "#vt-bar", "#vt-bar *"];
+    // Dark: the new sheet changes nothing at all.
+    const dark = await stylesOnOff(t.page, SELS, [...COLOUR_CHECK, ...LAYOUT_PROPS], ["inside-dock"]);
+    assert.ok(dark.count > 25, `dark: compared ${dark.count} elements`);
+    assert.deepEqual(diff(dark), [], "dark Talk bar and chat dock unchanged");
+    const darkBoxes = await dockBoxes(t.page);
+
+    await macTheme(t, "light");
+    await t.page.waitForTimeout(500);
+    const lightBoxes = await dockBoxes(t.page);
+    assert.ok(darkBoxes.length > 25, `compared ${darkBoxes.length} boxes`);
+    assert.deepEqual(lightBoxes, darkBoxes, "the dock's boxes are identical in light and dark");
+    // Light: the sheet changes colours only, never a size or a place.
+    const light = await stylesOnOff(t.page, SELS, LAYOUT_PROPS, ["inside-dock"]);
+    assert.deepEqual(diff(light), [], "light: layout the same with the sheet on and off");
+    const colours = await stylesOnOff(t.page, [".cc-dock", "#vt-bar", "#cc-dock-send"], ["background-color", "color"], ["inside-dock"]);
+    assert.ok(diff(colours).length > 0, "light: the sheet does change the colours");
+    // The sidebar search keeps its box; only its text colour moves.
+    const search = await stylesOnOff(t.page, ["#mac-side .mx-srch"], ["background-color", ...LAYOUT_PROPS], ["inside-dock"]);
+    assert.deepEqual(diff(search), [], "search box look unchanged apart from its text");
+  } finally { await t.close(); }
+});
+
+test("notice row: at 1440 wide the Finish, Momentum and Project tools chips fit on one or two lines, with every control still shown", { skip }, async () => {
+  for (const theme of ["light", "dark"]) {
+    const t = await bootNew({ theme, width: 1440, height: 900 });
+    try {
+      await toExpert(t);
+      await macTheme(t, theme);
+      await go(t, "command");
+      await t.page.waitForSelector("#app .cx-notes #projbar", { timeout: WAIT });
+      await t.page.waitForTimeout(800);
+      const got = await t.page.evaluate(() => {
+        const box = document.querySelector("#app .cx-notes");
+        const b = box.getBoundingClientRect();
+        const ctrls = [...box.querySelectorAll("button, select, a")].filter((e) => !e.closest("[hidden]") && getComputedStyle(e).display !== "none" && !e.closest(".mm-why, .mm-owner, .mm-resume, .fp-card, .fp-pair"));
+        const out = ctrls.filter((e) => { const r = e.getBoundingClientRect(); return r.width < 4 || r.height < 4 || r.left < b.left - 1 || r.right > b.right + 1 || r.top < b.top - 1 || r.bottom > b.bottom + 1; }).map((e) => e.textContent.trim());
+        const tops = [...new Set(ctrls.map((e) => Math.round(e.getBoundingClientRect().top)))].sort((p, q) => p - q);
+        // Controls on one line can differ by a pixel or two in top; count a new line only after a real jump.
+        const lines = tops.filter((v, i) => i === 0 || v - tops[i - 1] > 8).length;
+        return { lines, tops, count: ctrls.length, out, words: ctrls.map((e) => e.textContent.trim()) };
+      });
+      assert.ok(got.count >= 8, `${theme}: ${got.count} controls (${got.words.join(", ")})`);
+      assert.deepEqual(got.out, [], `${theme}: every control inside the row and visible`);
+      assert.ok(got.lines <= 2, `${theme}: ${got.lines} lines (tops ${got.tops.join(", ")})`);
+      for (const want of ["Finish", "Continue this project", "Open canvas"]) assert.ok(got.words.includes(want), `${theme}: "${want}" shown`);
+    } finally { await t.close(); }
+  }
 });

@@ -53,10 +53,11 @@ test("off when asked: ?mac=0, cc.mac=0 or uiStyle classic leave the old look", {
 test("on with cc.mac=1: every part mounts and the page has no errors", { skip }, async () => {
   const t = await bootMac({ mode: "simple" });
   try {
-    const r = await t.page.evaluate(() => ({ style: document.body.dataset.style, parts: Object.keys(window.CC.mac.parts), css: document.querySelectorAll("link[data-mac-css]").length }));
+    const r = await t.page.evaluate(() => ({ style: document.body.dataset.style, parts: Object.keys(window.CC.mac.parts), css: [...document.querySelectorAll("link[data-mac-css]")].map((l) => l.dataset.macCss) }));
     assert.equal(r.style, "mac");
     assert.equal(r.parts.length, 10);
-    assert.equal(r.css, 10);
+    // One sheet per part, plus the inside part's second sheet (0.4.26: light Talk bar, chat dock and sidebar search colours).
+    assert.deepEqual(r.css.sort(), [...r.parts, "inside-dock"].sort());
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }
 });

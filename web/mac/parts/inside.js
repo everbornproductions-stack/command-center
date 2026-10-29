@@ -173,6 +173,16 @@ export default {
 
   mount(ctx) {
     const { CC, bus } = ctx;
+    // Second sheet (0.4.26 polish): light-theme colours for the Talk bar, the chat dock and the sidebar search box.
+    // It is separate so inside.css itself never names the frame. Colour only; dark, Simple and classic never match.
+    if (!document.querySelector('link[data-mac-css="inside-dock"]')) {
+      const sheet = document.createElement("link");
+      sheet.rel = "stylesheet";
+      sheet.href = "/mac/css/inside-dock.css";
+      sheet.dataset.macCss = "inside-dock";
+      document.head.appendChild(sheet);
+    }
+    CLEANUPS.push(() => document.querySelector('link[data-mac-css="inside-dock"]')?.remove());
     const view = document.getElementById("view");
     if (!view) return;
     let lastView = "", enterTimer = 0, queued = false;

@@ -6,6 +6,7 @@
    - Every rule starts with body[data-style="mac"][data-ui="expert"]. Simple mode and the classic look never match.
    - Inside the window, rules stay under #app #view, #app .cx-notes, #app .feed or #app .strip.
      The Talk bar (#vt-bar) and the chat dock (.cc-dock) sit beside #view, so nothing here reaches them.
+     Their light-theme colours (and the sidebar search text) are in the second sheet, inside-dock.css (colour only).
    - The theme comes from body[data-theme] only (the Mac light / dark button). html[data-theme] (the classic
      theme) does not matter inside, so the inside always matches the frame (brief option A).
    - Every colour comes from a --cx-* token. Sizes use rem so the text size setting still scales the inside. */
@@ -534,15 +535,18 @@ body[data-style="mac"][data-ui="expert"] #app #view .route {
   background: var(--cx-card);
 }
 
-/* One notice row: the Finish, Momentum and Project tools bars, gathered by parts/inside.js into .cx-notes. */
+/* One notice row: the Finish, Momentum and Project tools bars, gathered by parts/inside.js into .cx-notes.
+   0.4.26 polish: the three bars no longer draw boxes of their own (display: contents), so their buttons flow as one
+   run of small chips and the row fits on one or two lines at 1440 wide instead of three or four. Nothing is hidden:
+   every bar keeps all its controls, and their order stays Finish, Momentum, Project tools. */
 body[data-style="mac"][data-ui="expert"] #app .cx-notes {
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 14px;
+  gap: 6px 4px;
   margin: 16px var(--cx-pad-page) 0;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-r-card);
   background: var(--cx-card);
@@ -552,39 +556,40 @@ body[data-style="mac"][data-ui="expert"] #app .cx-notes {
   body[data-style="mac"][data-ui="expert"] #app .cx-notes { margin: 20px 32px 0; }
 }
 body[data-style="mac"][data-ui="expert"] #app .cx-notes:empty { display: none; }
-body[data-style="mac"][data-ui="expert"] #app .cx-notes > :is(.fp-bar, .mm-bar, .projbar) {
-  display: flex;
-  flex: 0 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  min-width: 0;
-}
-body[data-style="mac"][data-ui="expert"] #app .cx-notes > :is(.fp-bar, .mm-bar, .projbar):empty { display: none; }
-/* Finish first, then the Momentum suggestions, then the project tools (the order they were added in varies). */
-body[data-style="mac"][data-ui="expert"] #app .cx-notes > .fp-bar { order: 1; }
-body[data-style="mac"][data-ui="expert"] #app .cx-notes > .mm-bar { order: 2; }
-body[data-style="mac"][data-ui="expert"] #app .cx-notes > .projbar { order: 3; }
-body[data-style="mac"][data-ui="expert"] #app .cx-notes > :is(.mm-bar, .projbar) {
-  padding-left: 14px;
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > :is(.fp-bar, .mm-bar, .projbar):not([hidden]) { display: contents; }
+/* The bars' children are the row's items now. Finish first, then Momentum, then the project tools
+   (the order the bars were added in varies). */
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > .fp-bar > * { order: 1; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > .mm-bar > * { order: 2; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > .projbar > *,
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > .projbar .pb-tools > * { order: 3; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes .projbar .pb-tools { display: contents; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > :is(.fp-bar, .mm-bar, .projbar) > * { min-width: 0; margin: 0; }
+/* Whole-line extras (Why these, Pick up where you left off, Tune, the Finish cards) still take a line of their own. */
+body[data-style="mac"][data-ui="expert"] #app .cx-notes :is(.mm-why, .mm-resume, .mm-owner, .fp-card, .fp-pair) { flex: 1 0 100%; }
+/* A thin rule before each group label stands in for the bar edges. */
+body[data-style="mac"][data-ui="expert"] #app .cx-notes :is(.pb-lbl, .mm-label) {
+  color: var(--cx-muted);
+  font-size: var(--cx-fs-sub);
+  white-space: nowrap;
+  margin: 0 2px 0 6px;
+  padding-left: 10px;
   border-left: 1px solid var(--cx-line);
 }
-/* The tool buttons join the row instead of starting a line of their own. */
-body[data-style="mac"][data-ui="expert"] #app .cx-notes .projbar .pb-tools { display: contents; }
-body[data-style="mac"][data-ui="expert"] #app .cx-notes :is(.pb-lbl, .mm-lbl, .mm-title) { color: var(--cx-muted); font-size: var(--cx-fs-sub); }
-body[data-style="mac"][data-ui="expert"] #app .cx-notes .btn {
-  min-height: 1.625rem;
-  padding: 2px 8px;
+/* No rule in front of whichever group comes first. */
+body[data-style="mac"][data-ui="expert"] #app .cx-notes:not(:has(> .fp-bar)) > .mm-bar > .mm-label,
+body[data-style="mac"][data-ui="expert"] #app .cx-notes:not(:has(> .fp-bar, > .mm-bar)) > .projbar > .pb-lbl { margin-left: 0; padding-left: 0; border-left: 0; }
+/* Small chips. ":is(#view, .cx-notes, .feed).cx-notes" matches only the notice row; it carries the same weight as the
+   shared button rules above (which name #view), so these sizes win over .btn.sm there. */
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed).cx-notes :is(.btn, .btn.sm) {
+  min-height: 1.5rem;
+  padding: 1px 7px;
   font-size: var(--cx-fs-sub);
   line-height: 1.4;
+  white-space: nowrap;
 }
 body[data-style="mac"][data-ui="expert"] #app .cx-notes .fp-bar .fp-finish { margin-left: 0; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes .fp-bar .fp-pill { order: 1; padding: 1px 8px; font-size: var(--cx-fs-sub); }
 
 /* The Expert setup notice in the notice strip under the title bar: the Chaos amber notice. */
 body[data-style="mac"][data-ui="expert"] #mac-notices .dock-card {
@@ -744,7 +749,18 @@ body[data-style="mac"][data-ui="expert"] #app .strip .tile .light { box-shadow: 
 body[data-style="mac"][data-ui="expert"] #app .strip .tile .name { color: var(--cx-text); }
 body[data-style="mac"][data-ui="expert"] #app .strip .tile .sub { color: var(--cx-muted); }
 body[data-style="mac"][data-ui="expert"] #app .strip .tile .meter { background: var(--cx-sunk); }
-body[data-style="mac"][data-ui="expert"]:not([data-theme="dark"]) #app .strip .tile .badge { filter: brightness(.5) saturate(1.3); }
+/* 0.4.26 polish: the sub line and the status label use Inter (no monospace inside). On paper the label takes a darkened
+   mix of its AI colour (5:1 or better for any colour) and the sub line the body grey (7.6:1), instead of a filter. */
+body[data-style="mac"][data-ui="expert"] #app .strip .tile :is(.sub, .badge) {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #app .strip .tile .sub { color: var(--cx-text-2); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #app .strip .tile .badge {
+  filter: none;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--c, var(--cx-acc)) 35%, var(--cx-text));
+}
 
 /* ---------- motion: fade in when the page changes, small hover moves ---------- */
 @keyframes cx-fade-in-up {
