@@ -3,8 +3,13 @@
 // "Restart app" and "Install update" from a native dialog and the tray even when the web UI is stuck
 // on "reconnecting". onRecovered fires when it answers again. tick() is driven by a timer in
 // main.cjs and directly by tests with a fake clock.
-function createWatchdog({ probe, onStuck = () => {}, onRecovered = () => {}, thresholdMs = 15000, now = () => Date.now() }) {
+// 0.4.25: a cold start can keep the engine busy for about 30 s, so during the first startupMs after launch
+// (startedAt) the limit is startupThresholdMs (45 s) instead of thresholdMs. After that the 15 s rule
+// (locked decision 4) applies as before.
+function createWatchdog({ probe, onStuck = () => {}, onRecovered = () => {}, thresholdMs = 15000, startupMs = 0, startupThresholdMs = 0, startedAt, now = () => Date.now() }) {
   let lastOk = now(), stuck = false, lastReason = null, busy = false;
+  const launched = Number.isFinite(startedAt) ? startedAt : lastOk;
+  const limitNow = () => (now() - launched < startupMs ? Math.max(thresholdMs, startupThresholdMs) : thresholdMs);
   async function tick() {
     if (busy) return { stuck, reason: lastReason };
     busy = true;
@@ -17,14 +22,14 @@ function createWatchdog({ probe, onStuck = () => {}, onRecovered = () => {}, thr
         if (stuck) { stuck = false; try { onRecovered(); } catch {} }
       } else {
         lastReason = reason;
-        if (!stuck && now() - lastOk >= thresholdMs) { stuck = true; try { onStuck(reason, now() - lastOk); } catch {} }
+        if (!stuck && now() - lastOk >= limitNow()) { stuck = true; try { onStuck(reason, now() - lastOk); } catch {} }
       }
       return { stuck, reason: lastReason };
     } finally { busy = false; }
   }
   // the window failed to load at all (no server): count as down from now
   function fail(reason) { lastReason = reason; }
-  return { tick, fail, get stuck() { return stuck; }, get reason() { return lastReason; }, get downForMs() { return stuck || lastReason ? now() - lastOk : 0; } };
+  return { tick, fail, get stuck() { return stuck; }, get reason() { return lastReason; }, get downForMs() { return stuck || lastReason ? now() - lastOk : 0; }, get limitMs() { return limitNow(); } };
 }
 
 // Turn a fetch error into words a person can act on.
