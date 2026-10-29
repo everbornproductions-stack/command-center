@@ -10,7 +10,7 @@ import { createRequire } from "node:module";
 import { ROOT } from "./helpers.js";
 
 const require = createRequire(import.meta.url);
-const { createUpdateController, CHECK_EVERY_MS, CHECK_FAILED, DOWNLOAD_PAGE, GITHUB_FEED, GENERIC_FEED, buttonLabel, promptButtons, quitInstallAction, cleanError, parseLatestYml } = require("../electron/updater.cjs");
+const { createUpdateController, CHECK_EVERY_MS, CHECK_FAILED, DOWNLOAD_PAGE, GITHUB_FEED, GENERIC_FEED, buttonLabel, promptButtons, quitInstallAction, cleanError, parseLatestYml, readPublicLatest } = require("../electron/updater.cjs");
 const { createWatchdog, describeProbeError } = require("../electron/watchdog.cjs");
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -93,6 +93,37 @@ test("engine watchdog: stuck after 15 s, offered once per outage, recovers", asy
   assert.equal(w.stuck, false); assert.equal(rec, 1);
   const thrower = createWatchdog({ now: () => t, thresholdMs: 0, probe: async () => { throw new Error("boom"); }, onStuck: (r) => stuck.push(r) });
   await thrower.tick(); assert.equal(stuck.at(-1), "boom");
+});
+
+test("0.4.25: engine watchdog gives a cold start 45 s in the first 90 s, then the 15 s rule again", async () => {
+  let t = 0, up = false; const stuck = [];
+  const w = createWatchdog({ now: () => t, startedAt: 0, thresholdMs: 15000, startupThresholdMs: 45000, startupMs: 90000, probe: async () => (up ? true : { ok: false, reason: "the engine on port 4747 is not responding (timed out)" }), onStuck: (r) => stuck.push(r) });
+  assert.equal(w.limitMs, 45000);
+  t = 16000; await w.tick(); assert.equal(w.stuck, false, "16 s into a cold start is not stuck");
+  t = 31000; await w.tick(); assert.equal(w.stuck, false, "a 30 s cold start never shows the engine box");
+  t = 45000; await w.tick(); assert.equal(w.stuck, true, "45 s with no answer is stuck");
+  assert.equal(stuck.length, 1);
+  up = true; t = 50000; await w.tick(); assert.equal(w.stuck, false);
+  // after the first 90 s, the locked 15 s rule (decision 4) applies again
+  t = 95000; await w.tick(); assert.equal(w.limitMs, 15000);
+  up = false; t = 100000; await w.tick(); assert.equal(w.stuck, false);
+  t = 111000; await w.tick(); assert.equal(w.stuck, true, "15 s without an answer after startup is stuck, as before");
+  // with no startup options it behaves exactly as before
+  let t2 = 0; const plain = createWatchdog({ now: () => t2, thresholdMs: 15000, probe: async () => false });
+  assert.equal(plain.limitMs, 15000);
+  t2 = 15000; await plain.tick(); assert.equal(plain.stuck, true);
+});
+
+test("0.4.25: main.cjs wires the 45 s startup limit and waits 45 s for the engine to start", () => {
+  const main = fs.readFileSync(path.join(ROOT, "electron", "main.cjs"), "utf8");
+  const wd = main.slice(main.indexOf("watchdog = createWatchdog({"), main.indexOf("probe: async () => {", main.indexOf("watchdog = createWatchdog({")));
+  assert.match(wd, /thresholdMs: 15000,/);
+  assert.match(wd, /startupThresholdMs: 45000,/);
+  assert.match(wd, /startupMs: 90000,/);
+  assert.match(wd, /startedAt: LAUNCHED_AT,/);
+  assert.match(main, /const LAUNCHED_AT = Date\.now\(\);/);
+  assert.match(main, /const SERVER_START_MS = 45000;/);
+  assert.match(main, /async function waitForServer\(ms = SERVER_START_MS\)/);
 });
 
 test("probe errors become plain reasons", () => {
@@ -264,6 +295,49 @@ test("public latest.yml is the version even when the GitHub provider says there 
   assert.equal(c.state.version, "0.4.8", "a later not-available event does not hide the newer build");
 });
 
+test("0.4.25: the provider said 'no newer release', so a failed latest.yml read is not a failed check", async () => {
+  // From the installed 0.4.24 log: the provider answered "0.4.24 is not available (latest 0.4.24)", then the
+  // latest.yml read was aborted while the engine warmed up, and every launch showed "Couldn't check for updates".
+  const logs = [];
+  const au = new EventEmitter();
+  au.setFeedURL = () => {};
+  au.checkForUpdates = async () => { const info = { version: "0.4.24" }; au.emit("update-not-available", info); return { updateInfo: info }; };
+  const seen = { failed: 0, prompts: 0 };
+  const c = createUpdateController({
+    autoUpdater: au, currentVersion: "0.4.24", log: (...a) => logs.push(a.join(" ")),
+    readLatest: async () => { throw new Error("This operation was aborted"); },
+    ui: { failed: () => seen.failed++, prompt: () => seen.prompts++ },
+  });
+  const s = await c.check({ prompt: true });
+  assert.equal(s.phase, "idle");
+  assert.equal(s.error, null);
+  assert.equal(seen.failed, 0); assert.equal(seen.prompts, 0);
+  assert.match(logs.join("\n"), /latest\.yml not read: This operation was aborted/);
+  assert.equal((await c.bridge.check()).error, null, "Settings does not say Couldn't check either");
+  // the provider failed too: that is still a failed check
+  const au2 = new EventEmitter();
+  au2.setFeedURL = () => {};
+  au2.checkForUpdates = async () => { throw new Error("net::ERR_TIMED_OUT"); };
+  const c2 = createUpdateController({ autoUpdater: au2, currentVersion: "0.4.24", readLatest: async () => { throw new Error("This operation was aborted"); } });
+  assert.equal((await c2.check({ prompt: true })).phase, "failed");
+});
+
+test("0.4.25: the latest.yml time limit ignores time the main process was blocked", async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (url, opts) => new Promise((resolve, reject) => {
+    opts.signal.addEventListener("abort", () => reject(new Error("This operation was aborted")));
+    setTimeout(() => resolve(new Response("version: 0.4.25\npath: Meldmind-Setup-0.4.25.exe\n", { status: 200 })), 50);
+  });
+  try {
+    const p = readPublicLatest({ limitSeconds: 2 });
+    const until = Date.now() + 2600; while (Date.now() < until) { /* the engine warming up in the same process */ }
+    const got = await p;
+    assert.equal(got.version, "0.4.25", "a read that arrived during the block is not aborted");
+  } finally { globalThis.fetch = realFetch; }
+  const src = fs.readFileSync(path.join(ROOT, "electron", "updater.cjs"), "utf8");
+  assert.doesNotMatch(src, /setTimeout\(\(\) => ctl\.abort\(\), 15000\)/);
+});
+
 test("a provider error still offers the version from public latest.yml", async () => {
   const au = new EventEmitter();
   au.setFeedURL = () => {};
@@ -326,9 +400,12 @@ test("main process: updater set up before the engine, single instance, tray item
   assert.match(updatePage, /installs it when you quit/);
 });
 
-test("web UI: 'reconnecting' turns into a Restart engine panel with a reason after about 15 s", () => {
+// 0.4.25: this test pinned 15 s, which fired on every cold start (about 30 s). The box now waits 45 s and the first
+// 90 s show "Meldmind is starting up" instead (web/engine-wait.js, test/engine-wait-0425.test.js).
+test("web UI: 'reconnecting' turns into a Restart engine panel with a reason after about 45 s", () => {
   const app = fs.readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
-  assert.match(app, /const ENGINE_TIMEOUT_MS = 15000;/);
+  assert.match(app, /const ENGINE_TIMEOUT_MS = ENGINE_BOX_MS;/);
+  assert.match(fs.readFileSync(path.join(ROOT, "web", "engine-wait.js"), "utf8"), /export const ENGINE_BOX_MS = 45000;/);
   assert.match(app, /Restart engine/);
   assert.match(app, /Reason: /);
   assert.match(app, /window\.ccDesktop\.restart\(\)/);

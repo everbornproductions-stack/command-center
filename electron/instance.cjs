@@ -15,9 +15,18 @@ function readRecord(userData) { try { const r = JSON.parse(fs.readFileSync(recor
 function clearRecord(userData, pid) { try { const r = readRecord(userData); if (r && r.pid === pid) fs.unlinkSync(recordPath(userData)); } catch {} }
 function isAlive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return !!(e && e.code === "EPERM"); } }
 
+// A cold start with many missions keeps a copy's engine busy for about 30 s. A holder is only called hung once it has
+// been silent longer than this (0.4.25).
+const COLD_START_MS = 60000;
+const samePath = (a, b) => !!a && !!b && path.resolve(String(a)).toLowerCase() === path.resolve(String(b)).toLowerCase();
+
 // Take the lock. If another copy holds it: leave quietly when that copy answers, but take over from one that
-// is dead or hung (its engine does not answer three probes in a row), so a ghost can never lock the person out.
-async function resolveLock({ requestLock, readRec, alive = isAlive, probe, kill, sleep = sleepMs, log = () => {}, selfPid = process.pid, probes = 3, probeGap = 2500, retries = 6, retryGap = 500 }) {
+// is dead or hung, so a ghost can never lock the person out.
+// 0.4.25: "hung" means its engine does not answer three probes AND it has given no sign of life (rec.at, refreshed by
+// the holder's heartbeat while its engine answers) for longer than silentMs (a cold start), AND the saved pid is still
+// this install's exe (exeOf(pid) equals execPath). A holder that is only starting is left alone (this launch quits and
+// the first copy is focused). A pid that is now some other program means the record is stale: it is never ended.
+async function resolveLock({ requestLock, readRec, alive = isAlive, probe, kill, exeOf = exeOfPid, execPath = process.execPath, silentMs = COLD_START_MS, now = () => Date.now(), sleep = sleepMs, log = () => {}, selfPid = process.pid, probes = 3, probeGap = 2500, retries = 6, retryGap = 500 }) {
   if (requestLock()) return true;
   const rec = readRec();
   const retryLock = async () => { for (let i = 0; i < retries; i++) { await sleep(retryGap); if (requestLock()) return true; } return false; };
@@ -28,9 +37,28 @@ async function resolveLock({ requestLock, readRec, alive = isAlive, probe, kill,
     if (ok) return false; // a healthy copy is open: this launch only focuses it
     if (i < probes - 1) await sleep(probeGap);
   }
-  log(`lock holder ${rec.pid} does not answer; ending it and taking over`);
+  const silent = now() - (Number(rec.at) || 0);
+  if (silent < silentMs) { log(`lock holder ${rec.pid} does not answer yet but is still starting (silent ${Math.round(silent / 1000)} s); leaving it`); return false; }
+  let exe = null; try { exe = await exeOf(rec.pid); } catch {}
+  if (!samePath(exe, execPath)) { log(`lock record is stale: pid ${rec.pid} is not this Meldmind (${exe ? "another program" : "unknown program"}); not ending it`); return retryLock(); }
+  log(`lock holder ${rec.pid} has not answered for ${Math.round(silent / 1000)} s; ending it and taking over`);
   try { await kill([rec.pid]); } catch {}
   return retryLock();
+}
+
+// The full path of the program running as pid, or null when it cannot be told (never guesses).
+function exeOfPid(pid) {
+  return new Promise((resolve) => {
+    if (!Number.isInteger(pid) || pid <= 0) return resolve(null);
+    if (process.platform === "win32") {
+      const script = `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").ExecutablePath`;
+      execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { timeout: 20000, windowsHide: true }, (err, stdout) => resolve(err ? null : String(stdout || "").trim() || null));
+    } else if (process.platform === "linux") {
+      try { resolve(fs.readlinkSync(`/proc/${pid}/exe`)); } catch { resolve(null); }
+    } else {
+      execFile("ps", ["-p", String(pid), "-o", "comm="], { timeout: 10000 }, (err, stdout) => resolve(err ? null : String(stdout || "").trim() || null));
+    }
+  });
 }
 
 // ---- orphans: Meldmind processes of this same install that no live copy owns ----
@@ -105,4 +133,4 @@ function createLoadCounter({ limit = 6, windowMs = 60000, now = () => Date.now()
   };
 }
 
-module.exports = { recordPath, writeRecord, readRecord, clearRecord, isAlive, resolveLock, pickOrphans, listProcesses, killPids, reapOrphans, waitForEngine, createLoadCounter, BACKOFF_MS };
+module.exports = { recordPath, writeRecord, readRecord, clearRecord, isAlive, resolveLock, exeOfPid, COLD_START_MS, pickOrphans, listProcesses, killPids, reapOrphans, waitForEngine, createLoadCounter, BACKOFF_MS };

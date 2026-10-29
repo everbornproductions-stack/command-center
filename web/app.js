@@ -25,6 +25,8 @@ import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
 import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable, liveSync } from "./live-ops.js";
 import { installClickTracking, noteToast, trackBusy, withBusy } from "./busy.js";
 import { renderProjectTeam, wireEmployeeHint } from "./employees-ui.js";
+import { ENGINE_BOX_MS, STARTING_LINE, engineWaitView } from "./engine-wait.js";
+import { projectModeNote, projectsWithOwnMode } from "./project-mode-note.js";
 
 // ---------------- state ----------------
 const S = {
@@ -274,10 +276,36 @@ function safeReload(reason, { manual = false } = {}) {
 }
 
 // ---------------- engine down panel (v0.3.2) ----------------
-// After about 15 s of "reconnecting", stop spinning: say why and offer "Restart engine" (desktop app)
+// After about 45 s of "reconnecting", stop spinning: say why and offer "Restart engine" (desktop app)
 // or "Try again" (browser / phone). The desktop main process also offers this in a dialog and the tray.
-const ENGINE_TIMEOUT_MS = 15000;
-let downSince = 0, desktopReason = null;
+// 0.4.25: was 15 s, but a cold start takes about 30 s. In the first 90 s after the page starts, a calm
+// "Meldmind is starting up" line shows instead (web/engine-wait.js). Forced reasons still show the box at once.
+const ENGINE_TIMEOUT_MS = ENGINE_BOX_MS;
+const PAGE_STARTED = Date.now();
+let downSince = 0, desktopReason = null, engineWaitTimer = 0;
+function engineStarting(on) {
+  let el = document.getElementById("engine-starting");
+  if (!on) { el?.remove(); return; }
+  if (el) return;
+  el = document.createElement("div");
+  el.id = "engine-starting";
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-live", "polite");
+  // never in the way: no clicks, a small line at the top, and gone as soon as the engine answers
+  el.style.cssText = "position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:9998;pointer-events:none;max-width:calc(100vw - 32px);padding:7px 14px;border-radius:999px;background:rgba(12,17,27,.94);color:#eef2f8;font-size:13px;line-height:1.3;box-shadow:0 4px 18px rgba(0,0,0,.28)";
+  el.textContent = STARTING_LINE;
+  document.body.appendChild(el);
+}
+// Decide what to show while the live connection is down, and look again each second until it is "ok" or the box.
+function paintEngineWait() {
+  clearTimeout(engineWaitTimer);
+  const view = engineWaitView({ now: Date.now(), startedAt: PAGE_STARTED, downSince, local: !HUB && !phoneSide() && CONFIG.mode !== "hosted" });
+  if (view === "ok") { engineStarting(false); return; }
+  if (view === "box") { engineStarting(false); engineDown(true); return; }
+  $("#conn-dot").className = "dot red"; $("#conn-txt").textContent = view === "starting" ? "starting up" : "reconnecting";
+  engineStarting(view === "starting");
+  engineWaitTimer = setTimeout(paintEngineWait, 1000);
+}
 window.ccDesktop?.onEngine?.((st) => { desktopReason = st.reason || null; if (st.stuck) engineDown(true); });
 async function engineReason() {
   if (desktopReason) return desktopReason;
@@ -286,7 +314,8 @@ async function engineReason() {
 }
 async function engineDown(on) {
   let el = document.getElementById("engine-down");
-  if (!on) { downSince = 0; desktopReason = null; el?.remove(); return; }
+  if (!on) { downSince = 0; desktopReason = null; clearTimeout(engineWaitTimer); engineStarting(false); el?.remove(); return; }
+  clearTimeout(engineWaitTimer); engineStarting(false);
   const secs = Math.round((Date.now() - (downSince || Date.now())) / 1000);
   const reason = await engineReason();
   if (!downSince && !desktopReason) return; // came back while we were asking
@@ -315,7 +344,7 @@ function connect() {
     $("#conn-dot").className = "dot green"; $("#conn-txt").textContent = "live";
     engineDown(false);
   };
-  ws.onclose = (e) => { if (e.code === 4401 || e.code === 4403) return; $("#conn-dot").className = "dot red"; $("#conn-txt").textContent = "reconnecting"; downSince ||= Date.now(); clearTimeout(wsTimer); wsTimer = setTimeout(connect, 1500); if (Date.now() - downSince > ENGINE_TIMEOUT_MS) engineDown(true); else setTimeout(() => { if (downSince && Date.now() - downSince > ENGINE_TIMEOUT_MS) engineDown(true); }, ENGINE_TIMEOUT_MS + 200); };
+  ws.onclose = (e) => { if (e.code === 4401 || e.code === 4403) return; downSince ||= Date.now(); clearTimeout(wsTimer); wsTimer = setTimeout(connect, 1500); paintEngineWait(); };
   ws.onmessage = (m) => {
     const ev = JSON.parse(m.data);
     if (ev.type === "auth.error") {
@@ -777,6 +806,37 @@ function syncChrome() {
   if (more) more.hidden = simple;
   if (simple) $("#mobile-more")?.classList.remove("open");
   if (!simple) $("#simple-create")?.classList.remove("open");
+  paintProjectModeNote();
+}
+// 0.4.25: the global Simple / Expert choice, without the active project's own choice on top.
+function globalUiMode() { return resolveMode(S.settings, { fresh: isFreshInstall({ onboarding: S.onboarding, settings: S.settings }) }); }
+// When the active project has its own mode that differs from the global one, say so in one line with one fix.
+const modeNoteKept = new Set();
+function paintProjectModeNote() {
+  const proj = (S.projects || []).find((p) => p.id === S.project);
+  const note = S.settingsLoaded && proj && !modeNoteKept.has(proj.id) ? projectModeNote(proj, globalUiMode()) : null;
+  let bar = document.getElementById("cc-project-mode-note");
+  if (!note) { bar?.remove(); return; }
+  if (bar && bar.dataset.project === proj.id && bar.dataset.own === note.own) return;
+  bar?.remove();
+  bar = document.createElement("div");
+  bar.id = "cc-project-mode-note";
+  bar.className = "update-bar";
+  bar.setAttribute("role", "group");
+  bar.setAttribute("aria-label", "Project mode");
+  bar.dataset.project = proj.id; bar.dataset.own = note.own;
+  bar.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#eef2f8"; // light text on the bar's dark blue in both themes
+  const p = document.createElement("span");
+  p.textContent = note.text;
+  const use = document.createElement("button");
+  use.type = "button"; use.className = "btn sm primary"; use.id = "cc-mode-everywhere"; use.textContent = note.button;
+  use.addEventListener("click", () => { bar.remove(); setUiMode(note.global, { everywhere: true, confirmed: true }); });
+  const keep = document.createElement("button");
+  keep.type = "button"; keep.className = "btn sm"; keep.textContent = note.keep;
+  keep.addEventListener("click", () => { modeNoteKept.add(proj.id); bar.remove(); });
+  bar.append(p, use, keep);
+  const dock = document.getElementById("notices");
+  if (dock) dock.appendChild(bar); else document.body.prepend(bar);
 }
 function renderAsk() {
   document.getElementById("cc-mode-ask")?.remove();
@@ -822,7 +882,16 @@ function setUiMode(mode, opts = {}) {
     .then((saved) => { if (saved && typeof saved === "object") S.settings = { ...S.settings, ...saved, ...patch }; })
     .catch((e) => toast(e.message, true));
   const activeProj = (S.projects || []).find((p) => p.id === S.project);
-  if (activeProj) {
+  if (opts.everywhere) {
+    // 0.4.25: "Use Simple everywhere" (or Expert): the global choice wins, so every project's own choice is cleared
+    for (const id of projectsWithOwnMode(S.projects)) {
+      const p = S.projects.find((x) => x.id === id);
+      p.uiMode = null;
+      api("/projects", { method: "POST", body: { id, uiMode: null } }).catch(() => {});
+    }
+    toast(`Using ${mode === "expert" ? "Expert" : "Simple"} in every project.`);
+    syncChrome();
+  } else if (activeProj) {
     activeProj.uiMode = mode;
     api("/projects", { method: "POST", body: { id: activeProj.id, uiMode: mode } }).catch(() => {});
   }
@@ -1164,11 +1233,13 @@ function wireProjectPicker() {
     if (renameBtn) renameBtn.hidden = !S.project;
     syncProjectBar();
     const pickedProj = (S.projects || []).find((p) => p.id === S.project);
-    if (pickedProj?.uiMode && pickedProj.uiMode !== S.uiMode) {
-      S.uiMode = pickedProj.uiMode;
+    // 0.4.25: a project with no own choice follows the global one (it used to keep the last project's mode)
+    const wantMode = resolveProjectMode(pickedProj, S.settings, { fresh: isFreshInstall({ onboarding: S.onboarding, settings: S.settings }) });
+    if (wantMode !== S.uiMode) {
+      S.uiMode = wantMode;
       syncChrome();
       render();
-    }
+    } else paintProjectModeNote();
     if (renameBtn) renameBtn.hidden = !S.project;
   });
   renameBtn?.addEventListener("click", () => { if (!S.project) return; sel.value = S.project; open("rename"); });
@@ -2999,6 +3070,7 @@ function renderSettings(v) {
     try {
       await api("/projects", { method: "POST", body: { id: pid, uiMode: modeVal } });
       if (modeVal === "simple" || modeVal === "expert") { S.uiMode = modeVal; syncChrome(); }
+      else { syncUiMode(); syncChrome(); } // "Use global": back to the global choice
       toast("Project mode saved");
     } catch (err) { toast(err.message, true); }
   });

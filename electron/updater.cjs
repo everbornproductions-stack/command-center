@@ -79,10 +79,14 @@ function parseLatestYml(text) {
 
 // Node's fetch follows the public GitHub redirect. No token is sent. electron-updater's own
 // client can fail this same URL after several redirects and then report "no update".
-async function readPublicLatest() {
+// 0.4.25: the time limit counts seconds the main process was free to run, not wall time. The launch check runs while
+// the engine warms up in this same process, which can block it for about 30 s; a plain 15 s timer then fired the moment
+// the process was free again and aborted a read that had already arrived ("This operation was aborted" on every launch).
+async function readPublicLatest({ limitSeconds = 15 } = {}) {
   const url = GENERIC_FEED.url + "latest.yml";
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 15000);
+  let ticks = 0;
+  const timer = setInterval(() => { if (++ticks >= limitSeconds) ctl.abort(); }, 1000);
   try {
     const res = await fetch(url, {
       signal: ctl.signal,
@@ -96,7 +100,7 @@ async function readPublicLatest() {
     if (!parsed.version) throw new Error("latest.yml has no version");
     return parsed;
   } finally {
-    clearTimeout(timer);
+    clearInterval(timer);
   }
 }
 
@@ -205,6 +209,12 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
       log(`update check: no newer release (have v${currentVersion})`);
       return setState({ phase: "idle", version: null, error: null, detail: null, downloadUrl: null, file: null, checkedAt: Date.now() });
     }
+    // 0.4.25: the GitHub provider answered (it named the latest version and it is not newer), so the check worked.
+    // The extra latest.yml read is only a second opinion: when it fails, that is logged, not shown as a failed check.
+    if (feedError && base && !base.failed && base.answered) {
+      log(`update check: no newer release (have v${currentVersion}); latest.yml not read: ${feedError}`);
+      return setState({ phase: "idle", version: null, error: null, detail: null, downloadUrl: null, file: null, checkedAt: Date.now() });
+    }
     if (feedError || (base && base.failed)) {
       const detail = feedError || (base && base.error) || "update check failed";
       log("update check failed:", detail);
@@ -224,7 +234,7 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
       pending = Promise.resolve().then(() => runCheck()).then((r) => {
         const i = r && r.updateInfo;
         const version = i && i.version && newer(i.version, currentVersion) ? i.version : null;
-        return applyFeed({ version, notes: version ? (notes(i) || "") : "", failed: !r, error: r ? null : "update check returned nothing" });
+        return applyFeed({ version, notes: version ? (notes(i) || "") : "", failed: !r, answered: !!(i && i.version), error: r ? null : "update check returned nothing" });
       }).catch((e) => applyFeed({ failed: true, error: cleanError(e), version: null })).finally(() => { pending = null; });
     }
     const s = await pending;

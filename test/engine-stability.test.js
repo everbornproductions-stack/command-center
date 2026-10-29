@@ -89,13 +89,66 @@ test("a lock holder that answers is left alone; a dead or hung one is replaced",
   assert.deepEqual(killed, []);
   // older build, no record: treated as healthy
   assert.equal(await inst.resolveLock({ ...base, requestLock: () => false, readRec: () => null, probe: async () => false, kill: async () => { throw new Error("must not kill"); } }), false);
-  // hung holder: three failed probes, then it is ended and the lock is taken
+  // hung holder: three failed probes, silent longer than a cold start, still our exe: it is ended and the lock is taken
+  // (0.4.25: the silence and exe checks are injected, so no real process is looked up)
+  const exe = "C:\\Users\\x\\AppData\\Local\\Programs\\Meldmind\\Meldmind.exe";
   let probes = 0, free = false; killed = [];
-  const got = await inst.resolveLock({ ...base, requestLock: () => free, readRec: () => ({ pid: 77, port: 4747 }), alive: () => true, probe: async () => { probes++; return false; }, kill: async (p) => { killed = p; free = true; } });
+  const got = await inst.resolveLock({ ...base, requestLock: () => free, readRec: () => ({ pid: 77, port: 4747, at: 1000 }), now: () => 1000 + 61000, exeOf: async () => exe, execPath: exe.toLowerCase(), alive: () => true, probe: async () => { probes++; return false; }, kill: async (p) => { killed = p; free = true; } });
   assert.equal(got, true); assert.equal(probes, 3); assert.deepEqual(killed, [77]);
   // dead holder: no probing, no kill, just retry the lock
   let n = 0;
   assert.equal(await inst.resolveLock({ ...base, requestLock: () => ++n > 2, readRec: () => ({ pid: 77, port: 1 }), alive: () => false, probe: async () => { throw new Error("no probe"); }, kill: async () => { throw new Error("no kill"); } }), true);
+});
+
+test("0.4.25: a copy that is only cold-starting is never ended, and a recycled pid is never ended", async () => {
+  const sleep = async () => {};
+  const exe = "C:\\Users\\x\\AppData\\Local\\Programs\\Meldmind\\Meldmind.exe";
+  const logs = [];
+  const base = { sleep, log: (m) => logs.push(m), selfPid: 10, alive: () => true, probe: async () => false, execPath: exe };
+  assert.equal(inst.COLD_START_MS >= 45000 && inst.COLD_START_MS <= 60000, true, "silent limit is a cold start (45 to 60 s)");
+  assert.equal(inst.COLD_START_MS, 60000);
+  // the first copy started 30 s ago and its engine is still busy: leave it, do not even look up its exe
+  let killed = null, looked = 0;
+  const starting = await inst.resolveLock({ ...base, requestLock: () => false, readRec: () => ({ pid: 77, port: 4747, at: 5000 }), now: () => 5000 + 30000, exeOf: async () => { looked++; return exe; }, kill: async (p) => { killed = p; } });
+  assert.equal(starting, false, "this launch quits; the first copy is focused");
+  assert.equal(killed, null); assert.equal(looked, 0);
+  assert.match(logs.at(-1), /still starting/);
+  // just under the limit is still "starting"
+  assert.equal(await inst.resolveLock({ ...base, requestLock: () => false, readRec: () => ({ pid: 77, port: 4747, at: 0 }), now: () => 59999, exeOf: async () => exe, kill: async (p) => { killed = p; } }), false);
+  assert.equal(killed, null);
+  // silent for 2 minutes, but the pid now belongs to another program: the record is stale, nothing is ended
+  let tries = 0;
+  const stale = await inst.resolveLock({ ...base, requestLock: () => ++tries > 3, readRec: () => ({ pid: 77, port: 4747, at: 0 }), now: () => 120000, exeOf: async () => "C:\\Windows\\System32\\notepad.exe", kill: async (p) => { killed = p; } });
+  assert.equal(killed, null, "never end another program");
+  assert.equal(stale, true, "the lock is retried as for a stale record");
+  assert.match(logs.at(-1), /stale/);
+  // the exe cannot be told (lookup failed or returned nothing): never end it
+  for (const exeOf of [async () => null, async () => { throw new Error("denied"); }]) {
+    assert.equal(await inst.resolveLock({ ...base, requestLock: () => false, readRec: () => ({ pid: 77, port: 4747, at: 0 }), now: () => 120000, exeOf, retries: 1, kill: async (p) => { killed = p; } }), false);
+    assert.equal(killed, null);
+  }
+  // a copy of Meldmind installed somewhere else is not this install
+  assert.equal(await inst.resolveLock({ ...base, requestLock: () => false, readRec: () => ({ pid: 77, port: 4747, at: 0 }), now: () => 120000, exeOf: async () => "D:\\Other\\Meldmind.exe", retries: 1, kill: async (p) => { killed = p; } }), false);
+  assert.equal(killed, null);
+});
+
+test("0.4.25: main.cjs passes the exe check and the cold-start limit to the lock, and keeps the record fresh", () => {
+  const main = fs.readFileSync(path.join(ROOT, "electron", "main.cjs"), "utf8");
+  const lock = main.slice(main.indexOf("inst.resolveLock("), main.indexOf("async function waitForServer"));
+  assert.match(lock, /exeOf: \(pid\) => inst\.exeOfPid\(pid\)/);
+  assert.match(lock, /execPath: process\.execPath/);
+  assert.match(lock, /silentMs: inst\.COLD_START_MS/);
+  assert.match(main, /function heartbeat\(\)[\s\S]{0,200}inst\.writeRecord\(userData/);
+  assert.match(main, /if \(st && !st\.stuck && !st\.reason\) heartbeat\(\)/);
+  const src = fs.readFileSync(path.join(ROOT, "electron", "instance.cjs"), "utf8");
+  assert.match(src, /Win32_Process -Filter "ProcessId=\$\{pid\}"/, "the exe is looked up by pid, not by name");
+});
+
+test("0.4.25: exeOfPid finds this process's own exe and gives null for a bad pid", async () => {
+  const mine = await inst.exeOfPid(process.pid);
+  if (mine !== null) assert.equal(path.resolve(mine).toLowerCase(), path.resolve(process.execPath).toLowerCase());
+  assert.equal(await inst.exeOfPid(-1), null);
+  assert.equal(await inst.exeOfPid(1.5), null);
 });
 
 test("only leftover Meldmind processes of this install are picked", () => {
