@@ -1809,7 +1809,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       for (const t of mission.tasks) if (typeof t.output === "string" && !t.media) t.output = stripSearchLeaks(t.output);
     }
     // 0.4.23.1: the owner's private routine never shows in the answer
-    { const ruleOpts = ownerRuleOpts(); // 0.4.25: the owner's own folder names apply on the owner licence only
+    { const ruleOpts = ownerRuleOpts(); // 0.4.25: the owner's own folder names apply on the owner license only
       mission.deliverable = stripPrivateRules(mission.deliverable || "", goal, ruleOpts);
       for (const t of mission.tasks) if (typeof t.output === "string" && t.output && !t.media) t.output = stripPrivateRules(t.output, goal, ruleOpts); }
     const want = namedFile(goal);
