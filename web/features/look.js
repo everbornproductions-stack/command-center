@@ -142,12 +142,14 @@ async function runCheck() {
 }
 
 function offerBar(text, buttons) {
-  document.getElementById("cc-look-offer")?.remove();
+  // Only replace a bar this module made (a late graphics check must not remove someone else's element).
+  document.querySelectorAll("#cc-look-offer.cc-look-own").forEach((e) => e.remove());
   // 0.4.21 (F15, M23): no tip on a phone, and on a computer it is docked in the notices row above the page, in
   // normal flow, so it pushes the page down a little and can never sit over Send or any other control.
   if (window.innerWidth <= 760) return;
   const bar = document.createElement("div");
   bar.id = "cc-look-offer";
+  bar.classList.add("cc-look-own");
   bar.setAttribute("role", "group");
   bar.setAttribute("aria-label", "Look");
   const p = document.createElement("span");
