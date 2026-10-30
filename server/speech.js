@@ -12,10 +12,18 @@ export const ALL_BUSY = "Voice typing could not reach a free service right now. 
 // 0.4.25 (audit A8): a quiet recording is not the service's fault. Every service answered with no words,
 // or said the audio was empty or too short, so say that instead of "could not reach a free service".
 export const NOTHING_HEARD = "We did not hear anything. Try again a little closer to the mic.";
+// 0.4.27 (panel item 9): a recording the service could not open is not a quiet one. "Could not process file, is it a
+// valid media file?" used to be told "try again closer to the mic"; it gets its own line now.
+export const UNREADABLE = "That recording could not be read. Try again.";
 // A provider reply that means "there was no speech in that audio", not "we are down".
-const SILENT_REPLY = /\b(too short|no speech|no audio|empty (audio|file|recording)|silen(t|ce)|audio (is |was )?empty|could not (process|decode) (the )?(audio|file)|invalid (audio|media) file|duration)\b/i;
+const SILENT_REPLY = /\b(too short|no speech|no audio|empty (audio|file|recording)|silen(t|ce)|audio (is |was )?empty|duration)\b/i;
+// A provider reply that means "this file is not audio I can open".
+const UNREADABLE_REPLY = /\b(could not (process|decode|read)( the)? (audio|file|media)|invalid (audio|media|file)( file| format)?|(not a |in)valid (audio|media) file|valid media file|unsupported (audio|file|media)? ?(format|type))\b/i;
 export function soundsSilent(status, detail = "") {
-  return (status === 400 || status === 422) && SILENT_REPLY.test(String(detail || ""));
+  return (status === 400 || status === 422) && SILENT_REPLY.test(String(detail || "")) && !UNREADABLE_REPLY.test(String(detail || ""));
+}
+export function soundsUnreadable(status, detail = "") {
+  return (status === 400 || status === 415 || status === 422) && UNREADABLE_REPLY.test(String(detail || ""));
 }
 
 export const SPEECH_CHAIN = [
@@ -104,7 +112,7 @@ async function openaiTranscribe(target, audio, key, fetchImpl) {
   if (missing) hit = await once(target.fallbackModel);
   if (!hit.res.ok) {
     const why = providerMessage(hit.reply.json, hit.reply.text) || `HTTP ${hit.res.status}`;
-    throw fail(502, `${provider?.name || target.id} could not transcribe (${hit.res.status}). ${why}`.trim(), "voice_transcribe", { silent: soundsSilent(hit.res.status, why) });
+    throw fail(502, `${provider?.name || target.id} could not transcribe (${hit.res.status}). ${why}`.trim(), "voice_transcribe", { silent: soundsSilent(hit.res.status, why), unreadable: soundsUnreadable(hit.res.status, why) });
   }
   const text = String(hit.reply.json?.text || "").trim();
   return { text, provider: target.id, model: hit.model };
@@ -121,7 +129,7 @@ async function elevenTranscribe(target, audio, key, fetchImpl) {
   const reply = await readReply(res);
   if (!res.ok) {
     const why = providerMessage(reply.json, reply.text) || `HTTP ${res.status}`;
-    throw fail(502, `ElevenLabs could not transcribe (${res.status}). ${why}`.trim(), "voice_transcribe", { silent: soundsSilent(res.status, why) });
+    throw fail(502, `ElevenLabs could not transcribe (${res.status}). ${why}`.trim(), "voice_transcribe", { silent: soundsSilent(res.status, why), unreadable: soundsUnreadable(res.status, why) });
   }
   const text = String(reply.json?.text || reply.json?.transcripts?.[0]?.text || "").trim();
   return { text, provider: "elevenlabs", model: target.model };
@@ -145,7 +153,7 @@ async function geminiTranscribe(target, audio, key, fetchImpl) {
   const reply = await readReply(res);
   if (!res.ok) {
     const why = providerMessage(reply.json, reply.text) || `HTTP ${res.status}`;
-    throw fail(502, `Google Gemini could not transcribe (${res.status}). ${why}`.trim(), "voice_transcribe", { silent: soundsSilent(res.status, why) });
+    throw fail(502, `Google Gemini could not transcribe (${res.status}). ${why}`.trim(), "voice_transcribe", { silent: soundsSilent(res.status, why), unreadable: soundsUnreadable(res.status, why) });
   }
   const parts = reply.json?.candidates?.[0]?.content?.parts || [];
   const text = String(parts.map((p) => p.text || "").join("") || reply.json?.text || "").trim();
@@ -168,6 +176,7 @@ export async function transcribeAudio(audio, { hasSecret, getSecret, fetchImpl =
   }
   let tried = 0;
   let quiet = 0; // services that answered with no words, or said the audio was empty
+  let unreadable = 0; // services that could not open the recording at all
   for (const target of targets) {
     const key = (typeof getSecret === "function" ? getSecret(target.id) : null)?.key;
     if (!key) continue;
@@ -176,9 +185,10 @@ export async function transcribeAudio(audio, { hasSecret, getSecret, fetchImpl =
       const out = await runTarget(target, audio, key, fetchImpl);
       if (out.text) return out;
       quiet += 1;
-    } catch (e) { if (e?.silent) quiet += 1; /* quota, no credits, bad key or outage: try the next tier */ }
+    } catch (e) { if (e?.silent) quiet += 1; else if (e?.unreadable) unreadable += 1; /* quota, no credits, bad key or outage: try the next tier */ }
   }
   if (!tried) throw fail(409, NO_SPEECH_KEY, "voice_no_speech_key");
   if (quiet) throw fail(422, NOTHING_HEARD, "voice_silent");
+  if (unreadable) throw fail(422, UNREADABLE, "voice_unreadable");
   throw fail(502, ALL_BUSY, "voice_transcribe");
 }

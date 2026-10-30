@@ -66,7 +66,7 @@ function paint() {
       const dl = document.createElement("button");
       dl.type = "button";
       dl.className = "btn sm";
-      dl.textContent = "Download";
+      dl.textContent = "Open the download page"; // 0.4.27: the check found nothing to download
       dl.addEventListener("click", () => openDownload(merged()));
       const hide = document.createElement("button");
       hide.type = "button";

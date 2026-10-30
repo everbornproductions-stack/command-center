@@ -30,6 +30,8 @@ body[data-style="mac"] .mac-runbar-row {
 
 body[data-style="mac"] .mac-runbar-seg {
   display: inline-flex;
+  flex-wrap: wrap; /* 0.4.27 (panel item 6): "Second opinion" and "Research" were cut off at the card edge */
+  max-width: 100%;
   background: rgba(0, 0, 0, 0.06);
   border-radius: 8px;
   padding: 2px;
@@ -109,4 +111,12 @@ body[data-style="mac"] .mac-runbar-cost {
   font-size: 12px;
   font-weight: 500;
   color: var(--dim, #6e6e73);
+}
+
+/* 0.4.27 (panel item 1): on a short window the bar is tighter and drops its help line (the same words are on each
+   button's tooltip), so the task box and Send stay on screen. */
+@media (max-height: 899px) {
+  body[data-style="mac"] #mac-runbar { gap: 6px; padding: 8px 10px; }
+  body[data-style="mac"] #mac-runbar .mac-runbar-row { gap: 8px; }
+  body[data-style="mac"] #mac-runbar .mac-runbar-help { display: none; }
 }

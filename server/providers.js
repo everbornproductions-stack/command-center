@@ -31,6 +31,26 @@ function providerFailure(provider, status, txt, res = null) {
   return err;
 }
 
+// 0.4.27 (dogfood 2026-10-30): one name for "stopped at the output limit", whatever the API calls it, so a
+// cut-off answer is always carried on (server/step-guard.js reads "length" and "max_tokens").
+export function normalStop(reason) {
+  if (reason == null || reason === "") return null;
+  const r = String(reason).toLowerCase();
+  if (r === "stop" || r === "end_turn" || r === "eos") return "stop";
+  if (r === "length" || r === "max_tokens" || r === "max_output_tokens" || r === "model_length" || r === "max_length") return "length";
+  return r;
+}
+// A long build (8000 tokens or more asked) on a free Gemini or Groq model gets a bigger ceiling: their thinking
+// counts against the same cap, so 8000 left a page or a document cut off after the first part. Only the words
+// that come back are counted, so a higher ceiling costs nothing extra on a short answer.
+export const LONG_OUTPUT_ASK = 8000;
+export const LONG_OUTPUT_CAP = { google: 32768, groq: 32768 };
+export function outputCap(providerId, maxTokens) {
+  const asked = Number(maxTokens) || 4096;
+  const cap = LONG_OUTPUT_CAP[providerId];
+  return cap && asked >= LONG_OUTPUT_ASK ? Math.max(asked, cap) : asked;
+}
+
 function approxTokens(text) {
   return Math.ceil((text || "").length / 4);
 }
@@ -197,7 +217,7 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
       if (j.error) throw new ProviderError(provider.id, j.error.code || 400, `${provider.name}: ${providerMessage(j, "")}`, j);
       if (j.usageMetadata) usage = j.usageMetadata;
       const cand = j.candidates?.[0];
-      if (cand?.finishReason) stop = cand.finishReason === "STOP" ? "stop" : cand.finishReason === "MAX_TOKENS" ? "length" : String(cand.finishReason).toLowerCase();
+      if (cand?.finishReason) stop = normalStop(cand.finishReason);
       for (const chunk of cand?.groundingMetadata?.groundingChunks || []) {
         const url = chunk?.web?.uri || chunk?.uri;
         if (url) citations.push({ url, title: chunk?.web?.title || "" });
@@ -210,6 +230,8 @@ async function* geminiStream({ provider, model, system, messages, maxTokens, sig
   }
   await finishReader(reader);
   netTrace(`body done ${provider.id}`);
+  // Gemini always ends a finished answer with a finishReason. Words with none means the stream was cut short.
+  if (!stop && outText.trim() && !calls.length) stop = "length";
   const toolCalls = calls.map((c, i) => ({ id: `call_${i}_${c.name}`, name: c.name, args: c.args }));
   yield {
     type: "done",
@@ -282,7 +304,7 @@ async function* openaiCompatStream({ provider, model, system, messages, maxToken
       }
       // a non-streaming answer shape (some gateways ignore stream: true)
       for (const tc of ch?.message?.tool_calls || []) calls.set(calls.size, { id: tc.id, name: tc.function?.name || "", args: tc.function?.arguments || "" });
-      if (ch?.finish_reason) stop = ch.finish_reason;
+      if (ch?.finish_reason) stop = normalStop(ch.finish_reason);
       // Perplexity and xAI send the pages they used: citations = URLs, search_results = { title, url } rows
       if (Array.isArray(j.citations) && j.citations.length) citations = j.citations;
       if (Array.isArray(j.search_results) && j.search_results.length) searchResults = j.search_results;
@@ -324,7 +346,7 @@ export function streamChat(opts) {
   let release = () => {};
   try { release = assertSpendAllowed({ provider: provider.id, hold: true }).release || release; }
   catch (err) { const e = new ProviderError(provider.id, 402, err.message); e.code = "cap"; e.budget = true; throw e; }
-  const o = { ...opts, provider, maxTokens: opts.maxTokens || 4096 };
+  const o = { ...opts, provider, maxTokens: outputCap(provider.id, opts.maxTokens) };
   const inner = provider.api === "anthropic" ? anthropicStream(o) : (provider.api === "gemini" || provider.id === "google") ? geminiStream(o) : openaiCompatStream(o);
   return (async function* held() { try { yield* inner; } finally { release(); } })();
 }

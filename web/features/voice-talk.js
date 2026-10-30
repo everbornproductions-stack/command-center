@@ -395,11 +395,22 @@ async function onTranscript(raw, { ptt = false } = {}) {
   await ctl().hear(t);
 }
 
+// 0.4.27 (panel item 9): with a local Whisper on this PC the Mic is ready with no key (/api/voice/ready says so), but the
+// Talk bar still asked for a Groq or Gemini key. Ask the same question the Mic asks, and record for local Whisper then.
+async function withLocalVoice(st) {
+  if (!st?.needsKey) return st;
+  try {
+    const r = await api("/voice/ready");
+    if (r?.ready) return { ...st, needsKey: false, line: "", listen: st.listen || "local" };
+  } catch { /* keep the key line */ }
+  return st;
+}
+
 // ---------------------------------------------------------------- Talk on / off
 async function setCfg(patch) {
   try {
     const r = await api("/voice/talk", { method: "POST", body: patch });
-    cfg = coerceTalk(r.settings); status = r.status || status;
+    cfg = coerceTalk(r.settings); status = await withLocalVoice(r.status || status);
   } catch (e) { toast(e.message, true); }
   if (!cfg.handsFree && !pttHeld) { endUtterance(); }
   if (talkOn) void ensureListening();
@@ -645,7 +656,7 @@ async function load() {
   loaded = true;
   try {
     const r = await api("/voice/talk");
-    cfg = coerceTalk(r.settings); status = r.status || status;
+    cfg = coerceTalk(r.settings); status = await withLocalVoice(r.status || status);
   } catch { /* the bar still works with defaults */ }
   ctl();
   paint();

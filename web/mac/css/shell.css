@@ -252,6 +252,7 @@ body[data-style="mac"] .mac-dot {
   border-radius: 50%;
   background: var(--mac-ok);
 }
+body[data-style="mac"] .mac-pill.mac-wait .mac-dot { background: var(--mac-dim); }
 
 /* ---------- the Simple / Expert switch ---------- */
 body[data-style="mac"] .mac-toggle {
@@ -370,6 +371,41 @@ body[data-style="mac"] #mac-notices .ghost {
 body[data-style="mac"] #mac-notices .update-bar.quiet,
 body[data-style="mac"] #mac-notices .update-bar.quiet b { color: var(--mac-tx); }
 body[data-style="mac"] #mac-notices .update-bar .small { color: var(--mac-dim); }
+
+/* 0.4.27 (panel item 4): one notice at a time. shell.js marks the others .mac-queued and shows "1 of 3" with a Next
+   button at the right. A queued notice keeps a tiny box (so the app's own show and hide still decide what is waiting)
+   but takes no room, cannot be seen and cannot be clicked. */
+body[data-style="mac"] #mac-notices .mac-queued {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+  clip-path: inset(50%);
+  visibility: hidden;
+  pointer-events: none;
+}
+body[data-style="mac"] #mac-notices.mac-paged .mac-note-cur { margin-right: 132px !important; }
+body[data-style="mac"] #mac-notices .mac-note-pager {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: translateY(-50%);
+  color: var(--mac-tx);
+  font-size: 13px;
+  white-space: nowrap;
+}
+body[data-style="mac"] #mac-notices .mac-note-pager[hidden] { display: none; }
+@media (max-width: 760px) {
+  body[data-style="mac"] #mac-notices.mac-paged .mac-note-cur { margin-right: 12px !important; margin-bottom: 34px !important; }
+  body[data-style="mac"] #mac-notices .mac-note-pager { top: auto; bottom: 6px; transform: none; }
+}
 
 /* ---------- the banner that flashes when the switch moves ---------- */
 body[data-style="mac"] .mac-flash {
@@ -560,4 +596,63 @@ body[data-style="mac"]:has(#mac-side.mx-side:not([hidden]):not(.mx-collapsed)) #
 body[data-style="mac"]:has(#mac-side.mx-side.mx-collapsed:not([hidden])) #app,
 body[data-style="mac"]:has(#mac-side.mx-side.mx-collapsed:not([hidden])) #mac-main {
   left: calc(var(--mac-win-x) + 34px);
+}
+
+/* ---------- 0.4.27 (panel items 1 and 2): room for the Expert page on a laptop and a phone ----------
+   At 1366 x 800 the page got 124 to 293 px between the notices, the Talk bar, the chat dock and the AI tiles.
+   Under 900 px of height (and on a phone) the AI tiles step aside (the title bar pill still says how many AIs are
+   ready) and the Talk bar is one short row until Talk is on. The sidebar and the bottom dock keep their look. */
+@media (max-height: 899px) {
+  body[data-style="mac"][data-ui="expert"] #app { grid-template-rows: 0 minmax(0, 1fr) 0; }
+  body[data-style="mac"][data-ui="expert"] #app > #strip { display: none; }
+}
+@media (max-width: 760px) {
+  body[data-style="mac"][data-ui="expert"] #app { grid-template-rows: 0 minmax(0, 1fr) 0 56px; }
+  body[data-style="mac"][data-ui="expert"] #app > #strip { display: none; }
+}
+@media (max-height: 899px), (max-width: 760px) {
+  body[data-style="mac"][data-ui="expert"] #vt-bar[data-talk="off"] {
+    flex-wrap: nowrap;
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+  body[data-style="mac"][data-ui="expert"] #vt-bar[data-talk="off"] :is(.vt-strip, label, #vt-stop) { display: none; }
+  body[data-style="mac"][data-ui="expert"] #vt-bar[data-talk="off"] .vt-line {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body[data-style="mac"][data-ui="expert"] #vt-bar[data-talk="off"] .vt-state { white-space: nowrap; }
+}
+/* Phone width: the sidebar starts as its slim rail (expert.js) and, when opened, lies over the page instead of
+   pushing it off the right edge; a pick closes it again. The bottom tab labels keep their own room. */
+@media (max-width: 760px) {
+  body[data-style="mac"]:has(#mac-side.mx-side:not([hidden]):not(.mx-collapsed)) #app,
+  body[data-style="mac"]:has(#mac-side.mx-side:not([hidden]):not(.mx-collapsed)) #mac-main {
+    left: calc(var(--mac-win-x) + 34px);
+  }
+  body[data-style="mac"] #mac-side.mx-side:not([hidden]):not(.mx-collapsed) {
+    width: min(var(--mac-side-w), calc(100vw - 2 * var(--mac-win-x) - 24px)) !important;
+    z-index: 45;
+    box-shadow: 8px 0 24px rgba(0, 0, 0, .3);
+  }
+  body[data-style="mac"][data-ui="expert"] #vt-bar[data-talk="off"] #vt-help-btn { display: none; }
+  /* the chat dock keeps its box and Send; its run choices show once the person is typing in it */
+  body[data-style="mac"][data-ui="expert"] .cc-dock:not(:focus-within) .dock-row { display: none; }
+  body[data-style="mac"] #mobile-nav {
+    overflow-x: auto;
+    gap: 2px;
+    scrollbar-width: none;
+  }
+  body[data-style="mac"] #mobile-nav button {
+    flex: 1 0 auto;
+    min-width: 62px;
+    padding-left: 4px;
+    padding-right: 4px;
+    font-size: 12px;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
 }

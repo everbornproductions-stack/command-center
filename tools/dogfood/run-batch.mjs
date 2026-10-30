@@ -44,6 +44,8 @@ async function api(p, { method = "GET", body } = {}) {
 }
 
 const MEDIA_ROOTS = [path.join(process.env.APPDATA || "", "Everborn Command", "data", "projects")];
+// the app never overwrites, so a second run saves name-2.ext: accept that too
+const sameName = (got, want) => { const g = got.toLowerCase(), w = want.toLowerCase(); if (g === w) return true; const i = w.lastIndexOf("."); const base = w.slice(0, i), ext = w.slice(i); if (!g.endsWith(ext) || !g.startsWith(base + "-")) return false; return /^\d+$/.test(g.slice(base.length + 1, g.length - ext.length)); };
 function findOutput(name, dir, since) {
   const direct = path.join(dir, name);
   if (fs.existsSync(direct)) return { path: direct, where: "asked folder" };
@@ -56,7 +58,7 @@ function findOutput(name, dir, since) {
       for (const e of ents) {
         const p = path.join(d, e.name);
         if (e.isDirectory()) stack.push(p);
-        else if (e.name.toLowerCase() === name.toLowerCase() && fs.statSync(p).mtimeMs >= since) {
+        else if (sameName(e.name, name) && fs.statSync(p).mtimeMs >= since) {
           fs.copyFileSync(p, direct);
           return { path: direct, where: `app media folder (${path.relative(root, p)})` };
         }
@@ -111,6 +113,16 @@ function check(f, file) {
       const r = run(process.execPath, [p], dir);
       res.notes.push(`exit ${r.code}: ${r.out.trim().slice(0, 300).replace(/\s+/g, " ")}`);
       res.ok = r.code === 0 && new RegExp(f.expect || ".").test(r.out); break;
+    }
+    case "sqlite": {
+      const r = PY(dir, `import sqlite3\nc=sqlite3.connect(':memory:')\nc.executescript(open(r'''${p}''',encoding='utf-8').read())\nt=[x[0] for x in c.execute("select name from sqlite_master where type='table'")]\nprint(len(t), ','.join(t))`);
+      res.notes.push(r.code === 0 ? `runs in SQLite: ${r.out.trim()}` : "SQLite error: " + r.out.trim().split("\n").pop());
+      res.ok = r.code === 0 && Number(r.out.trim().split(/\s+/)[0]) >= 3; break;
+    }
+    case "json": { try { const j = JSON.parse(text()); res.notes.push(Array.isArray(j) ? `${j.length} items` : "object"); res.ok = true; } catch (e) { res.notes.push("not valid JSON: " + e.message); } break; }
+    case "ps1parse": {
+      const r = run("powershell", ["-NoProfile", "-Command", `$e=$null;[void][System.Management.Automation.Language.Parser]::ParseFile('${p}',[ref]$null,[ref]$e);if($e){$e|%{$_.Message};exit 1}else{'parsed ok'}`], dir);
+      res.notes.push(r.out.trim().slice(0, 200)); res.ok = r.code === 0 && /param\s*\(/i.test(text()); break;
     }
     case "ps1": {
       const r = run("powershell", ["-NoProfile", "-Command", `$e=$null;[void][System.Management.Automation.Language.Parser]::ParseFile('${p}',[ref]$null,[ref]$e);if($e){$e|%{$_.Message};exit 1}else{'parsed ok'}`], dir);

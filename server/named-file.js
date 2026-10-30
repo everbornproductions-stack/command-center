@@ -8,11 +8,35 @@ import { saveToMindMedia, safeMediaDir } from "./project-media.js";
 import { extractCodeFiles, safeFileName } from "./code-files.js";
 import { fileExt, namedFile } from "./step-guard.js";
 import { find as findInFolder } from "./code-source.js";
+import { xlsxFromTable, docxFromMarkdown, tablesFromAnswer, documentText } from "./office-files.js";
 
 const PREVIEW_EXT = new Set(["html", "htm"]);
 const TEXT_EXT = new Set(["md", "txt", "csv", "json", "css", "js", "mjs", "xml", "svg", "py", "yml", "yaml"]);
 export const MAX_FILE_CHARS = 600000;
 export const NOT_SAVED_LINE = "Not saved: Meldmind can only show this code here.";
+
+// ---- 0.4.27 (dogfood batch 1): real Excel and Word files ----
+// "save it as bakery-sales.xlsx", "a Word document ... workout-plan.docx": the file is built from the tables or the
+// markdown in the answer. A script that would build the file is not the file.
+export const OFFICE_EXT = new Set(["xlsx", "xlsm", "docx"]);
+export const NO_TABLE_LINE = "Not saved: there was no table to put in the spreadsheet.";
+export const SCRIPT_ONLY_LINE = "Not saved: the answer was a script that would build the document, not the document itself.";
+const OFFICE_NAMED_RE = /\b(?:save|saved|write|export|name|call|put|store|output|as|into|to|file(?:name)?|named)\b[^.\n]{0,40}?\b([A-Za-z0-9][\w-]{0,60}\.(?:xlsx|xlsm|docx))\b/i;
+const OFFICE_ANY_RE = /\b([A-Za-z0-9][\w-]{0,60}\.(?:xlsx|xlsm|docx))\b/i;
+/** The file a task asks for, including .xlsx, .xlsm and .docx (step-guard's namedFile does not know those). */
+export function wantedFile(goal) {
+  const g = String(goal || "");
+  const m = OFFICE_NAMED_RE.exec(g) || OFFICE_ANY_RE.exec(g);
+  return m ? m[1] : namedFile(g);
+}
+/** One short instruction for the step and assembler prompts when the task wants a spreadsheet or a Word file. */
+export function officeNote(goal) {
+  const want = wantedFile(goal);
+  const ext = fileExt(want);
+  if (ext === "xlsx" || ext === "xlsm") return `\nThe person wants the spreadsheet ${want}. Give the sheet as a markdown table, one row per line, header row first (it is row 1, so data starts on row 2). Write formulas as cells that start with = (for example =SUM(B2:B8)). Do not write code to build the file: Meldmind builds ${want} from your table.`;
+  if (ext === "docx") return `\nThe person wants the Word document ${want}. Write the document itself in Markdown with headings, lists and tables. Do not write code to build the file: Meldmind builds ${want} from your Markdown.`;
+  return "";
+}
 
 // the body of the file out of a deliverable: a whole html document, the matching code block, or the text itself
 export function fileBody(text, name) {
@@ -28,7 +52,7 @@ export function fileBody(text, name) {
     if (m) return m[1].trim() + "\n";
     const open = /<!doctype html[\s\S]*$|<html[\s\S]*$/i.exec(t);
     if (open) return open[0].trim() + "\n";
-  } else if (blocks.length === 1 && ["css", "js", "mjs", "json", "py", "xml", "svg", "yml", "yaml"].includes(ext)) {
+  } else if (blocks.length === 1 && ["css", "js", "mjs", "cjs", "ts", "json", "py", "xml", "svg", "yml", "yaml", "ps1", "bat", "cmd", "sh", "sql", "gs", "csv"].includes(ext)) {
     return blocks[0].text;
   }
   // a text or markdown file is the deliverable itself, minus a single wrapping fence
@@ -41,10 +65,11 @@ export function fileBody(text, name) {
  * { ok: false, name, error } when the write failed or there was nothing to write.
  */
 export function saveNamedFile({ goal = "", name, text, projectId = "", missionId = "", source = "Mission", status = "Draft" } = {}) {
-  const want = safeFileName(name || namedFile(goal));
+  const want = safeFileName(name || wantedFile(goal));
   if (!want) return null; // the task named no file: nothing to promise
+  if (OFFICE_EXT.has(fileExt(want))) return saveOfficeFile({ want, text, projectId, missionId, source, status });
   // a code file is never the whole answer: with several code blocks and none named for it, nothing is guessed
-  if (["js", "mjs", "cjs", "ts", "py", "json", "css", "xml", "svg", "yml", "yaml"].includes(fileExt(want)) && extractCodeFiles(text).length > 1 && !codeFor(text, want)) return { ok: false, name: want, error: NOT_SAVED_LINE };
+  if (["js", "mjs", "cjs", "ts", "py", "json", "css", "xml", "svg", "yml", "yaml", "ps1", "bat", "cmd", "sh", "sql", "gs"].includes(fileExt(want)) && extractCodeFiles(text).length > 1 && !codeFor(text, want)) return { ok: false, name: want, error: NOT_SAVED_LINE };
   const body = fileBody(text, want);
   if (!body.trim()) return { ok: false, name: want, error: `Not saved: there was nothing to write to ${want}.` };
   if (body.length > MAX_FILE_CHARS) return { ok: false, name: want, error: `Not saved: ${want} is too big (${Math.round(body.length / 1000)}k characters).` };
@@ -69,13 +94,56 @@ export function saveNamedFile({ goal = "", name, text, projectId = "", missionId
   }
 }
 
+// a spreadsheet or Word file: built from the answer, written as bytes, read back by size
+function saveOfficeFile({ want, text, projectId, missionId, source, status }) {
+  const ext = fileExt(want);
+  const t = String(text || "");
+  if (t.length > MAX_FILE_CHARS) return { ok: false, name: want, error: `Not saved: ${want} is too big (${Math.round(t.length / 1000)}k characters).` };
+  let buf;
+  try {
+    if (ext === "docx") {
+      const doc = documentText(t);
+      if (!doc.text.replace(/[#*_`>|\-\s]/g, "")) return { ok: false, name: want, error: doc.scripts ? SCRIPT_ONLY_LINE : `Not saved: there was nothing to write to ${want}.` };
+      buf = docxFromMarkdown(doc.text);
+    } else {
+      const sheets = tablesFromAnswer(t);
+      if (!sheets.length) return { ok: false, name: want, error: NO_TABLE_LINE };
+      buf = xlsxFromTable({ sheets }, { macro: ext === "xlsm" });
+    }
+  } catch (err) {
+    return { ok: false, name: want, error: `Not saved: ${want} could not be built (${String(err.message || err).slice(0, 120)}).` };
+  }
+  try {
+    const pid = String(projectId || "") || "unfiled";
+    const dir = safeMediaDir(pid);
+    let file = path.join(dir, want);
+    if (!path.resolve(file).startsWith(path.resolve(dir) + path.sep)) return { ok: false, name: want, error: `Not saved: ${want} is not a safe file name.` };
+    const base = path.basename(want).replace(/\.[^.]+$/, ""), dot = path.extname(want);
+    for (let n = 2; fs.existsSync(file) && n < 200; n++) file = path.join(dir, `${base}-${n}${dot}`); // never overwrite
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, buf);
+    const size = fs.statSync(file).size;
+    const head = Buffer.alloc(2);
+    const fd = fs.openSync(file, "r");
+    try { fs.readSync(fd, head, 0, 2, 0); } finally { fs.closeSync(fd); }
+    if (size !== buf.length || head.toString("latin1") !== "PK") return { ok: false, name: want, error: `Not saved: ${want} could not be read back after writing.` };
+    let saved = null;
+    try { saved = saveToMindMedia({ files: [{ name: path.basename(file), path: file }], projectId: pid, source, status, dedupeKey: missionId ? `file:${missionId}:${path.basename(file)}` : undefined }); } catch { /* the file exists; the MindMedia item is a bonus */ }
+    return { ok: true, name: path.basename(file), requested: want, path: file, bytes: size, ext: fileExt(file), previewable: false, readable: false, projectId: pid, assetId: saved?.items?.[0]?.id || null, where: saved?.where || null };
+  } catch (err) {
+    return { ok: false, name: want, error: `Not saved: ${String(err.message || err).slice(0, 160)}` };
+  }
+}
+
 // read a saved file back for the preview pane, only from inside the project media folder
+// (a spreadsheet or Word file is bytes, not text: it opens in its own app, so the preview text is empty)
 export function readSavedFile(info, limit = 300000) {
   if (!info?.path) return null;
   const pid = String(info.projectId || "") || "unfiled";
   const root = path.resolve(projectMediaDir(pid)) + path.sep;
   const full = path.resolve(info.path);
   if (!full.startsWith(root) || !fs.existsSync(full)) return null;
+  if (OFFICE_EXT.has(fileExt(full))) return "";
   return fs.readFileSync(full, "utf8").slice(0, limit);
 }
 

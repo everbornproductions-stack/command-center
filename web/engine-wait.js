@@ -6,7 +6,8 @@
 
 export const ENGINE_BOX_MS = 45000;
 export const STARTUP_GRACE_MS = 90000;
-export const STARTING_LINE = "Meldmind is starting up. This can take up to a minute.";
+// 0.4.27: the line said "up to a minute" while the box came at 45 s. The words now follow the box timing.
+export const STARTING_LINE = `Meldmind is starting up. This can take up to ${Math.round(ENGINE_BOX_MS / 1000)} seconds.`;
 
 // -> "ok" | "starting" | "reconnecting" | "box"
 export function engineWaitView({ now = Date.now(), startedAt = now, downSince = 0, forced = false, local = true } = {}) {

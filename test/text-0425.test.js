@@ -65,7 +65,7 @@ test("Images: no image key gives one short line, a ready provider gives none", (
     { id: "fal", ops: ["generate"], keyed: false },
   ];
   assert.equal(imageKeyLine(list, "generate"), IMAGE_NO_KEY_LINE);
-  assert.equal(IMAGE_NO_KEY_LINE, "Add an image key in Settings to make pictures.");
+  assert.equal(IMAGE_NO_KEY_LINE, "Add a free Google Gemini key in Settings to make pictures."); // 0.4.27: names the free plan
   assert.equal(imageKeyLine([...list, { id: "rep", ops: ["generate"], keyed: true }], "generate"), "");
   assert.equal(imageKeyLine([...list, { id: "rep", ops: ["generate"], keyed: true }], "generate", "openai"), IMAGE_NO_KEY_LINE, "the chosen one has no key");
   assert.equal(imageKeyLine([{ id: "m", ops: ["generate"], keyed: false, ready: true }], "generate", "m"), "", "an MCP connection counts");

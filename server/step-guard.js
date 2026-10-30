@@ -298,21 +298,91 @@ export function removedApiNotes(text) {
 }
 
 // ---------- named files ----------
-const NAMED_RE = /\b(?:save|saved|write|export|name|call|put|store|output|as|into|to|file(?:name)?|named)\b[^.\n]{0,40}?\b([A-Za-z0-9][\w-]{0,60}\.(?:html?|md|markdown|css|js|mjs|json|txt|csv|py|ya?ml|xml|svg))\b/i;
-const ANY_FILE_RE = /\b([A-Za-z0-9][\w-]{0,60}\.(?:html?|md|markdown|css|js|mjs|json|txt|csv|py|ya?ml|xml|svg))\b/i;
+// 0.4.27 (dogfood batch 2): scripts (.ps1, .bat, .cmd, .sh, .sql) count too, every named file is found (not only the
+// first), a full Windows path gives its file name, and "Node.js" is a product, not a file.
+export const SAVABLE_EXT = ["html", "htm", "md", "markdown", "css", "js", "mjs", "cjs", "ts", "json", "txt", "csv", "py", "yml", "yaml", "xml", "svg", "ps1", "bat", "cmd", "sh", "sql", "gs"];
+// Word and Excel files are made by server/office-files.js (when that module is there); they are named files too
+export const OFFICE_EXT = ["xlsx", "xlsm", "docx"];
+const EXT_ALT = [...SAVABLE_EXT, ...OFFICE_EXT].sort((a, b) => b.length - a.length).join("|");
+const FILE_TOKEN = new RegExp(`(?<![\\w.-])([A-Za-z0-9][\\w.-]{0,80}\\.(?:${EXT_ALT}))(?![\\w-])`, "gi");
+const SAVE_WORD = /\b(?:save|saved|saving|write|writes|export|name|named|call|called|put|store|output|as|into|to|file(?:name)?)\b[^.\n]{0,40}$/i;
+const PRODUCT = /^(?:node|next|nuxt|vue|react|express|three|d3|chart|p5|socket|alpine|ember|backbone|jquery|angular|nest|deno|bun|electron|svelte|astro|remix|gatsby|meteor)\.(?:js|ts)$/i;
+const notAFile = (n) => /^(?:www|e\.g|i\.e|etc)\./i.test(n) || /^(?:\d+\.)+\d+$/.test(n) || PRODUCT.test(n) || /\.\./.test(n);
+/** Can this name be saved as a file (a text, code or script file)? Word and Excel files only with office: true. */
+export function isSavableName(name, { office = false } = {}) {
+  const e = fileExt(name);
+  return SAVABLE_EXT.includes(e) || (office && OFFICE_EXT.includes(e));
+}
+/** Every file name a task asks for, in the order they appear: ["invoice_totals.py", "invoices.csv"]. */
+export function namedFiles(goal) {
+  const g = String(goal || "").replace(/https?:\/\/\S+/gi, " ").replace(/\b[\w.-]+@[\w-]+(?:\.[\w-]+)+\b/g, " ");
+  const out = [];
+  for (const m of g.matchAll(FILE_TOKEN)) {
+    const name = m[1].replace(/\.+$/, "").replace(/\.markdown$/i, ".md");
+    if (!fileExt(name) || notAFile(name) || out.some((o) => o.name.toLowerCase() === name.toLowerCase())) continue;
+    out.push({ name, saveWord: SAVE_WORD.test(g.slice(Math.max(0, m.index - 60), m.index)) });
+    if (out.length >= 8) break;
+  }
+  return out.map((o) => o.name);
+}
 /** The file name a task asks for, or "". Looks for "save as index.html", "as campaign.md", "a single index.html". */
 export function namedFile(goal) {
-  const g = String(goal || "");
-  const m = NAMED_RE.exec(g) || ANY_FILE_RE.exec(g);
-  if (!m) return "";
-  const name = m[1].replace(/\.markdown$/i, ".md");
-  return /^(?:www|e\.g|i\.e)\./i.test(name) ? "" : name;
+  const g = String(goal || "").replace(/https?:\/\/\S+/gi, " ");
+  const names = namedFiles(g);
+  if (!names.length) return "";
+  // the first one that follows a save word ("save it as x"), else the first one named at all
+  for (const m of g.matchAll(FILE_TOKEN)) {
+    const n = m[1].replace(/\.+$/, "").replace(/\.markdown$/i, ".md");
+    if (names.includes(n) && SAVE_WORD.test(g.slice(Math.max(0, m.index - 60), m.index))) return n;
+  }
+  return names[0];
+}
+
+// ---------- plan steps that only save a file (0.4.27, dogfood batch 2) ----------
+// "Save CSV to the specified file path", "Save script to the Desktop path": no AI can write to the disk, QA then
+// failed the step ("says it saved but nothing was saved") and almost every mission ended with errors. Meldmind
+// saves every named file itself at the end, so such a step is never planned, and one that slips through is dropped.
+export const NO_SAVE_STEP_LINE = `\nNever plan a step whose only job is to save, write, copy, move or export a file to the disk, a folder, a path or the Desktop: no AI can do that, and Meldmind saves every named file itself at the end. The step that makes a file outputs its full contents in a code block with the file name on the line just above it (for example **invoices.csv**). A step that runs the tests or runs a script is fine.`;
+// 0.4.27: what a step that makes a named file is told, so the app finds the file's body in its answer
+export const FILE_BLOCK_LINE = "Put each file's full contents in its own code block, with the file name alone on the line just above the block (for example **invoice_totals.py**). Do not say you saved or ran anything: Meldmind saves the files itself.";
+const SAVE_VERB =/^\s*(?:(?:then|finally|lastly|and)\s+)?(?:save|saves|saving|copy|copies|store|persist)\b/i;
+const WRITE_TO_DISK = /^\s*(?:(?:then|finally|lastly|and)\s+)?(?:write|writes|writing)\b[^.\n]*\b(?:to|into|in|at|on)\s+(?:the\s+|a\s+|your\s+|my\s+)?(?:disk|desktop|folder|directory|path|file\s*path|location|drive|[a-z]:\\)/i;
+const SAVE_WHERE = new RegExp(`\\b(?:to|into|in|at|as|on|under)\\b[^.\\n]*(?:\\b(?:disk|desktop|folders?|director(?:y|ies)|paths?|file\\s*path|location|drive|files?|file\\s*names?)\\b|[a-z]:\\\\|\\.(?:${EXT_ALT})\\b)`, "i");
+const OTHER_WORK = /\b(?:run|runs|execute|test|tests|build|create|generate|draft|design|fix|compute|calculate|convert|compile|review|check|validate|verify|write\s+(?:the\s+)?(?:code|script|content|copy|text)|format|summari[sz]e|analy[sz]e|zip|upload|send|email|post|publish)\b/i;
+const OUTSIDE_PLACE = /\b(?:mind\s?-?media|library|google\s+drive|g\s?drive|drive\s+folder|dropbox|one\s?drive|icloud|github|git\b|repo|notion|gmail|email|sheets?|docs\b|website|server|s3|bucket|cloud)\b/i;
+const MAKES_CONTENT = /\b(?:write|draft|compose|generate|come up with|brainstorm|list|create|make|add)\s+(?!(?:it|them|this|that|everything|(?:the|a|your|my)\s+(?:final\s+)?(?:file|files|script|csv|page|html|folder|folders|directory|path|result|output)|(?:any\s+)?(?:missing\s+)?(?:folders?|director(?:y|ies)|paths?))\b)/i;
+const REFERS_EARLIER = /\b(?:from|of|in|by)\s+(?:step\s+)?t\d+\b|\bt\d+'s\b|\b(?:final|validated|verified|reviewed|corrected|approved|finished|previous|earlier|above)\b/i;
+/** True for a plan step whose only job is to put a file on the disk. MindMedia, Drive and run steps are not. */
+export function isSaveOnlyStep(t = {}) {
+  if (!t || typeof t !== "object" || t.capability === "save" || t.capability === "media") return false;
+  const title = String(t.title || "").trim();
+  if (!title) return false;
+  if (OUTSIDE_PLACE.test(`${title} ${t.instructions || ""}`)) return false;
+  if (OTHER_WORK.test(title.replace(SAVE_VERB, ""))) return false;
+  // it must have something earlier to save, and must not make new content itself ("write three ideas and save them as x.md")
+  if (!(Array.isArray(t.deps) && t.deps.length)) return false;
+  if (MAKES_CONTENT.test(String(t.instructions || "")) && !REFERS_EARLIER.test(String(t.instructions || ""))) return false;
+  if (WRITE_TO_DISK.test(title)) return true;
+  return SAVE_VERB.test(title) && SAVE_WHERE.test(title);
+}
+/**
+ * Drop save-only steps from a plan. A step that waited on a dropped step waits on what the dropped step waited on.
+ * Never empties a plan. Returns { plan, dropped: [titles] }.
+ */
+export function dropSaveOnlySteps(plan) {
+  const tasks = Array.isArray(plan?.tasks) ? plan.tasks : [];
+  const drop = tasks.filter(isSaveOnlyStep);
+  if (!drop.length || drop.length >= tasks.length) return { plan, dropped: [] };
+  const gone = new Map(drop.map((t) => [t.id, Array.isArray(t.deps) ? t.deps : []]));
+  const resolve = (d, seen = new Set()) => (gone.has(d) && !seen.has(d) ? (seen.add(d), gone.get(d).flatMap((x) => resolve(x, seen))) : [d]);
+  const kept = tasks.filter((t) => !gone.has(t.id)).map((t) => ({ ...t, deps: [...new Set((Array.isArray(t.deps) ? t.deps : []).flatMap((d) => resolve(d)))].filter((d) => !gone.has(d) && d !== t.id) }));
+  return { plan: { ...plan, tasks: kept }, dropped: drop.map((t) => t.title) };
 }
 
 // An AI may write "Saved as index.html (project root)" about a file it cannot write. Those lines are removed;
 // the real result (path, or "not saved") is shown by the app from what was actually written.
 export function stripSaveClaims(text) {
-  return clean(text).replace(/^[ \t>*_#-]*(?:saved as|file(?:s)? (?:has been |was |were )?(?:saved|written|created)|(?:i\s+)?(?:have\s+)?(?:saved|wrote|written|created) (?:the |your |it )?(?:file |image |png |svg )?(?:as|to|in|at)|saved to|saved in|saved at|output (?:file )?(?:saved|written)|save (?:it|this|the file) (?:to|in|as))\b[^\n]*\n?/gim, "").replace(/\n{3,}/g, "\n\n").trim();
+  return clean(text).replace(/^[ \t>*_#-]*(?:\*\*)?status:?\s*(?:\*\*)?\s*not saved\b[^\n]*\n?/gim, "").replace(/^[ \t>*_#-]*(?:saved as|file(?:s)? (?:has been |was |were )?(?:saved|written|created)|(?:i\s+)?(?:have\s+)?(?:saved|wrote|written|created) (?:the |your |it )?(?:file |image |png |svg )?(?:as|to|in|at)|saved to|saved in|saved at|output (?:file )?(?:saved|written)|save (?:it|this|the file) (?:to|in|as))\b[^\n]*\n?/gim, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 // 0.4.21 (dogfood 08): a step must not run on an earlier step that failed or came back empty. Running it on

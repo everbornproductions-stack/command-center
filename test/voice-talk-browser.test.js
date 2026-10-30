@@ -10,7 +10,8 @@ const skip = findBrowser() ? false : "no Chrome installed";
 const WAIT = waitBudget(20000);
 
 test("Talk bar: toggle, strip, navigation, publish needs yes, help card, numbers, hotkey, hands-free, no-key line", { skip }, async () => {
-  const t = await bootPage({ mode: "simple", width: 1280, height: 900 });
+  // 0.4.27: with a local Whisper on this PC the Talk bar rightly drops the key line, so this test turns local Whisper off.
+  const t = await bootPage({ mode: "simple", width: 1280, height: 900, env: { CC_WHISPER_BIN: "off" } });
   try {
     const { page } = t;
     await page.addStyleTag({ content: "#cc-startup,#cc-look-offer,#demo-bar,#cc-desktop-prompt,#ea-news-overlay,.cc-tour-invite{display:none!important}" });

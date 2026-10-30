@@ -23,7 +23,9 @@ function nameFromInfo(info) {
   return "";
 }
 function nameFromAbove(line) {
-  const t = String(line || "").trim().replace(/[*_`#>]/g, " ");
+  // 0.4.27 (dogfood batch 2): "## invoice_totals.py" was read as "totals.py" because every "_" was dropped.
+  // Only an "_" used for emphasis (at the start or end of a word) is markdown.
+  const t = String(line || "").trim().replace(/[*`#>]/g, " ").replace(/(^|\s)_+|_+(?=\s|$)/g, "$1 ");
   if (!t || t.length > 140) return "";
   const m = /(?:^|[\s(:])([\w][\w./-]{0,80}\.[A-Za-z0-9]{1,8})(?=[\s):,.]*$)/.exec(t);
   return m && safeFileName(m[1]) ? safeFileName(m[1]) : "";
@@ -63,4 +65,61 @@ export function extractCodeFiles(markdown) {
     i = j;
   }
   return found;
+}
+
+// ---- 0.4.27 (dogfood batch 2): the body of one named file, looked for in several answers ----
+// The assembler dropped the code ("Not saved: there was no code for invoice_totals.py in this answer") while the
+// step that wrote it had it. texts: [{ text, from }] in the order to look (the final answer, then each finished
+// step, newest first). A block named for the file wins anywhere; else, per text, the one block in the file's
+// language, a whole HTML page (the biggest complete one), or for a .csv a Markdown table.
+const extOf = (n) => (/\.([A-Za-z0-9]{1,6})$/.exec(String(n || "")) || ["", ""])[1].toLowerCase();
+const baseOf = (n) => String(n || "").replace(/\\/g, "/").split("/").pop().toLowerCase();
+const langsFor = (ext) => Object.keys(EXT).filter((l) => EXT[l] === ext).concat(ext === "cmd" ? ["bat", "batch", "cmd"] : ext === "bat" ? ["batch", "cmd"] : []);
+const csvCell = (c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c);
+/** The first Markdown table in the text as CSV, or "". */
+export function markdownTableToCsv(text) {
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  const row = (l) => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim().replace(/^\*\*(.*)\*\*$/, "$1").replace(/^`(.*)`$/, "$1"));
+  for (let i = 0; i + 1 < lines.length; i++) {
+    if (!/^\s*\|.*\|\s*$/.test(lines[i]) || !/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(lines[i + 1])) continue;
+    const head = row(lines[i]);
+    const out = [head];
+    for (let j = i + 2; j < lines.length && /^\s*\|.*\|\s*$/.test(lines[j]); j++) out.push(row(lines[j]));
+    if (out.length < 2) continue;
+    return out.map((r) => r.map(csvCell).join(",")).join("\n") + "\n";
+  }
+  return "";
+}
+/** { body, from, how } for the file `name`, or null when no answer holds it clearly. */
+export function bodyForFile(name, texts = []) {
+  const want = baseOf(name), ext = extOf(name);
+  if (!want || !ext) return null;
+  const list = (Array.isArray(texts) ? texts : []).map((x) => (typeof x === "string" ? { text: x, from: null } : x)).filter((x) => x && String(x.text || "").trim());
+  const parsed = list.map((s) => ({ ...s, blocks: extractCodeFiles(s.text) }));
+  for (const s of parsed) {
+    const b = s.blocks.find((x) => baseOf(x.name) === want);
+    if (b) return { body: b.text, from: s.from ?? null, how: "named" };
+  }
+  if (ext === "html" || ext === "htm") {
+    let best = null;
+    for (const s of parsed) {
+      const docs = [...s.blocks.map((b) => b.text), String(s.text)].map((t) => (/(<!doctype html[\s\S]*?<\/html\s*>|<html[\s\S]*?<\/html\s*>)/i.exec(t) || [])[1]).filter(Boolean);
+      for (const d of docs) if (!best || d.length > best.body.length) best = { body: d.trim() + "\n", from: s.from ?? null, how: "page" };
+    }
+    return best;
+  }
+  const langs = langsFor(ext);
+  if (ext === "txt") return null; // a ```text block is usually sample output, not the file
+  for (const s of parsed) {
+    const same = s.blocks.filter((b) => langs.includes(b.lang) || (/^code-\d+\./.test(b.name) && extOf(b.name) === ext));
+    if (same.length === 1) return { body: same[0].text, from: s.from ?? null, how: "language" };
+  }
+  // a table only when no answer has a CSV block at all (a "expected totals" table is not the data file)
+  if (ext === "csv" && !parsed.some((s) => s.blocks.some((b) => langs.includes(b.lang)))) {
+    for (const s of parsed) {
+      const csv = markdownTableToCsv(s.text.replace(/```[\s\S]*?```/g, ""));
+      if (csv) return { body: csv, from: s.from ?? null, how: "table" };
+    }
+  }
+  return null;
 }
