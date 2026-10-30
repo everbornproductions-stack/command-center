@@ -280,10 +280,12 @@ const SCRIPT_ASK = {
 // Only website, campaign and mod go through the plain chat answer; picture and video go to the makers.
 // 0.4.28: the file paths skip it too (an "app" would otherwise open the project questions).
 export function skipsProjectStart(path) { return path === "website" || path === "campaign" || path === "mod" || savesFile(path); }
-// Only a Mission saves a named file, so a file path runs as one when the plan has Missions (Pro, a trial, Extreme).
-// On Free it goes as a normal answer to copy or download. "" keeps the choice under More options.
-export function runMode(path, missionsOn = true) { return savesFile(path) && missionsOn ? "mission" : ""; }
-export const FREE_FILE_NOTE = "Saving it as a file needs Pro. On Free you get it here to copy or download.";
+// A file path runs as a Mission when the plan has Missions (Pro, a trial, Extreme). From 0.4.28 a single chat answer that
+// names a file saves it on every plan too, so on Free it goes as one answer (Single) that still names the file; it is
+// never left to Auto team, which could pick a Mission the plan does not have. "" keeps the choice under More options.
+export function runMode(path, missionsOn = true) { return savesFile(path) ? (missionsOn ? "mission" : "single") : ""; }
+// 0.4.28: one more Quick pick on Home, next to the picture, website, video and posts ideas.
+export const EXTRA_IDEAS = [{ chip: "spreadsheet", text: "A budget spreadsheet for my family" }];
 
 // ---- 0.4.28: words that pick a path ("make me a budget spreadsheet") ----
 // Strong words name the kind of file and win over picture or video words. Weak words are checked last.

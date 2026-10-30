@@ -145,7 +145,7 @@ function render() {
 
 // ----- home -----
 function renderHome(body) {
-  const ideas = (CC.layout?.IDEAS || []).filter((i) => F.isPath(i.chip));
+  const ideas = CC.layout?.IDEAS ? [...CC.layout.IDEAS, ...F.EXTRA_IDEAS].filter((i) => F.isPath(i.chip)) : [];
   homeIdeas = !!CC.layout?.IDEAS;
   body.innerHTML = `<div class="mf-subrow"><p class="mf-sub">Pick what to make. Swipe, drag, or use the arrow keys.</p><span class="mf-scrollbtns"><button type="button" class="mf-scroll" id="mf-prev" aria-label="Earlier choices" aria-controls="mf-paths">&lsaquo;</button><button type="button" class="mf-scroll" id="mf-more-paths" aria-label="More choices" aria-controls="mf-paths">&rsaquo;</button></span></div>
     ${stepsHtml()}
@@ -287,7 +287,6 @@ function renderTell(body) {
   body.innerHTML = `<p class="mf-sub">${esc(F.TELL_HINT[state.path] || "Tell us about it.")}</p>${stepsHtml()}
     <div class="mf-box"><input id="mf-text" type="text" aria-label="Tell us about it" placeholder="${esc(F.tellPlaceholder(state.path))}" autocomplete="off">${costHtml()}<button type="button" class="mf-go" id="mf-make" disabled>Make it</button></div>
     <div class="mf-photos"><span class="mf-photos-h">Your photos (swipe, tap one for full screen)</span><button type="button" class="mf-link" id="mf-addphoto">Add photos</button><input type="file" id="mf-file" hidden multiple accept="image/*" aria-label="Add photos"><div class="mf-strip" id="mf-strip"></div></div>
-    ${F.savesFile(state.path) && !missionsOn() ? `<p class="mf-hint" id="mf-free-file">${esc(F.FREE_FILE_NOTE)}</p>` : ""}
     ${runBusy() ? '<p class="mf-note">Your last job is still running. You can make this one when it is done.</p>' : ""}`;
   const input = $("#mf-text", body), make = $("#mf-make", body);
   input.value = state.text || "";
@@ -348,8 +347,9 @@ async function sendPrompt(prompt, path) {
   return true;
 }
 
-// 0.4.28: only a Mission saves a named file, so a file path sends this one job as a Mission. The choice under
-// More options comes back as soon as the send has read it (that choice is never saved anywhere).
+// 0.4.28: a file path sends this one job as a Mission when the plan has Missions, else as a single answer that names
+// the file (saved on every plan). The choice under More options comes back as soon as the send has read it (that
+// choice is never saved anywhere).
 let modeBack = null;
 function oneRunAs(mode) {
   if (!mode) return;
