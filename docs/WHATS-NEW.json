@@ -1,4 +1,15 @@
 {
+  "0.4.28": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Simple mode has new choices: Spreadsheet, Document, Slides, App or script, and List or data. Each one saves a real file.",
+      "Meldmind now makes real PowerPoint decks, one slide per heading, with speaker notes.",
+      "A plain chat answer that names a file now saves it too, on every plan, and says where it went.",
+      "When an AI runs out of its usage allowance, its step goes to the next AI instead of stopping the job, and a stuck plan no longer waits forever.",
+      "After Update and restart, the new version starts on its own.",
+      "Expert's Command page scrolls on wide screens, and the chat box no longer covers an answer's buttons."
+    ]
+  },
   "0.4.27": {
     "title": "What's new in Meldmind",
     "bullets": [
