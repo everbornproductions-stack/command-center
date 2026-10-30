@@ -18,7 +18,7 @@ import { augment as libraryAugment, publicSources as publicLibrarySources } from
 import { overheadCost } from "./precost.js";
 import { splitWave, decorateSteps } from "./free-bids.js";
 import { freeOnlyOn, hasPaidKey, freeOnlyError, calibratedEstimate, noteActual, stepLine, creditCheck } from "./free-first.js";
-import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind } from "./fallback.js";
+import { fallbackChat, completeFallback, fallbackRecord, announce as announceFallback, troubleKind, isLimitError, modelName } from "./fallback.js";
 import { observe, markPrivateRun } from "./brain.js";
 import { AGENT_ID as GROKBOT } from "./grokbot.js";
 import { missionAgent, agentName, cancelAgentJob, onAnyJobFinished } from "./agents.js";
@@ -41,8 +41,8 @@ import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
 import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, namedFiles, isSavableName, NO_SAVE_STEP_LINE, FILE_BLOCK_LINE, dropSaveOnlySteps, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
 import { saveNamedFile, writeProjectFile, codeFor, fileBody, NOT_SAVED_LINE, wantedFile, officeNote } from "./named-file.js";
-import { bodyForFile } from "./code-files.js";
-import { saveEveryNamedFile } from "./save-named-files.js";
+import { bodyForFile, looksLikeCode } from "./code-files.js";
+import { saveEveryNamedFile, isCheckStep, fullReplacement } from "./save-named-files.js";
 import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
 import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE, findPythonCommand, runPython } from "./run-node-test.js";
@@ -813,13 +813,11 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
 {"title": "<=8 words", "tasks": [{"id": "t1", "title": "<=10 words", "capability": "reasoning|code|writing|research|creative|analysis|math|media${agentOn ? "|agent" : ""}", "difficulty": 1|2|3, "needWeb": false, "deps": [], "instructions": "precise instructions for the specialist, 1-3 sentences", "deliverable": "what the output must contain"}], "assembly": "how the final deliverable should be put together, 1-2 sentences"}
 Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.${MEDIA_LINE}${SAVE_LINE}${NO_SAVE_STEP_LINE}${agentLine}${planExtra}`,
         messages: [{ role: "user", content: `GOAL:\n${goal}${context ? `\n\nCONTEXT:\n${context}` : ""}` }],
-      }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: planning, skipProviders: skipSet, onTrouble: runTrouble }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
+      }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: planning, skipProviders: skipSet, onTrouble: runTrouble }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, forModel: ev.from.model || null, reason: ev.reason, via: ev.via || null } }; } });
       const r = await callPlanner();
       // 0.4.21 (dogfood 11, 12): name the AI that really drew the plan up. When smart fallback stood in
       // (ChatGPT 429, OpenRouter 402, Gemini 429, then Claude Opus) the log says who really did it.
-      const plannedBy = PROVIDERS[r.provider]?.name || r.provider;
-      const stoodFor = mission.planner?.standIn ? PROVIDERS[mission.planner.standIn.for]?.name || mission.planner.standIn.for : null;
-      log(stoodFor ? `${plannedBy} is drawing up the plan (standing in for ${stoodFor}).` : `${plannedBy} is drawing up the plan.`);
+      log(plannerLine(r, mission.planner?.standIn));
       const ms = Date.now() - s0;
       noteCall(r.provider, true, ms);
       spend(recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "plan", ms }));
@@ -1094,11 +1092,35 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (!jobs.length) { const b = bodyForFile(prim, [text]); if (b && (b.how !== "table" || /\.csv$/i.test(prim))) jobs = [{ name: prim, code: b.body }]; }
       // 0.4.23.1: a plain text file (notes, a list, a readme) is the step's whole answer (a .csv needs a block or a table)
       if (!jobs.length && t.capability !== "code" && /\.(?:md|txt)$/i.test(prim) && text.trim() && !isEmptyOutput(text)) jobs = [{ name: prim, code: fileBody(text, prim) }];
-      // a step that only mentions another file ("reads invoices.csv") is checked for its own file, not that one
-      t.wantFiles = [...new Set([prim, ...jobs.map((j) => j.name)])];
+      // 0.4.28 (dogfood tip-split): a block with no code in it (plain sentences such as "All tests passed.") never
+      // replaces or makes a code file. A run or verify step's block replaces the writer's version only when it is a
+      // corrected FULL file: real code and at least 60 percent of the writer's length (lead decision). Else the writer's stays.
       const bad = [];
+      const kept = [];
+      const sameName = (a, b) => path.basename(String(a || "")).toLowerCase() === path.basename(String(b || "")).toLowerCase();
+      const writtenBy = (n) => { for (let i = mission.tasks.length - 1; i >= 0; i--) { const x = mission.tasks[i]; if (x === t || isCheckStep(x)) continue; const w = (x.writes || []).filter((y) => sameName(y.name || y.path, n)).pop(); if (w) return { title: x.title, bytes: w.bytes }; } return null; };
+      jobs = jobs.filter((j) => {
+        const by = writtenBy(j.name);
+        const code = looksLikeCode(j.code, fileExt(j.name));
+        const bytes = Buffer.byteLength(String(j.code || ""));
+        if (by && isCheckStep(t)) {
+          if (code && fullReplacement(bytes, by.bytes)) { log(`Saved ${j.name} from "${t.title}": a corrected full file (${bytes} bytes, "${by.title}" wrote ${by.bytes}).`); return true; }
+          kept.push({ name: j.name, by, why: code ? `its block was only ${bytes} bytes, under 60 percent of the ${by.bytes} bytes written` : "its block had no code in it" });
+          return false;
+        }
+        if (!code) {
+          if (by) kept.push({ name: j.name, by, why: "its block had no code in it" });
+          else bad.push(`Not saved: the block for ${j.name} had no code in it.`);
+          return false;
+        }
+        return true;
+      });
+      for (const k of kept) log(`Kept ${k.name} as "${k.by.title}" wrote it. "${t.title}" did not replace it: ${k.why}.`);
+      // a step that only mentions another file ("reads invoices.csv") is checked for its own file, not that one
+      t.wantFiles = [...new Set([prim, ...jobs.map((j) => j.name)])].filter((n) => !kept.some((k) => sameName(k.name, n)) && (jobs.some((j) => sameName(j.name, n)) || !(isCheckStep(t) && writtenBy(n))));
+      if (!t.wantFiles.length) { emit("task.update", { missionId: id, task: pubTask(t) }); update(); return; }
       const lines = [];
-      if (!jobs.length) bad.push(folders.length ? `Not saved: there was no code for ${prim} in this answer.` : NOT_SAVED_LINE);
+      if (!jobs.length && !bad.length) bad.push(folders.length ? `Not saved: there was no code for ${prim} in this answer.` : NOT_SAVED_LINE);
       for (const j of jobs) {
         let old = null;
         for (const root of folders) { try { const hit = findInFolder(path.resolve(root), j.name); if (hit) { old = fs.readFileSync(hit, "utf8"); break; } } catch { /* unreadable: treated as new */ } }
@@ -1619,9 +1641,17 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           // learning router (Phase 28): a model that failed the job itself is marked; account trouble is not held against it
           if (!troubleKind(err) && !ctl.signal.aborted) observe({ provider: t.provider, model: t.model, capability: t.capability, difficulty: t.difficulty, runId: id, ok: false });
           // one retry on a different provider
-            const alt = openRank({ capability: t.capability, difficulty: t.difficulty, mode, needWeb: needsWebModel(t), exclude: [t.model] }).find((m) => m.provider !== t.provider);
-          if (alt && !ctl.signal.aborted) {
-            log(`${stepAgentName(t.provider) || "An AI"} failed "${t.title}" (${err.message.slice(0, 80)}). Re-assigning to ${alt.providerName}.`);
+          // 0.4.28 (dogfood loan-calc): an AI that answered with its plan or quota limit sits out for the rest of this
+          // run, and a re-assigned AI that hits its own limit hands the step on to the next one (up to three), so one
+          // "session limit" never fails the step and every step after it.
+          if (isLimitError(err)) runTrouble(t.provider);
+          const reTried = new Set([t.provider]);
+          const nextAlt = () => openRank({ capability: t.capability, difficulty: t.difficulty, mode, needWeb: needsWebModel(t), exclude: [t.model] }).find((m) => !reTried.has(m.provider));
+          let alt = nextAlt();
+          let lastErr = err;
+          for (let hand = 0; alt && !ctl.signal.aborted && hand < 3; hand++) {
+            reTried.add(alt.provider);
+            log(`${stepAgentName(t.provider) || "An AI"} ${isLimitError(lastErr) ? "is out of its plan or quota for now" : "failed"} "${t.title}" (${lastErr.message.slice(0, 80)}). Re-assigning to ${alt.providerName}.`);
             emit("agent.msg", { from: t.provider, to: alt.provider, missionId: id, text: `re-assign "${t.title}"` });
             t.provider = alt.provider; t.model = alt.model; t.agentName = `${alt.providerName} · ${t.capability}`; t.retried = true;
             const s2 = Date.now();
@@ -1632,12 +1662,18 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
               spend(e); t.cost = +(t.cost + e.cost).toFixed(5);
               t.work = { cost: e.cost, ms: Date.now() - s2, free: !!e.free };
               t.output = r.text; outputs[t.id] = r.text; t.status = qa ? "review" : "done";
+              alt = null;
             } catch (err2) {
+              if (isMissionPause(err2)) throw err2;
               noteCall(alt.provider, false, Date.now() - s2, err2);
               if (!troubleKind(err2) && !ctl.signal.aborted) observe({ provider: alt.provider, model: alt.model, capability: t.capability, difficulty: t.difficulty, runId: id, ok: false });
-              t.status = "failed"; t.error = err2.message;
+              t.status = "failed"; t.error = err2.message; lastErr = err2;
+              // a limit or an account problem hands the step on; a real failure of the job stops here as before
+              if (isLimitError(err2)) runTrouble(alt.provider);
+              alt = (isLimitError(err2) || troubleKind(err2)) ? nextAlt() : null;
             }
-          } else { t.status = "failed"; t.error = err.message; }
+          }
+          if (t.status !== "review" && t.status !== "done") { t.status = "failed"; t.error = lastErr.message; }
         }
         // 0.4.21: an empty, refused, cut-off or off-topic answer is a failure to retry, never "done"
         if (t.status === "review" || t.status === "done") await settleStep(t, { system: workSystem, messages: workMessages, stop: stopReason, inputs });
@@ -1884,9 +1920,17 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     // 0.4.27 (dogfood batch 1): a copy also goes to the folder the person named, and the answer says where
     const asked = askedFolder(goal);
     if (asked) {
-      const files = [...savedAll.filter((r) => r.ok && r.path), ...(mission.savedFile?.ok && mission.savedFile.path ? [mission.savedFile] : []), ...wrote.filter((w) => w.path)];
-      const seen = new Set();
-      const copied = copyToAskedFolder(asked, files.filter((f) => { const k = String(f.path).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }));
+      // 0.4.28 (dogfood tip-split): one copy per file, and only its final good version (the saved result first, else
+      // the last write by a writing step), never an older or a check step's write of the same name
+      const lastWrites = new Map();
+      for (const w of wrote) if (w.path) { const k = path.basename(String(w.name || w.path)).toLowerCase(); const prev = lastWrites.get(k); if (!prev || !isCheckStep(mission.tasks.find((x) => x.id === w.taskId)) || fullReplacement(w.bytes, prev.bytes)) lastWrites.set(k, w); }
+      const files = [...savedAll.filter((r) => r.ok && r.path), ...(mission.savedFile?.ok && mission.savedFile.path ? [mission.savedFile] : []), ...lastWrites.values()];
+      const seen = new Set(), seenName = new Set();
+      const copied = copyToAskedFolder(asked, files.filter((f) => {
+        const k = String(f.path).toLowerCase(), n = path.basename(String(f.requested || f.name || f.path)).toLowerCase();
+        if (seen.has(k) || seenName.has(n)) return false;
+        seen.add(k); seenName.add(n); return true;
+      }));
       if (copied.length) {
         mission.askedFolder = { folder: asked, files: copied };
         for (const sf of [...savedAll, mission.savedFile]) if (sf?.ok && !sf.copiedTo) { const c = copied.find((x) => x.path && x.name.replace(/-\d+(\.[^.]+)$/, "$1").toLowerCase() === String(sf.name).replace(/-\d+(\.[^.]+)$/, "$1").toLowerCase()); if (c) sf.copiedTo = c.path; }
@@ -1920,6 +1964,20 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     mission.incomplete = reasons.length ? { reasons, retryAvoid: [...new Set(reasons.map((r) => r.provider).filter(Boolean))] } : null;
     if (mission.incomplete) log(`Incomplete: ${reasons.map((r) => `${r.title} (${r.reason})`).join(" ").slice(0, 400)}`, { level: "error" });
   }
+}
+
+// 0.4.28 (dogfood task-schedule): "Google Gemini is drawing up the plan (standing in for Google Gemini)" named one AI
+// standing in for itself. Another model of the same AI is named by model; the same name twice is not a stand-in.
+export function plannerLine(r = {}, standIn = null) {
+  const name = (pid) => PROVIDERS[pid]?.name || pid;
+  const plannedBy = name(r.provider);
+  if (!standIn?.for) return `${plannedBy} is drawing up the plan.`;
+  if (standIn.for === r.provider || name(standIn.for) === plannedBy) {
+    const now = r.model ? modelName(r.provider, r.model) : "";
+    const was = standIn.forModel ? modelName(standIn.for, standIn.forModel) : "";
+    return now && was && now !== was ? `${now} is drawing up the plan (standing in for ${was}).` : `${plannedBy} is drawing up the plan.`;
+  }
+  return `${plannedBy} is drawing up the plan (standing in for ${name(standIn.for)}).`;
 }
 
 function pubTask(t) {

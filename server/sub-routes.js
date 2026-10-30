@@ -18,6 +18,7 @@ import { spawnSpec } from "./mcp-client.js";
 import { stripSecrets } from "./handoff.js";
 import { doc, putDoc, HOSTED } from "./store.js";
 import { childEnv, detectAgy, readState as agyState, iterateJob as agyIterate } from "./antigravity-cli.js";
+import { cliLimit, limitMessage } from "./cli-limit.js";
 
 export const SETTINGS = "subroutes.settings";
 export const CHAIN = [
@@ -209,6 +210,9 @@ export async function readyRoutesFor(provider, opts = {}) {
 export function plainCliError(text, name = "The app") {
   const s = String(text || "");
   if (/not (?:logged|signed) in|login required|please (?:log|sign) ?in|run .*login|authenticat|unauthori[sz]ed|\b401\b|sign[ -]?in required|no credentials/i.test(s)) return { code: "signin", message: `${name} is not signed in.` };
+  // 0.4.28 (dogfood loan-calc): "You've hit your session limit · resets 2:30pm" is a limit too, and says when it ends
+  const lim = cliLimit(s);
+  if (lim) return { code: "quota", message: limitMessage(name, lim), resetAt: lim.resetAt, until: lim.until };
   if (/quota|rate limit|usage limit|limit reached|too many requests|\b429\b|exhausted|out of credits|credit balance|upgrade your plan/i.test(s)) return { code: "quota", message: `${name} is out of its own plan's quota right now.` };
   if (/ENOENT|not found|not recognized|no such file/i.test(s)) return { code: "missing", message: `${name} is not installed.` };
   const detail = stripSecrets(s).replace(/\s+/g, " ").trim().slice(0, 200);
@@ -289,6 +293,9 @@ export async function askApp(route, prompt, { timeoutMs, signal, env = process.e
     child.once("exit", (code) => {
       if (why) return finish(why === "timeout" ? { ok: false, code: "timeout", message: `${route.name} took too long and was stopped.` } : { ok: false, code: "stopped", message: `${route.name} was stopped.` });
       const text = out.replace(ANSI, "").trim();
+      // 0.4.28: an app that prints its limit line as the "answer" (exit 0) is out of its plan, not answering
+      const shortLimit = code === 0 && text ? cliLimit(text, { short: true }) : null;
+      if (shortLimit) return finish({ ok: false, code: "quota", message: limitMessage(route.name, shortLimit), resetAt: shortLimit.resetAt, until: shortLimit.until });
       if (code === 0 && text) return finish({ ok: true, text: text.slice(0, OUT_MAX) });
       finish({ ok: false, ...plainCliError(`${err}\n${code === 0 ? "no answer" : text}`, route.name), exitCode: code });
     });
@@ -308,7 +315,7 @@ async function askAgy(route, prompt, { timeoutMs, signal } = {}) {
   if (result?.status === "SUCCESS" && (result.response || text).trim()) return { ok: true, text: String(result.response || text).trim() };
   const p = failed || plainCliError(result?.error || result?.response || "no answer", route.name);
   const code = p.code === "install" ? "missing" : p.code === "agy" ? "failed" : p.code;
-  return { ok: false, code, message: p.message };
+  return { ok: false, code, message: p.message, ...(p.until ? { resetAt: p.resetAt || null, until: p.until } : {}) };
 }
 
 export function stopApp(runId) { const r = running.get(runId); if (!r) return false; r.stop(); return true; }
