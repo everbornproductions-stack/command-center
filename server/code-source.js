@@ -7,7 +7,9 @@ import path from "node:path";
 import { listProjects } from "./projects.js";
 
 const CODE_EXT = "js|mjs|cjs|jsx|ts|tsx|py|rb|go|rs|java|kt|cs|cpp|c|h|php|swift|sql|sh|ps1|json|yml|yaml|toml|html|css|md|txt";
-const NAME_RE = new RegExp(`(?<![\\w/.\\\\-])((?:[\\w.-]+[\\\\/])*[\\w.-]+\\.(?:${CODE_EXT}))\\b`, "gi");
+// 0.4.27 (dogfood batch 2): data and script files a task names (invoices.csv, backup.bat, run.cmd) are named files too
+const NAME_EXT = `${CODE_EXT}|csv|bat|cmd|htm|xml|svg`;
+const NAME_RE = new RegExp(`(?<![\\w/.\\\\-])((?:[\\w.-]+[\\\\/])*[\\w.-]+\\.(?:${NAME_EXT}))\\b`, "gi");
 const SECRET = /(^|[\\/])(\.env[\w.]*|id_rsa[\w.]*|.*\.(pem|key|p12|pfx)|.*secret.*|.*credential.*|vault\.bin)$/i;
 const SKIP_DIR = new Set(["node_modules", ".git", "dist", "build", "out", ".next", "coverage", "release", "data"]);
 export const MAX_BYTES = 200_000, MAX_CHARS = 24_000;

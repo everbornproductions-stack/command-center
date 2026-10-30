@@ -39,11 +39,13 @@ import { consumeQueuedForRun } from "./phoneweb.js";
 import { isNavStateEnabled } from "./web-config.js";
 import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
-import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
-import { saveNamedFile, writeProjectFile, codeFor, fileBody, isWritableName, NOT_SAVED_LINE } from "./named-file.js";
+import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, namedFiles, isSavableName, NO_SAVE_STEP_LINE, FILE_BLOCK_LINE, dropSaveOnlySteps, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
+import { saveNamedFile, writeProjectFile, codeFor, fileBody, NOT_SAVED_LINE } from "./named-file.js";
+import { bodyForFile } from "./code-files.js";
+import { saveEveryNamedFile } from "./save-named-files.js";
 import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
-import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE } from "./run-node-test.js";
+import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE, findPythonCommand, runPython } from "./run-node-test.js";
 import { isLocalSaveStep, SAVE_LINE, savePost, splitPost, stripHelperNotes } from "./mindmedia-step.js";
 import { dryRunBanner, preflight, mediaStatus, neededMedia } from "./media-preflight.js";
 import { localizeImagePlan, drawLocally, namedImage, localDrawNote } from "./local-draw.js";
@@ -808,7 +810,7 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
         provider: planner.provider, model: planner.model, maxTokens: 1500, signal: ctl.signal,
         system: `You are the chief of staff for a small creative/marketing business. Break the goal into ${Math.min(maxTasks, 6)} or fewer concrete tasks that different AI specialists can do independently, with dependencies where one needs another's output. Reply with JSON only:
 {"title": "<=8 words", "tasks": [{"id": "t1", "title": "<=10 words", "capability": "reasoning|code|writing|research|creative|analysis|math|media${agentOn ? "|agent" : ""}", "difficulty": 1|2|3, "needWeb": false, "deps": [], "instructions": "precise instructions for the specialist, 1-3 sentences", "deliverable": "what the output must contain"}], "assembly": "how the final deliverable should be put together, 1-2 sentences"}
-Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.${MEDIA_LINE}${SAVE_LINE}${agentLine}${planExtra}`,
+Keep it tight: no task that just restates the goal. Research tasks need needWeb true only if live information is required.${MEDIA_LINE}${SAVE_LINE}${NO_SAVE_STEP_LINE}${agentLine}${planExtra}`,
         messages: [{ role: "user", content: `GOAL:\n${goal}${context ? `\n\nCONTEXT:\n${context}` : ""}` }],
       }, { missionId: id, role: "plan", tools: false, cls: { capability: "reasoning", difficulty: 3 }, mode: planning, skipProviders: skipSet, onTrouble: runTrouble }, { onFallback: (ev) => { stoodIn(ev, pAgent, "plan"); mission.planner = { provider: ev.to.provider, model: ev.to.model, standIn: { for: ev.from.provider, reason: ev.reason, via: ev.via || null } }; } });
       const r = await callPlanner();
@@ -854,6 +856,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     plan.tasks = plan.tasks.slice(0, maxTasks).map((t, i) => ({ ...t, id: t.id || `t${i + 1}`, deps: (t.deps || []).filter(Boolean) }));
     // 0.4.23.1: the owner's private storage routine (commit and push, back up to GitHub or Drive) is never part of a plan
     { const cl = cleanPlan(plan, goal, ownerRuleOpts()); plan = cl.plan; if (cl.dropped) log(`Left out ${cl.dropped} step${cl.dropped === 1 ? "" : "s"} that only repeated a private storage routine you did not ask for.`); }
+    // 0.4.27 (dogfood batch 2): a step that only saves a file to disk is left out. No AI can do it, and Meldmind saves every named file itself at the end.
+    { const ds = dropSaveOnlySteps(plan); plan = ds.plan; if (ds.dropped.length) log(`Left out ${ds.dropped.length === 1 ? "a step" : `${ds.dropped.length} steps`} that only saved a file (${ds.dropped.map((x) => `"${x}"`).join(", ")}). Meldmind saves the named files itself at the end.`); }
     mission.plan = { title: plan.title, assembly: plan.assembly };
     mission.title = plan.title;
     // 0.4.21 (dogfood 12): a code step that names a file can only save it when the project folder is known. Say so before any work starts.
@@ -891,7 +895,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       // 0.4.21 (dogfood 12): "run the tests" is done here, on this PC, by node. No AI can run a command from a chat reply.
       if (isRunStep(t)) {
         const { agent: _a, needs: _n, ...rest } = t;
-        mission.tasks.push({ ...rest, capability: "run", run: true, status: "queued", provider: "meldmind", model: "node", agentName: "Meldmind · runs node tests here", estCost: 0, output: null, review: null, cost: 0 });
+        const py = !findNodeCommand(`${t.title}\n${t.instructions || ""}`) && !!findPythonCommand(`${t.title}\n${t.instructions || ""}\n${t.deliverable || ""}`);
+        mission.tasks.push({ ...rest, capability: "run", run: true, status: "queued", provider: "meldmind", model: py ? "python" : "node", agentName: py ? "Meldmind · runs the Python script here" : "Meldmind · runs node tests here", estCost: 0, output: null, review: null, cost: 0 });
         continue;
       }
       // a step that needs signed-in browsing, Gmail, Drive, Calendar or teammate bots goes to the agent
@@ -1084,8 +1089,12 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       const prim = primaryName(t, names);
       let jobs = names.map((n) => ({ name: n, code: codeFor(text, n) })).filter((j) => j.code);
       if (!jobs.length) { const c = codeFor(text, prim, { onlyName: true }); if (c) jobs = [{ name: prim, code: c }]; }
-      // 0.4.23.1: a plain text file (notes, a list, a readme) is the step's whole answer
-      if (!jobs.length && t.capability !== "code" && /\.(?:md|txt|csv)$/i.test(prim) && text.trim() && !isEmptyOutput(text)) jobs = [{ name: prim, code: fileBody(text, prim) }];
+      // 0.4.27 (dogfood batch 2): the one block in the file's language (```python for a .py), or a table for a .csv
+      if (!jobs.length) { const b = bodyForFile(prim, [text]); if (b && (b.how !== "table" || /\.csv$/i.test(prim))) jobs = [{ name: prim, code: b.body }]; }
+      // 0.4.23.1: a plain text file (notes, a list, a readme) is the step's whole answer (a .csv needs a block or a table)
+      if (!jobs.length && t.capability !== "code" && /\.(?:md|txt)$/i.test(prim) && text.trim() && !isEmptyOutput(text)) jobs = [{ name: prim, code: fileBody(text, prim) }];
+      // a step that only mentions another file ("reads invoices.csv") is checked for its own file, not that one
+      t.wantFiles = [...new Set([prim, ...jobs.map((j) => j.name)])];
       const bad = [];
       const lines = [];
       if (!jobs.length) bad.push(folders.length ? `Not saved: there was no code for ${prim} in this answer.` : NOT_SAVED_LINE);
@@ -1109,7 +1118,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       }
       if (lines.length) { t.wroteLine = lines.join(". "); t.output = `${t.output}\n\n${lines.join("\n")}`; outputs[t.id] = t.output; }
       if (bad.length) {
-        t.notSaved = { files: names, line: [...new Set(bad)].join(" ") };
+        t.notSaved = { files: t.wantFiles, line: [...new Set(bad)].join(" ") };
         t.output = `${t.output}\n\n${t.notSaved.line}`; outputs[t.id] = t.output;
         log(`"${t.title}": ${t.notSaved.line}`, { level: "error" });
       }
@@ -1138,6 +1147,31 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       const folders = writeFolders();
       const depWrites = (t.deps || []).flatMap((d) => mission.tasks.find((x) => x.id === d)?.writes || []);
       let found = findNodeCommand(text);
+      // 0.4.27 (dogfood batch 2): "Run invoice_totals.py and verify totals" runs the Python script this mission saved
+      const pyAsk = found ? null : findPythonCommand(text);
+      const allWrites = mission.tasks.flatMap((x) => x.writes || []);
+      const pyWrites = allWrites.filter((w) => /\.py$/i.test(w.name || w.path || ""));
+      const pyWanted = pyAsk || (!found && pyWrites.length && !allWrites.some((w) => /\.(?:m?js|cjs)$/i.test(w.name || "")) && /\bscript\b/i.test(text) ? { file: "" } : null);
+      if (pyWanted) {
+        const depPy = depWrites.filter((w) => /\.py$/i.test(w.name || w.path || ""));
+        const byName = (list) => (pyWanted.file ? list.find((w) => path.basename(w.name || w.path).toLowerCase() === pyWanted.file.toLowerCase()) : null);
+        const w = byName(depPy) || byName(pyWrites) || (!pyWanted.file ? depPy[depPy.length - 1] || pyWrites[pyWrites.length - 1] : null);
+        let res;
+        if (w?.path) res = await runPython({ file: w.path });
+        else res = { ran: false, line: pyWanted.file ? `Not run: ${pyWanted.file} was not saved by this mission, so there was nothing to run.` : "Not run: this mission did not save a Python script, so there was nothing to run." };
+        t.model = "python"; t.agentName = "Meldmind · runs the Python script here";
+        t.output = runReport(res);
+        outputs[t.id] = t.output;
+        t.status = "done"; t.error = null;
+        t.work = { cost: 0, ms: Date.now() - t.startedAt, free: true };
+        if (res.ran) { toolRecord(t, { tool: "run", cmd: res.cmd, exit: res.exit, output: res.output }); log(`Ran ${res.cmd} here: exit ${res.exit === null ? "none" : res.exit}.`); }
+        else { t.notRun = { line: res.line }; log(`"${t.title}": ${res.line}`, { level: "error" }); }
+        done.add(t.id);
+        t.finishedAt = Date.now();
+        emit("task.update", { missionId: id, task: pubTask(t) });
+        update();
+        return;
+      }
       if (!found && !asksOtherCommand(text)) {
         const w = [...depWrites].reverse().find((x) => /(?:\.test|\.spec|^test[-_])[^/]*\.(?:m?js|cjs)$/i.test(x.name)) || null;
         if (w) found = { test: false, file: w.name };
@@ -1552,7 +1586,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         const s = Date.now();
         let text = "";
         let stopReason = null;
-        const workSystem = toneAdd(crewMember(t) ? crewSystem(crewMember(t), goal) : `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.${t.capability === "code" ? `\n${NO_REMOVED_APIS_LINE}` : ""}`, tone);
+        const workSystem = toneAdd(crewMember(t) ? crewSystem(crewMember(t), goal) : `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.${t.capability === "code" ? `\n${NO_REMOVED_APIS_LINE}` : ""}${stepFileNames(t).length ? `\n${FILE_BLOCK_LINE}` : ""}`, tone);
         const workMessages = [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}${taskWeb ? `\n\n${taskWeb}` : ""}` }];
         try {
           // MCP tools (Phase 16) ride along for specialists that can call them; writes ask first.
@@ -1819,23 +1853,28 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     if (tr.truncated) mission.deliverableTruncated = tr.reason;
     // 0.4.21 (dogfood 12): files really written into the project folder by the code steps, and the steps that could not
     const wrote = mission.tasks.flatMap((t) => (t.writes || []).map((w) => ({ ...w, taskId: t.id })));
-    const unsaved = mission.tasks.filter((t) => t.notSaved);
-    const hit = want && wrote.find((w) => path.basename(w.name).toLowerCase() === path.basename(want).toLowerCase());
     const wantImg = namedImage(goal);
-    if (want || wantImg) mission.deliverable = stripSaveClaims(mission.deliverable || "");
+    // 0.4.27 (dogfood batch 2): every file the goal names is saved, each from the answer or from the step that made it
+    const wantAll = namedFiles(goal).filter((n) => isSavableName(n, { office: true }));
+    if (want || wantImg || wantAll.length) mission.deliverable = stripSaveClaims(mission.deliverable || "");
     // the same for each step's own output: an AI line "File saved: x" is never shown, only what the app wrote
-    if (want || wantImg) for (const t of mission.tasks) if (typeof t.output === "string" && t.output && !t.media) t.output = stripSaveClaims(t.output);
-    if (hit) {
-      mission.savedFile = { ok: true, name: hit.name, requested: want, path: hit.path, bytes: hit.bytes, ext: fileExt(hit.name), previewable: false, readable: false, projectId: projectId || null, inProjectFolder: true };
-      log(`Wrote ${hit.name} (${hit.bytes} bytes) in your project folder.`);
-    } else if (want && !/\.html?$/i.test(want) && unsaved.some((t) => (t.notSaved.files || []).some((n) => path.basename(n).toLowerCase() === path.basename(want).toLowerCase()))) {
-      mission.savedFile = { ok: false, name: want, error: unsaved.find((t) => (t.notSaved.files || []).some((n) => path.basename(n).toLowerCase() === path.basename(want).toLowerCase())).notSaved.line };
-      log(mission.savedFile.error, { level: "error" });
-    } else if (want) {
-      if (mission.deliverableTruncated) mission.savedFile = { ok: false, name: want, error: `Not saved: the result was cut off (${tr.reason}), so ${want} was not written.` };
-      else mission.savedFile = saveNamedFile({ goal, name: want, text: mission.deliverable, projectId, missionId: id });
-      log(mission.savedFile?.ok ? `Saved ${mission.savedFile.name} in the project folder.` : String(mission.savedFile?.error || `Not saved: ${want}.`), mission.savedFile?.ok ? {} : { level: "error" });
+    if (want || wantImg || wantAll.length) for (const t of mission.tasks) if (typeof t.output === "string" && t.output && !t.media) t.output = stripSaveClaims(t.output);
+    const savedAll = saveEveryNamedFile({ goal, names: wantAll, deliverable: mission.deliverable, tasks: mission.tasks, wrote, projectId, missionId: id, truncated: mission.deliverableTruncated ? tr.reason : "" });
+    for (const r of savedAll) {
+      if (r.ok && r.inProjectFolder) log(`Wrote ${r.name} (${r.bytes} bytes) in your project folder.`);
+      else log(r.ok ? `Saved ${r.name} in the project folder.` : String(r.error || `Not saved: ${r.name}.`), r.ok ? {} : { level: "error" });
     }
+    mission.savedFiles = savedAll.length ? savedAll : null;
+    mission.savedFile = savedAll.find((r) => path.basename(String(r.requested || r.name)).toLowerCase() === path.basename(want).toLowerCase()) || savedAll[0] || null;
+    // a step that could not save its file is not "not done" any more once that file was saved from another answer
+    const okNames = new Set(savedAll.filter((r) => r.ok).map((r) => path.basename(String(r.requested || r.name)).toLowerCase()));
+    for (const t of mission.tasks) {
+      const files = (t.notSaved?.files || t.wantFiles || []).map((n) => path.basename(n).toLowerCase());
+      if (!files.length || !files.every((n) => okNames.has(n))) continue;
+      if (t.notSaved) { t.savedLater = { files: t.notSaved.files, was: t.notSaved.line }; t.notSaved = null; }
+      if (t.qaFailed && /not (?:found|saved) on (?:the )?disk|was not found on disk/i.test(String(t.review?.issues?.[0] || ""))) { t.qaFailed = false; t.review = { ...t.review, savedLater: true }; }
+    }
+    const unsaved = mission.tasks.filter((t) => t.notSaved);
     // a picture drawn here: the saved file comes from the drawing step's own disk check
     if (wantImg && !mission.savedFile) {
       const dt = mission.tasks.find((t) => t.media?.local);
@@ -1851,19 +1890,20 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     // 0.4.27 (dogfood batch 1): a copy also goes to the folder the person named, and the answer says where
     const asked = askedFolder(goal);
     if (asked) {
-      const files = [...(mission.savedFile?.ok && mission.savedFile.path ? [mission.savedFile] : []), ...wrote.filter((w) => w.path)];
+      const files = [...savedAll.filter((r) => r.ok && r.path), ...(mission.savedFile?.ok && mission.savedFile.path ? [mission.savedFile] : []), ...wrote.filter((w) => w.path)];
       const seen = new Set();
       const copied = copyToAskedFolder(asked, files.filter((f) => { const k = String(f.path).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }));
       if (copied.length) {
         mission.askedFolder = { folder: asked, files: copied };
-        if (mission.savedFile?.ok) { const c = copied.find((x) => x.path && x.name.replace(/-\d+(\.[^.]+)$/, "$1").toLowerCase() === String(mission.savedFile.name).toLowerCase()); if (c) mission.savedFile.copiedTo = c.path; }
+        for (const sf of [...savedAll, mission.savedFile]) if (sf?.ok && !sf.copiedTo) { const c = copied.find((x) => x.path && x.name.replace(/-\d+(\.[^.]+)$/, "$1").toLowerCase() === String(sf.name).replace(/-\d+(\.[^.]+)$/, "$1").toLowerCase()); if (c) sf.copiedTo = c.path; }
         for (const c of copied) log(c.error || `Saved a copy of ${c.name} in ${asked}.`, c.error ? { level: "error" } : {});
       }
     }
     // the final answer says plainly what was written, what was not, and what was not run
     {
       const tail = [];
-      if (mission.savedFile?.ok && !mission.askedFolder && !wrote.some((w) => w.path === mission.savedFile.path)) tail.push(`Saved ${mission.savedFile.name} in ${mission.savedFile.where || "your project folder"}: ${mission.savedFile.path}`);
+      for (const sf of [...new Set([...savedAll, mission.savedFile])]) if (sf?.ok && sf.path && !mission.askedFolder && !wrote.some((w) => w.path === sf.path)) tail.push(`Saved ${sf.name} in ${sf.where || "your project folder"}: ${sf.path}`);
+      for (const r of savedAll) if (!r.ok && r.error && !unsaved.some((t) => t.notSaved.line === r.error)) tail.push(r.error);
       for (const c of mission.askedFolder?.files || []) tail.push(c.error || `Saved ${c.name} in ${mission.askedFolder.folder}`);
       for (const w of wrote) tail.push(`Wrote ${w.name} (${w.bytes} bytes)`);
       for (const t of unsaved) tail.push(t.notSaved.line);
@@ -1889,10 +1929,10 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
 }
 
 function pubTask(t) {
-  return { notSaved: t.notSaved || null, notRun: t.notRun || null, toolRecords: t.toolRecords || [], wroteLine: t.wroteLine || null, run: !!t.run, notDone: stepIsNotDone(t) || !!t.practice, id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, save: !!t.save, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
+  return { notSaved: t.notSaved || null, savedLater: t.savedLater || null, notRun: t.notRun || null, toolRecords: t.toolRecords || [], wroteLine: t.wroteLine || null, run: !!t.run, notDone: stepIsNotDone(t) || !!t.practice, id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, save: !!t.save, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
 }
 export function publicMission(m) {
-  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, retry: m.retry || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, planNote: m.planNote || null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
+  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, retry: m.retry || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, savedFiles: Array.isArray(m.savedFiles) ? m.savedFiles.map((f) => ({ ...f })) : null, planNote: m.planNote || null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
 }
 // 0.4.21: which AI did each step, what it cost, and why it was handed off (shown on the result card)
 export function stepsReport(m) {
@@ -1907,7 +1947,7 @@ function stepFileNames(t) {
   // 0.4.23.1: a writing step that says "save it as followups.md" is saved too, not only code steps
   if (t.capability !== "code" && !(["writing", "creative", "analysis", "reasoning", "research", "agent"].includes(t.capability) && /\b(save|saves|saved|write|writes|create|creates|add|put|store|name it|called|named)\b/i.test(text))) return [];
   // a writing step saves plain text files only; pages and code come from code steps
-  return namedSources(text).filter(isWritableName).filter((n) => t.capability === "code" || /\.(?:md|txt|csv)$/i.test(n));
+  return namedSources(text).filter((n) => isSavableName(n)).filter((n) => t.capability === "code" || /\.(?:md|txt|csv)$/i.test(n));
 }
 // which of several named files this step is mostly about: the one in its title, else a test file for a test step, else the first non-test file
 function primaryName(t, names) {
