@@ -52,7 +52,7 @@ export function fileBody(text, name) {
     if (m) return m[1].trim() + "\n";
     const open = /<!doctype html[\s\S]*$|<html[\s\S]*$/i.exec(t);
     if (open) return open[0].trim() + "\n";
-  } else if (blocks.length === 1 && ["css", "js", "mjs", "json", "py", "xml", "svg", "yml", "yaml"].includes(ext)) {
+  } else if (blocks.length === 1 && ["css", "js", "mjs", "cjs", "ts", "json", "py", "xml", "svg", "yml", "yaml", "ps1", "bat", "cmd", "sh", "sql", "gs", "csv"].includes(ext)) {
     return blocks[0].text;
   }
   // a text or markdown file is the deliverable itself, minus a single wrapping fence
@@ -69,7 +69,7 @@ export function saveNamedFile({ goal = "", name, text, projectId = "", missionId
   if (!want) return null; // the task named no file: nothing to promise
   if (OFFICE_EXT.has(fileExt(want))) return saveOfficeFile({ want, text, projectId, missionId, source, status });
   // a code file is never the whole answer: with several code blocks and none named for it, nothing is guessed
-  if (["js", "mjs", "cjs", "ts", "py", "json", "css", "xml", "svg", "yml", "yaml"].includes(fileExt(want)) && extractCodeFiles(text).length > 1 && !codeFor(text, want)) return { ok: false, name: want, error: NOT_SAVED_LINE };
+  if (["js", "mjs", "cjs", "ts", "py", "json", "css", "xml", "svg", "yml", "yaml", "ps1", "bat", "cmd", "sh", "sql", "gs"].includes(fileExt(want)) && extractCodeFiles(text).length > 1 && !codeFor(text, want)) return { ok: false, name: want, error: NOT_SAVED_LINE };
   const body = fileBody(text, want);
   if (!body.trim()) return { ok: false, name: want, error: `Not saved: there was nothing to write to ${want}.` };
   if (body.length > MAX_FILE_CHARS) return { ok: false, name: want, error: `Not saved: ${want} is too big (${Math.round(body.length / 1000)}k characters).` };
