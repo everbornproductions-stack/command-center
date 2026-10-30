@@ -22,7 +22,7 @@
     "files": [{ "name": "passgen.js", "check": "node", "expect": "\\S{16}" }] },
   { "id": "coffee-sop", "industry": "Coffee shop", "persona": "Sam, opening a coffee cart", "kind": "document",
     "goal": "Write a standard operating procedure for opening a coffee cart each morning: a checklist from arrival to first sale (equipment, cleaning, stock, cash drawer, safety), with times, written so a new hire can follow it. Save it as {dir}\\opening-sop.md",
-    "files": [{ "name": "opening-sop.md", "check": "text", "mustInclude": ["- [ ]"] }] },
+    "files": [{ "name": "opening-sop.md", "check": "text", "mustInclude": ["Cash"] }] },
   { "id": "library-sql", "industry": "School library", "persona": "Mr. Kim, school librarian", "kind": "script",
     "goal": "Write a SQLite SQL script for a small school library: tables for books, students and loans with foreign keys, 15 sample books, 8 students and 10 loans (some returned, some overdue), and a final query listing overdue loans with the student and book title. Save it as {dir}\\library.sql",
     "files": [{ "name": "library.sql", "check": "sqlite" }] },
