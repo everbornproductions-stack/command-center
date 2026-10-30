@@ -1110,7 +1110,7 @@ async function api(req, res, url) {
     const s = saveSettings({ ...settings(), onboarded: true });
     let sampleProject = null;
     if (isNavStateEnabled(s) || body?.ensureSampleProject) {
-      try { sampleProject = ensureSampleProject({ uiMode: s.uiMode }); } catch { /* ignore */ }
+      try { sampleProject = ensureSampleProject(); } catch { /* ignore */ } // 0.4.27: no own mode on the sample project
     }
     try { runDailyCheck(); } catch (e) { console.error("[onboarding]", e.message); }
     return json(res, 200, sampleProject ? { ...s, sampleProject } : s);

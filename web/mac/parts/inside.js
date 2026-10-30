@@ -141,14 +141,59 @@ function paintNotes() {
       col.insertBefore(box, loose.reduce((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING ? b : a)));
     }
     loose.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
-    for (const b of loose) moveKeepFocus(b, (n) => box.appendChild(n));
+    const more = box.querySelector(":scope > #cx-notes-more");
+    for (const b of loose) moveKeepFocus(b, (n) => box.insertBefore(n, more));
   }
-  if (box && !box.children.length) box.remove();
+  if (box && !box.querySelector(":scope > :not(#cx-notes-more)")) { box.remove(); return; }
+  if (box) paintMore(box);
+}
+
+// 0.4.27 (panel item 1): on a short window or a phone the row is one line (inside.css). When some chips do not fit,
+// a More button at its right end opens the whole row; Less folds it again. Nothing is removed or hidden for good.
+function paintMore(box) {
+  let more = box.querySelector(":scope > #cx-notes-more");
+  if (!more) {
+    more = document.createElement("button");
+    more.type = "button";
+    more.id = "cx-notes-more";
+    more.className = "btn sm";
+    more.setAttribute("aria-expanded", "false");
+    more.addEventListener("click", () => {
+      const open = !box.classList.contains("cx-open");
+      box.classList.toggle("cx-open", open);
+      paintMore(box);
+      more.focus({ preventScroll: true });
+    });
+    box.appendChild(more);
+    // The bars redraw their own chips; look again right after they do.
+    let queued = false;
+    box._cxObs = new MutationObserver(() => { if (queued) return; queued = true; queueMicrotask(() => { queued = false; if (box.isConnected && more.isConnected) paintMore(box); }); });
+    box._cxObs.observe(box, { childList: true, subtree: true });
+  }
+  const open = box.classList.contains("cx-open");
+  // Folded: does the one-line row run past its edge? (Open, the answer from just before it opened stands.)
+  if (!open) box.dataset.cxCut = getComputedStyle(box).flexWrap === "nowrap" && box.scrollWidth > box.clientWidth + 1 ? "1" : "";
+  const show = box.dataset.cxCut === "1";
+  if (more.hidden === show) more.hidden = !show;
+  const words = open ? "Less" : "More";
+  if (more.textContent !== words) more.textContent = words;
+  more.setAttribute("aria-expanded", String(open));
+  more.setAttribute("aria-label", open ? "Show fewer tools" : "Show more tools");
+  // Folded, a chip that runs under More (or past the edge) is not shown half cut: it waits behind More.
+  const limit = show && !open ? more.getBoundingClientRect().left - 4 : Infinity;
+  for (const c of box.querySelectorAll(":scope > :is(.fp-bar, .mm-bar, .projbar) > *, :scope .pb-tools > *")) {
+    if (c === more || getComputedStyle(c).display === "contents") continue;
+    const over = c.getBoundingClientRect().right > limit;
+    if (over !== c.hasAttribute("data-cx-over")) c.toggleAttribute("data-cx-over", over);
+  }
 }
 
 function unwrapNotes(col) {
   const box = col?.querySelector(":scope > .cx-notes");
   if (!box) return;
+  box._cxObs?.disconnect();
+  box.querySelector(":scope > #cx-notes-more")?.remove();
+  box.querySelectorAll("[data-cx-over]").forEach((c) => c.removeAttribute("data-cx-over"));
   for (const b of [...box.children]) moveKeepFocus(b, (n) => col.insertBefore(n, box));
   box.remove();
 }
@@ -213,10 +258,17 @@ export default {
     const bodyObs = new MutationObserver(soon);
     bodyObs.observe(document.body, { attributes: true, attributeFilter: ["data-ui", "data-view"] });
     // The header buttons follow the page's buttons (Send turns into "Still working..." and back).
-    const tick = setInterval(() => { const h = view.querySelector(":scope > .cx-head"); if (h) syncProxies(h); }, 1000);
+    // Once a second the More button also follows the chips (bars redraw their own buttons).
+    const tick = setInterval(() => {
+      const h = view.querySelector(":scope > .cx-head"); if (h) syncProxies(h);
+      const notes = isExpert() && col?.querySelector(":scope > .cx-notes"); if (notes) paintMore(notes);
+    }, 1000);
+    // The More button in the notice row depends on the window size (one line on a short window or a phone).
+    const onResize = () => soon();
+    window.addEventListener("resize", onResize);
 
     CLEANUPS.push(
-      () => { viewObs.disconnect(); colObs?.disconnect(); bodyObs.disconnect(); clearInterval(tick); clearTimeout(enterTimer); },
+      () => { viewObs.disconnect(); colObs?.disconnect(); bodyObs.disconnect(); clearInterval(tick); clearTimeout(enterTimer); window.removeEventListener("resize", onResize); },
       bus.on("view", soon),
       bus.on("mode", soon),
       () => {

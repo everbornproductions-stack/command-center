@@ -87,8 +87,13 @@ if (typeof window !== "undefined" && window.CC && typeof document !== "undefined
     if (!isPhoneCompanionEnabled(S)) return null;
     try {
       state = await api("/phoneweb/state");
-      if (state?.enabled && state.projectId && S.project !== state.projectId) {
+      // 0.4.27 (panel item 3a): the phone's project used to replace the window's on every Command draw. With no
+      // project picked on the phone it is just the first project, so the window's own pick (remembered across a
+      // reload) was lost and its mode note with it. The phone's project is taken only when the window has none.
+      const known = (S.projects || []).some((p) => p.id === S.project);
+      if (state?.enabled && state.projectId && S.project !== state.projectId && (!S.project || !known)) {
         S.project = state.projectId;
+        window.CC.projectChanged?.();
       }
       return state;
     } catch {
@@ -263,6 +268,7 @@ if (typeof window !== "undefined" && window.CC && typeof document !== "undefined
         const r = await api("/phoneweb/context", { method: "POST", body: { projectId: nextProj, from: "phone" } });
         state = r.state;
         S.project = nextProj;
+        window.CC.projectChanged?.();
         paintOverlay();
         toast("Project synced");
       } catch (err) { toast(err.message, true); }
@@ -454,6 +460,7 @@ if (typeof window !== "undefined" && window.CC && typeof document !== "undefined
       if (ev.type === "phoneweb.sync" || ev.type === "phoneweb.queue" || ev.type === "phoneweb.progress" || ev.type === "phoneweb.quick" || ev.type === "mission.update") {
         if (ev.type === "phoneweb.sync" && ev.projectId !== undefined && S.project !== ev.projectId) {
           S.project = ev.projectId;
+          window.CC.projectChanged?.();
         }
         if (companionOpen) {
           clearTimeout(refreshTimer);

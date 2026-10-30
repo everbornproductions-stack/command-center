@@ -87,4 +87,22 @@ body[data-style="mac"] #mac-flow #simple-answer .rh-card iframe.rh-site { height
 @media (prefers-reduced-motion: reduce) {
   body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card, body[data-style="mac"] #mac-flow .mf-bar i { transition: none; }
 }
+/* 0.4.27 (panel item 10b): at 390 wide the "Or just say it" box was about 95 px wide, because the cost line and Next
+   shared its row. On a phone the box takes the whole first row; the cost line and Next go on a second row. */
+@media (max-width: 760px) {
+  body[data-style="mac"] #mac-flow .mf-box { flex-wrap: wrap; padding: 8px 8px 8px 12px; }
+  body[data-style="mac"] #mac-flow .mf-box input { flex: 1 1 100%; }
+  body[data-style="mac"] #mac-flow .mf-box .mf-cost { flex: 1 1 auto; min-width: 0; white-space: normal; }
+  body[data-style="mac"] #mac-flow .mf-box .mf-go { margin-left: auto; }
+  /* the two-row box needs a little more height: the picture on each card is shorter on a phone */
+  body[data-style="mac"] #mac-flow .mf-art { height: 92px; }
+  body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card { min-height: 190px; }
+}
+/* 0.4.27 (panel item 10, Dana): while an answer shows, the chat box stays at the bottom but sat over the end of the
+   answer card (its helper line and AI row made it tall). Until the person uses it again, the box is two lines and the
+   helper line and AI row fold away; clicking or typing in it brings them back. */
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .orders:not(:focus-within) .sc-box #orders { min-height: 44px; height: 44px; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .orders:not(:focus-within) #cc-emp-hint,
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .orders:not(:focus-within) #cc-composer-ais { display: none; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] #simple-answer { scroll-margin-bottom: 120px; }
 body[data-style="mac"][data-mac-flow="on"] #cc-canvas { display: none !important; }

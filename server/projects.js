@@ -19,15 +19,17 @@ export function normalizeProjectUiMode(mode) {
   if (m === "expert" || m === "simple") return m;
   return null;
 }
-export function ensureSampleProject({ uiMode = "simple", force = false } = {}) {
+// 0.4.27 (panel item 3c): the sample project no longer gets a Simple / Expert mode of its own. It used to be stamped
+// with the mode at setup ("simple"), so a person who later picked Expert for the whole app was told "This project is
+// set to Simple" about a project they never set. With no own mode it follows the global choice. (The old uiMode
+// option is accepted and ignored, so older callers keep working.)
+export function ensureSampleProject({ force = false } = {}) {
   const d = data();
-  const mode = normalizeProjectUiMode(uiMode) || "simple";
   const existingSample = d.projects.find((x) => x.id === "sample-project" || x.sample === true);
   if (existingSample && !force) return existingSample;
   if (d.projects.length === 1 && d.projects[0].id === "my-project" && !force) {
     d.projects[0] = {
       ...d.projects[0],
-      uiMode: d.projects[0].uiMode || mode,
       sample: true,
       starterPrompt: d.projects[0].starterPrompt || "Plan three quick wins for this week and draft the first message.",
     };
@@ -40,7 +42,6 @@ export function ensureSampleProject({ uiMode = "simple", force = false } = {}) {
     color: "#22d3ee",
     kind: "company",
     summary: "Ready sample project created during setup. Try a prompt or add links to where your work lives.",
-    uiMode: mode,
     sample: true,
     starterPrompt: "Plan three quick wins for this week and draft the first message.",
     categories: [{ id: "links", name: "Links", links: [] }],
