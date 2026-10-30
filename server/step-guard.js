@@ -6,6 +6,7 @@
 // No network, no state. The only disk use is stat on a file path (onDisk, diskLine, diskCheck). Every function is safe to call with odd input.
 import fs from "node:fs";
 import path from "node:path";
+import { extractCodeFiles, langExt } from "./code-files.js";
 
 export const CODE_TOKEN_CAP = 8000; // output cap for a code or file step (was 2500)
 export const WORK_TOKEN_CAP = 2500;
@@ -66,6 +67,28 @@ export function checkTruncation(text, { stop = null, ext = "", capability = "" }
   // a code fence that never closes
   const fences = countOf(t, /^\s*(```|~~~)/gm);
   if (fences % 2 === 1) return { truncated: true, reason: "A code block was never closed." };
+  // 0.4.28 (dogfood chrome-ext): an answer made of closed code blocks for a code file (manifest.json, popup.html and
+  // popup.js) is judged one block at a time, each by its own file type. A complete ```json block that parses is not
+  // cut off just because the whole answer is not one JSON document. Only a block that is really unfinished is named.
+  if (fences >= 2 && CODE_EXT.has(ext) && !["md", "txt", "csv"].includes(ext)) {
+    const blocks = extractCodeFiles(t);
+    if (blocks.length) {
+      for (const b of blocks) {
+        const named = !/^code-\d+\./.test(b.name);
+        const bext = named ? fileExt(b.name) : (langExt(b.lang) || (blocks.length === 1 ? ext : ""));
+        const r = bodyTruncation(clean(b.text), bext);
+        if (r.truncated) return { truncated: true, reason: named ? `${r.reason.replace(/\.$/, "")} (in ${b.name}).` : r.reason, file: named ? b.name : null };
+      }
+      return { truncated: false, reason: "" };
+    }
+  }
+  return bodyTruncation(t, ext);
+}
+
+// The checks for one text of one file type (the whole answer, or one code block of it).
+function bodyTruncation(t, ext = "") {
+  const trimmed = t.trimEnd();
+  if (!trimmed) return { truncated: false, reason: "" };
   // html: must end the document
   const lower = t.toLowerCase();
   const isHtml = ext === "html" || ext === "htm" || /<!doctype html|<html[\s>]/.test(lower);

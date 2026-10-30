@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { saveNamedFile } from "./named-file.js";
-import { bodyForFile } from "./code-files.js";
+import { bodyForFile, looksLikeCode } from "./code-files.js";
 import { fileExt, onDisk, OFFICE_EXT } from "./step-guard.js";
 
 const PROSE_EXT = new Set(["md", "txt", "html", "htm"]);
@@ -26,6 +26,44 @@ export function fenced(name, body) {
   return `${f}${fileExt(name)} ${name}\n${String(body).replace(/\n+$/, "")}\n${f}\n`;
 }
 
+// ---- 0.4.28 (dogfood tip-split) ----
+// tipsplit.test.js was saved twice: the writing step's 3478-byte test file, then 18 bytes ("All tests passed.") from the
+// answer of the step that ran the tests, and the 18-byte copy landed in the asked folder. A run, check or verify step
+// reports on a file; it never replaces the code a writing step made for that file, and a block with no code in it
+// never replaces anything.
+const CHECK_TITLE = /^\s*(?:run|re-?run|verify|check|double-check|test|confirm|validate|review|execute|qa)\b/i;
+/** A step that runs, checks or verifies files instead of writing them. */
+export function isCheckStep(t) {
+  return !!t && (t.run === true || CHECK_TITLE.test(String(t.title || "")));
+}
+/** The last write of `name` by a writing step (else by any step), from the steps' write records. */
+export function lastGoodWrite(name, wrote = [], tasks = []) {
+  const byId = new Map((tasks || []).filter(Boolean).map((t) => [t.id, t]));
+  const hits = (wrote || []).filter((w) => w?.path && same(w.name || w.path, name));
+  const writers = hits.filter((w) => !isCheckStep(byId.get(w.taskId)));
+  return (writers.length ? writers : hits).slice(-1)[0] || null;
+}
+// The answers to look in for one file: check steps drop out when a writing step (or the final answer) has its code.
+function textsFor(want, texts, tasks) {
+  const byId = new Map((tasks || []).filter(Boolean).map((t) => [t.id, t]));
+  const checks = new Set(texts.filter((x) => isCheckStep(byId.get(x.from))).map((x) => x.from));
+  if (!checks.size) return texts;
+  const writers = texts.filter((x) => !checks.has(x.from));
+  const b = bodyForFile(want, writers);
+  return b && looksLikeCode(b.body, fileExt(want)) ? writers : texts;
+}
+// The first body for the file that is really code (a source whose block is plain sentences is skipped).
+function codeBodyFor(want, texts) {
+  let list = texts;
+  for (let i = 0; i < 6 && list.length; i++) {
+    const b = bodyForFile(want, list);
+    if (!b) return null;
+    if (looksLikeCode(b.body, fileExt(want))) return b;
+    list = list.filter((x) => x.from !== b.from);
+  }
+  return null;
+}
+
 /**
  * Save each name. tasks: the mission's steps ({ id, output, status, media, writes, notSaved }). wrote: files the
  * steps already wrote ({ name, path, bytes, taskId }). Returns one result per name that can be saved here:
@@ -38,7 +76,9 @@ export function saveEveryNamedFile({ goal = "", names = [], deliverable = "", ta
   for (const want of names) {
     const ext = fileExt(want);
     if (OFFICE_EXT.includes(ext) && !office) continue;
-    const hit = (wrote || []).find((w) => w?.path && same(w.name || w.path, want));
+    let hit = lastGoodWrite(want, wrote, tasks);
+    // the file on the disk is not the one that step wrote (a later write replaced it): save it again from the answers
+    if (hit && Number(hit.bytes) > 0) { const d = onDisk(hit.path); if (d.exists && d.bytes !== Number(hit.bytes) && codeBodyFor(want, textsFor(want, texts, tasks))) hit = null; }
     let r;
     if (hit) {
       r = { ok: true, name: path.basename(hit.name || hit.path), requested: want, path: hit.path, bytes: hit.bytes, ext: fileExt(hit.path), previewable: false, readable: false, projectId: projectId || null, inProjectFolder: true, fromStep: hit.taskId || null };
@@ -48,7 +88,7 @@ export function saveEveryNamedFile({ goal = "", names = [], deliverable = "", ta
       const src = whole ? (texts[0].text.trim() ? texts[0] : texts[1] || texts[0]) : texts.find((x) => hasTable(x.text)) || texts[0];
       r = whole && truncated && src === texts[0] ? { ok: false, name: want, error: `Not saved: the result was cut off (${truncated}), so ${want} was not written.` } : save({ goal, name: want, text: src.text, projectId, missionId });
     } else {
-      const b = bodyForFile(want, texts);
+      const b = codeBodyFor(want, textsFor(want, texts, tasks));
       if (b) r = save({ goal, name: want, text: fenced(want, b.body), projectId, missionId });
       else if (PROSE_EXT.has(ext)) r = truncated ? { ok: false, name: want, error: `Not saved: the result was cut off (${truncated}), so ${want} was not written.` } : save({ goal, name: want, text: String(deliverable || ""), projectId, missionId });
       else {

@@ -70,11 +70,13 @@ test("answering through the plan costs nothing and is counted", async () => {
   assert.equal(view.routes.find((r) => r.id === "claude-code").answersToday, 1);
 });
 
-test("out of quota: a clear stop, an hour out, and the next best choice takes the job", async () => {
+test("out of quota: a clear stop, a few hours out, and the next best choice takes the job", async () => {
   process.env.FAKE_SUBCLI_MODE = "quota";
   await assert.rejects(async () => { for await (const _ of streamChat({ provider: "plan-claude-code", model: "plan-claude-code", messages: [{ role: "user", content: "Again" }] })) { /* drain */ } }, (e) => e.status === 429 && /quota/i.test(e.message));
   assert.equal(PF.outOfQuota("claude-code"), true);
   assert.equal(rank(job).some((m) => m.planRoute), false, "it sits out");
-  assert.equal(PF.outOfQuota("claude-code", Date.now() + 61 * 60 * 1000), false, "and comes back after an hour");
+  // 0.4.28: a limit with no reset time rests a few hours (was one hour, and the app was asked again too soon)
+  assert.equal(PF.outOfQuota("claude-code", Date.now() + 61 * 60 * 1000), true, "still resting after an hour");
+  assert.equal(PF.outOfQuota("claude-code", Date.now() + PF.OUT_MS + 60 * 1000), false, "and comes back after a few hours");
   assert.equal(PF.planMeterView().routes.find((r) => r.id === "claude-code").outOfQuota, true);
 });
