@@ -105,6 +105,12 @@ body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .ord
 body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .orders:not(:focus-within) #cc-emp-hint,
 body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .orders:not(:focus-within) #cc-composer-ais { display: none; }
 body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] #simple-answer { scroll-margin-bottom: 120px; }
+/* 0.4.28 (panel item 3a): the box keeps focus after Send, so the rule above never folded it. app.js now sets data-fold
+   after a send and clears it when the person types or clicks in the box. Folded, the helper lines and the chips hide too. */
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box #orders { min-height: 44px; height: 44px; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] #cc-emp-hint,
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] #cc-composer-ais,
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] #cc-auto-line:empty { display: none; }
 body[data-style="mac"][data-mac-flow="on"] #cc-canvas { display: none !important; }
 /* 0.4.28: five more paths (Spreadsheet, Document, Slides, App or script, List or data). Simple drawn pictures, no images. */
 body[data-style="mac"] #mac-flow .mf-art-sheet { background: linear-gradient(0deg, rgba(255,255,255,.55) 1px, transparent 1px) 0 0 / 100% 22px, linear-gradient(90deg, rgba(255,255,255,.55) 1px, transparent 1px) 0 0 / 46px 100%, linear-gradient(135deg,#30d158,#0a7d3c); }

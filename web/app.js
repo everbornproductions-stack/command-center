@@ -175,9 +175,10 @@ function showUpgrade(message) {
   if (document.getElementById("cc-upgrade")) return;
   const box = document.createElement("div");
   box.id = "cc-upgrade";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><h4 id="cc-upgrade-title">That is a Pro feature</h4><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a license key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
+  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><div class="cc-up-head"><h4 id="cc-upgrade-title">That is a Pro feature</h4><button class="btn sm" type="button" id="cc-upgrade-x" aria-label="Close this box">Close</button></div><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a license key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
   document.body.appendChild(box);
   box.querySelector("#cc-upgrade-close").addEventListener("click", () => box.remove());
+  box.querySelector("#cc-upgrade-x").addEventListener("click", () => box.remove());
   box.querySelector("#cc-upgrade-go").addEventListener("click", () => { box.remove(); S.view = "settings"; render(); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
 }
 function toastNeedKey() {
@@ -821,10 +822,21 @@ function syncChrome() {
 // 0.4.25: the global Simple / Expert choice, without the active project's own choice on top.
 function globalUiMode() { return resolveMode(S.settings, { fresh: isFreshInstall({ onboarding: S.onboarding, settings: S.settings }) }); }
 // When the active project has its own mode that differs from the global one, say so in one line with one fix.
+// 0.4.28 (panel item 5): "Keep Expert here" is remembered per project (and per mode the project keeps) across reloads.
 const modeNoteKept = new Set();
+const keptNoteKey = (id) => `cc.keepModeNote:${id}`;
+function modeNoteIsKept(id, own) {
+  if (modeNoteKept.has(`${id}:${own}`)) return true;
+  try { return localStorage.getItem(keptNoteKey(id)) === String(own); } catch { return false; }
+}
+function keepModeNote(id, own) {
+  modeNoteKept.add(`${id}:${own}`);
+  try { localStorage.setItem(keptNoteKey(id), String(own)); } catch { /* the choice still lasts this session */ }
+}
 function paintProjectModeNote() {
   const proj = (S.projects || []).find((p) => p.id === S.project);
-  const note = S.settingsLoaded && proj && !modeNoteKept.has(proj.id) ? projectModeNote(proj, globalUiMode()) : null;
+  const asked = S.settingsLoaded && proj ? projectModeNote(proj, globalUiMode()) : null;
+  const note = asked && !modeNoteIsKept(proj.id, asked.own) ? asked : null;
   let bar = document.getElementById("cc-project-mode-note");
   if (!note) { bar?.remove(); return; }
   if (bar && bar.dataset.project === proj.id && bar.dataset.own === note.own) return;
@@ -844,8 +856,8 @@ function paintProjectModeNote() {
   use.type = "button"; use.className = "btn sm primary"; use.id = "cc-mode-everywhere"; use.textContent = note.button;
   use.addEventListener("click", () => { bar.remove(); setUiMode(note.global, { everywhere: true, confirmed: true }); });
   const keep = document.createElement("button");
-  keep.type = "button"; keep.className = "btn sm"; keep.textContent = note.keep;
-  keep.addEventListener("click", () => { modeNoteKept.add(proj.id); bar.remove(); });
+  keep.type = "button"; keep.className = "btn sm"; keep.id = "cc-mode-keep"; keep.textContent = note.keep;
+  keep.addEventListener("click", () => { keepModeNote(proj.id, note.own); bar.remove(); });
   bar.append(p, use, keep);
   const dock = document.getElementById("notices");
   if (dock) dock.appendChild(bar); else document.body.prepend(bar);
@@ -1056,6 +1068,23 @@ function ensureMobileMore() {
   mb.innerHTML = `<i>⋯</i>More`;
   mb.addEventListener("click", () => more.classList.toggle("open"));
   $("#mobile-nav").insertBefore(mb, $("#mobile-nav button[data-view=settings]"));
+  // 0.4.28 (panel item 6): on a phone the Mac look shows five tabs (Command, Projects, Credits, More, Settings) instead
+  // of eight that scroll sideways; Subs, Feed and Help move here. Each one presses the hidden tab, so it works the same.
+  const label = document.createElement("div");
+  label.className = "mobile-more-label";
+  label.textContent = "Pages";
+  const group = document.createElement("div");
+  group.className = "mobile-more-group";
+  group.dataset.mgroup = "pages";
+  for (const [sel, icon, text] of [['[data-view="subscriptions"]', "↻", "Subscriptions"], ["[data-feed]", "≡", "Live feed"], ['[data-view="help"]', "?", "Help"]]) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.dataset.proxy = sel;
+    b.innerHTML = `<i aria-hidden="true">${icon}</i>${text}`;
+    b.addEventListener("click", () => { more.classList.remove("open"); $(`#mobile-nav ${sel}`)?.click(); });
+    group.appendChild(b);
+  }
+  more.append(label, group);
   return more;
 }
 // The width check is an estimate, so the real bar decides. A promoted page that
@@ -1101,6 +1130,7 @@ function ensureFeatureTabs() {
     root.dataset.nav = "";
     installNav(root, views, mode, "narrow", surface);
   }
+  if (mode === "expert") ensureMobileMore();
   for (const f of window.CC?.byKind?.("tab") || []) {
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
     placeNavItem(root, f.id, f.tab?.label || f.id);
@@ -1464,7 +1494,7 @@ function teamLabel() { const m = AUTO_MODES.find((x) => x[0] === (S.simpleRunMod
 function simpleModeHtml() { const cur = S.simpleRunMode || "auto"; return `<div class="sc-mode" id="sc-mode"><div class="lbl">More options: how to run it</div><div class="seg" id="simple-run-mode" role="group" aria-label="How to run it">${AUTO_MODES.map(([id, label, tip]) => `<button type="button" data-m="${id}" class="${cur === id ? "on" : ""}" title="${esc(tip)}">${esc(label)}</button>`).join("")}</div></div>`; }
 function renderSimpleChat(v) {
   v.innerHTML = `
-  <div class="cmd simple-chat" data-state="${S.live?.id || S.make?.active ? "run" : "empty"}">
+  <div class="cmd simple-chat" data-state="${S.live?.id || S.make?.active ? "run" : "empty"}"${S.scFold ? ' data-fold="1"' : ""}>
     <div class="orders">
       <div class="panel sc-panel" style="display:flex;flex-direction:column;gap:10px">
         <h2 class="sc-hello" id="sc-hello">What do you want to make?</h2>
@@ -1515,6 +1545,9 @@ function renderSimpleChat(v) {
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
   $("#go").addEventListener("click", pressSend);
+  // 0.4.28: typing or clicking in the folded box opens it again (Send itself does not, so it never opens and folds at once).
+  const unfold = (e) => { if (S.scFold && !e.target?.closest?.("#go")) foldSimpleBox(false); };
+  for (const ev of ["input", "pointerdown"]) v.querySelector(".cmd.simple-chat .orders")?.addEventListener(ev, unfold);
   $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "more"; S.openProject = null; render(); }));
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
@@ -1553,6 +1586,51 @@ function renderSimpleChat(v) {
   renderOutput();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+}
+// 0.4.28 (panel item 3a): after a Simple send the docked chat box folds to its short size (flow.css keys on data-fold), so
+// it no longer sits over the answer's Copy, Double-check and Try again buttons.
+function foldSimpleBox(on) {
+  S.scFold = !!on;
+  const c = document.querySelector("#view .cmd.simple-chat");
+  if (c) { if (on) c.dataset.fold = "1"; else delete c.dataset.fold; }
+}
+// 0.4.28 (panel item 3a): when an answer finishes, bring its action buttons into view above the docked chat box. Only
+// when the answer, from its top to those buttons, fits on one screen; a long answer stays at its start for reading.
+// It only ever scrolls down, once per answer.
+function revealAnswer(id) {
+  if (!id || !S.answerAsked || S.revealedAnswer === id) return;
+  S.revealedAnswer = id;
+  S.answerAsked = false;
+  const run = () => {
+    if (S.live?.id !== id) return;
+    const card = document.getElementById("simple-answer");
+    if (!card || card.hidden) return;
+    const scroller = card.closest(".cmd.simple-chat");
+    const box = scroller?.querySelector(".orders");
+    if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 2) return;
+    const acts = [...card.querySelectorAll(".answer-main, #cc-v-again")].filter((e) => e.getBoundingClientRect().height > 0);
+    if (!acts.length) return;
+    const sr = scroller.getBoundingClientRect();
+    const boxTop = box && getComputedStyle(box).position === "sticky" ? Math.min(box.getBoundingClientRect().top, sr.bottom) : sr.bottom;
+    const bottom = Math.max(...acts.map((e) => e.getBoundingClientRect().bottom)) + 12;
+    const top = card.getBoundingClientRect().top;
+    if (bottom <= boxTop || bottom - top > sr.height) return;
+    scroller.scrollBy({ top: bottom - boxTop, behavior: "auto" });
+  };
+  setTimeout(run, 300);
+  setTimeout(run, 1200);
+}
+// 0.4.28 (panel item 4): at 1024 x 768 (no Live feed rail) the Deliverable card sits under the whole order column, about
+// 2,700 px below the task box, and nothing moved when the answer came. Bring it into view once per answer, only when
+// it is out of sight (at 1366 it shows beside the task box and nothing moves).
+function showExpertAnswer(id, panel) {
+  if (!id || !S.answerAsked || S.shownExpertAnswer === id) return;
+  const r = panel.getBoundingClientRect();
+  if (!r.height) return;
+  S.shownExpertAnswer = id;
+  S.answerAsked = false;
+  if (r.top >= 0 && r.top < innerHeight - 120) return;
+  try { panel.scrollIntoView({ block: "start", behavior: "auto" }); } catch { /* fine */ }
 }
 // My day on the Simple chat page: the same pages as the My day menu.
 function simpleDayHtml() {
@@ -1899,6 +1977,8 @@ function renderOutput() {
   const finished = ["done", "done-with-errors", "failed", "aborted"].includes(l.status) || (prim && prim.done && l.kind === "single");
   renderExtras("deliverable", "#deliv-extras", finished ? l : null);
   if (finished && text) arrangeAnswerActions($("#deliv-extras"), { onCopy: () => copyDeliverable(), open: !!S.answerMoreOpen, onToggle: (on) => { S.answerMoreOpen = on; } });
+  if (finished && text && S.uiMode === "simple" && simpleAnswer) revealAnswer(l.id);
+  if (S.uiMode === "expert" && panel && !panel.hidden && text) showExpertAnswer(l.id, panel);
 }
 // Simple says who answered. With two AI companies, or one OpenRouter key, it offers Ask a council.
 function paintAnswerLine(l, text) {
@@ -2137,6 +2217,7 @@ async function sendOrders() {
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
   if (!(await confirmRisky(prompt))) return;
   S.lastPrompt = prompt;
+  S.answerAsked = true; // 0.4.28: the answer to this send is brought into view once (revealAnswer, showExpertAnswer)
   // The words are on their way, so the suggestion list under the box closes (0.4.22 panel row 9).
   window.CC.promptSuggest?.hide();
   const simple = S.uiMode === "simple";
@@ -2271,6 +2352,10 @@ async function sendOrders() {
       if (box && box.value.trim() === prompt) box.value = "";
       S.lastOrders = "";
       const note = $("#mask-line"); if (note) note.textContent = maskNotice("");
+      // 0.4.28 (panel item 3a): the box folds to its short size until the person types or clicks in it again. The fold
+      // used to wait for focus to leave the box, but the box (or Send) keeps focus after a send, so it never folded.
+      foldSimpleBox(true);
+      try { document.activeElement?.blur?.(); } catch { /* fine */ }
     }
   } catch (e) {
     S.awaitingRun = false;

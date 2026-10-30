@@ -38,7 +38,7 @@ test("paths: the five new ones follow the first five, with label, blurb, hint, e
     assert.ok(F.TELL_HINT[p] && F.tellPlaceholder(p).startsWith("For example: "), p);
     assert.ok(F.savesFile(p) && F.skipsProjectStart(p), p);
     assert.equal(F.runMode(p, true), "mission", `${p} runs as a Mission so the file is saved`);
-    assert.equal(F.runMode(p, false), "", `${p} on Free (no Missions) goes as a normal answer`);
+    assert.equal(F.runMode(p, false), "single", `${p} on Free (no Missions) goes as one answer that still names the file`);
     assert.equal(F.stylesFor(p, null).length, 3);
     // the cards part has the full list, at least six, one popular
     const cards = CARD_PATHS[p];
@@ -49,7 +49,11 @@ test("paths: the five new ones follow the first five, with label, blurb, hint, e
   assert.deepEqual(cardStyles("script").map((s) => F.extFor("script", s)), ["py", "html", "ps1", "gs", "js", "sql"]);
   assert.deepEqual(cardStyles("data").map((s) => F.extFor("data", s)), ["csv", "csv", "csv", "csv", "csv", "json"]);
   // no em or en dashes anywhere a person reads
-  const words = JSON.stringify([F.PATH_LABEL, F.PATH_BLURB, F.TELL_HINT, F.TELL_PLACEHOLDER, F.FINISH_LABEL, F.SAY_IT_HINT, F.NO_FILE_FINISH, F.FALLBACK_STYLES, CARD_PATHS]);
+  const words = JSON.stringify([F.PATH_LABEL, F.PATH_BLURB, F.TELL_HINT, F.TELL_PLACEHOLDER, F.FINISH_LABEL, F.SAY_IT_HINT, F.NO_FILE_FINISH, F.FALLBACK_STYLES, F.EXTRA_IDEAS, CARD_PATHS]);
+  // 0.4.28 (later): a single chat answer that names a file saves it on every plan, so there is no "needs Pro" line any more
+  assert.equal(F.FREE_FILE_NOTE, undefined);
+  assert.doesNotMatch(read("web", "mac", "parts", "flow.js") + read("web", "mac", "data", "flow.js"), /needs Pro|mf-free-file/);
+  assert.deepEqual(F.EXTRA_IDEAS, [{ chip: "spreadsheet", text: "A budget spreadsheet for my family" }]);
   assert.equal(/[\u2013\u2014]/.test(words), false);
   for (const f of [["web", "mac", "data", "flow.js"], ["web", "mac", "data", "cards.js"], ["web", "mac", "parts", "flow.js"], ["web", "mac", "css", "flow.css"]]) assert.equal(/[\u2013\u2014]/.test(read(...f)), false, f.join("/"));
 });
@@ -294,8 +298,8 @@ test("browser: each new path, with a style picked on screen, builds a goal that 
       assert.equal(wantedFile(r.goal), r.goal.split("Save it as ").pop(), "the server saves that name");
       assert.equal(r.ph, F.tellPlaceholder(p));
       assert.equal(r.sub, F.TELL_HINT[p]);
-      // this test server runs on Free (no Missions), so the Tell step says plainly that the file itself needs Pro
-      assert.equal(r.free, F.FREE_FILE_NOTE);
+      // this test server runs on Free (no Missions): no "needs Pro" line, the single answer saves the named file
+      assert.equal(r.free, "");
     }
     // the word box on Home picks the path
     await t.page.evaluate(() => window.CC.mac.flow.reset());
@@ -372,6 +376,38 @@ test("browser: List path end to end with practice AIs: sent as a Mission naming 
       assert.deepEqual(low(await paintedContrast(t.page, "#mf-saved b, #mf-saved .mf-file-path, #mf-open", { max: 4 })), [], "file box text");
     }
     if (SHOTS) await shot(t, "done-list-dark.png");
+    assert.deepEqual(t.errors, []);
+  } finally { await t.close(); }
+});
+
+test("browser: on Free a file path goes as one answer (Single) whose goal names the file; Quick picks has a spreadsheet", { skip }, async () => {
+  const t = await bootNew({ theme: "dark", width: 1366, height: 860 });
+  try {
+    assert.equal((await t.api("/demo", { body: { on: true } })).json.demo, true);
+    await t.page.reload({ waitUntil: "domcontentloaded" });
+    await t.page.addStyleTag({ content: `${POPUPS}{display:none!important}` });
+    await t.page.waitForFunction(() => window.CC?.mac?.flow && window.CC.featuresReady === true && document.getElementById("orders"), null, { timeout: WAIT });
+    await t.page.waitForSelector("#mac-flow .mf[data-step=home] .mf-path", { timeout: WAIT });
+    assert.equal(await t.page.evaluate(() => window.CC.S.license?.limits?.missions === true), false, "this server is on Free");
+    // Quick picks: the spreadsheet example sits with the others and opens the Spreadsheet path with its words
+    await t.page.waitForSelector('#mac-flow .mf-chip[data-idea="spreadsheet"]', { timeout: WAIT });
+    const chips = await t.page.evaluate(() => [...document.querySelectorAll("#mac-flow .mf-chip")].map((c) => c.textContent));
+    assert.ok(chips.includes("A budget spreadsheet for my family") && chips.length >= 5, chips.join(" | "));
+    await t.page.click('#mac-flow .mf-chip[data-idea="spreadsheet"]');
+    await t.page.waitForFunction(() => window.CC.mac.flow.state.path === "spreadsheet" && window.CC.mac.flow.state.step === "tell", null, { timeout: WAIT });
+    assert.equal(await t.page.inputValue("#mf-text"), "A budget spreadsheet for my family");
+    assert.equal(await t.page.evaluate(() => document.getElementById("mf-free-file")), null, "no needs Pro line");
+    if (SHOTS) await shot(t, "tell-spreadsheet-free-dark.png");
+    const before = await t.page.evaluate(() => window.CC.S.simpleRunMode || "");
+    await t.page.waitForFunction(() => !document.querySelector("#mf-make").disabled, null, { timeout: WAIT });
+    const sent = t.page.waitForRequest((r) => r.method() === "POST" && /\/api\/(mission|chat|council)$/.test(new URL(r.url()).pathname), { timeout: WAIT });
+    await t.page.click("#mf-make");
+    const req = await sent;
+    assert.match(new URL(req.url()).pathname, /\/api\/chat$/, "on Free a file path is one answer, not a Mission");
+    const body = JSON.parse(req.postData());
+    assert.match(body.prompt, /^Make an Excel spreadsheet for .*Save it as [a-z0-9-]+\.xlsx$/, body.prompt);
+    assert.equal(wantedFile(body.prompt), body.prompt.split("Save it as ").pop(), "the server reads the file name from the single answer");
+    await t.page.waitForFunction((b) => (window.CC.S.simpleRunMode || "") === b, before, { timeout: WAIT });
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }
 });
