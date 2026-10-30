@@ -301,14 +301,14 @@ export function removedApiNotes(text) {
 // 0.4.27 (dogfood batch 2): scripts (.ps1, .bat, .cmd, .sh, .sql) count too, every named file is found (not only the
 // first), a full Windows path gives its file name, and "Node.js" is a product, not a file.
 export const SAVABLE_EXT = ["html", "htm", "md", "markdown", "css", "js", "mjs", "cjs", "ts", "json", "txt", "csv", "py", "yml", "yaml", "xml", "svg", "ps1", "bat", "cmd", "sh", "sql", "gs"];
-// Word and Excel files are made by server/office-files.js (when that module is there); they are named files too
-export const OFFICE_EXT = ["xlsx", "xlsm", "docx"];
+// Word, Excel and PowerPoint files are made by server/office-files.js (when that module is there); they are named files too
+export const OFFICE_EXT = ["xlsx", "xlsm", "docx", "pptx"];
 const EXT_ALT = [...SAVABLE_EXT, ...OFFICE_EXT].sort((a, b) => b.length - a.length).join("|");
 const FILE_TOKEN = new RegExp(`(?<![\\w.-])([A-Za-z0-9][\\w.-]{0,80}\\.(?:${EXT_ALT}))(?![\\w-])`, "gi");
 const SAVE_WORD = /\b(?:save|saved|saving|write|writes|export|name|named|call|called|put|store|output|as|into|to|file(?:name)?)\b[^.\n]{0,40}$/i;
 const PRODUCT = /^(?:node|next|nuxt|vue|react|express|three|d3|chart|p5|socket|alpine|ember|backbone|jquery|angular|nest|deno|bun|electron|svelte|astro|remix|gatsby|meteor)\.(?:js|ts)$/i;
 const notAFile = (n) => /^(?:www|e\.g|i\.e|etc)\./i.test(n) || /^(?:\d+\.)+\d+$/.test(n) || PRODUCT.test(n) || /\.\./.test(n);
-/** Can this name be saved as a file (a text, code or script file)? Word and Excel files only with office: true. */
+/** Can this name be saved as a file (a text, code or script file)? Word, Excel and PowerPoint files only with office: true. */
 export function isSavableName(name, { office = false } = {}) {
   const e = fileExt(name);
   return SAVABLE_EXT.includes(e) || (office && OFFICE_EXT.includes(e));
