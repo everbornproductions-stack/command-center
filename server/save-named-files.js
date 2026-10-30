@@ -7,9 +7,10 @@
 // the folder the person asked for (server/asked-folder.js).
 import fs from "node:fs";
 import path from "node:path";
-import { saveNamedFile } from "./named-file.js";
+import { saveNamedFile, wantedFile } from "./named-file.js";
 import { bodyForFile, looksLikeCode } from "./code-files.js";
-import { fileExt, onDisk, OFFICE_EXT } from "./step-guard.js";
+import { fileExt, onDisk, OFFICE_EXT, namedFiles, isSavableName, stripSaveClaims, checkTruncation } from "./step-guard.js";
+import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
 
 const PROSE_EXT = new Set(["md", "txt", "html", "htm"]);
 // Word, Excel and PowerPoint files are only made when the office writer is part of this build
@@ -120,4 +121,45 @@ export function saveEveryNamedFile({ goal = "", names = [], deliverable = "", ta
     out.push(r);
   }
   return out;
+}
+
+// ---- 0.4.28 (persona panel item 2): a single answer that names a file saves it too ----
+// "Write a week of posts... Save them as posts.md" sent from Simple chat or Expert Command in Single mode was a
+// single answer with no file, no folder copy and no word about it. Only missions saved named files. Now a finished
+// single answer goes through the same savers (saveEveryNamedFile, the asked folder copy, the AI's save claims
+// removed) on every plan, Free included: saving a file is not the Pro mission feature. The rules stay: never
+// overwrite (name-2), "Saved" only for a file on the disk, prose is never saved as code, real Office files.
+/**
+ * Save every file a single answer's prompt names. Returns null when the prompt names no file. Otherwise
+ * { deliverable, savedFile, savedFiles, askedFolder, lines }: the answer without the AI's own save claims and with
+ * the app's plain lines added, and the same savedFile / savedFiles / askedFolder shapes a mission stores.
+ * stop: the AI's stop reason (a cut-off answer is not saved as a whole file). home and save are injectable for tests.
+ */
+export function saveFilesFromAnswer({ prompt = "", answer = "", projectId = "", runId = "", stop = null, home, save = saveNamedFile, office = officeSupported() } = {}) {
+  const names = namedFiles(prompt).filter((n) => isSavableName(n, { office: true }));
+  if (!names.length) return null;
+  const want = wantedFile(prompt) || names[0];
+  const clean = stripSaveClaims(String(answer || ""));
+  const tr = checkTruncation(clean, { ext: fileExt(want), stop });
+  const savedAll = saveEveryNamedFile({ goal: prompt, names, deliverable: clean, tasks: [], wrote: [], projectId, missionId: runId, truncated: tr.truncated ? tr.reason : "", save, office });
+  const savedFile = savedAll.find((r) => same(r.requested || r.name, want)) || savedAll[0] || null;
+  // a copy goes to the folder the person named, one per saved file, never over an existing file
+  const asked = askedFolder(prompt, home ? { home } : undefined);
+  let copiedAll = [];
+  if (asked) {
+    for (const sf of savedAll) {
+      if (!sf.ok || !sf.path) continue;
+      const c = copyToAskedFolder(asked, [sf]);
+      if (c[0]?.path) sf.copiedTo = c[0].path;
+      copiedAll = copiedAll.concat(c);
+    }
+  }
+  const askedInfo = copiedAll.length ? { folder: asked, files: copiedAll } : null;
+  const lines = [];
+  for (const sf of savedAll) if (sf.ok && sf.path && !askedInfo) lines.push(`Saved ${sf.name} in ${sf.where || "your project folder"}: ${sf.path}`);
+  for (const r of savedAll) if (!r.ok && r.error) lines.push(r.error);
+  for (const c of copiedAll) lines.push(c.error || `Saved ${c.name} in ${asked}`);
+  const add = [...new Set(lines)].filter((l) => !clean.includes(l));
+  const deliverable = add.length ? `${clean.trimEnd()}\n\n---\n${add.join("\n")}`.trim() : clean;
+  return { deliverable, savedFile, savedFiles: savedAll.length ? savedAll : null, askedFolder: askedInfo, lines: add };
 }
