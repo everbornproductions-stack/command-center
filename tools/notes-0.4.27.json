@@ -1,0 +1,12 @@
+{
+  "bullets": [
+    "Meldmind now makes real Excel spreadsheets with working formulas and real Word documents, not a script that would make them.",
+    "When you name a folder, the file is saved there too, and the answer says exactly where it went.",
+    "Every file you name is saved, including scripts like PowerShell, SQL and Google Apps Script, and Python scripts are really run.",
+    "Simple jobs go to the fast free AIs first, long pages and documents are no longer cut off, and fewer jobs end with errors.",
+    "Expert mode fits on a laptop screen and a phone: the task box and Send stay in view."
+  ],
+  "article": "docs/help/getting-started.md",
+  "heading": "Files, folders and faster jobs",
+  "body": "Meldmind now makes real Excel spreadsheets with working formulas and real Word documents, not a script that would make them. When you name a folder, the file is saved there too, and the answer says exactly where it went. Every file you name is saved, including scripts like PowerShell, SQL and Google Apps Script, and Python scripts are really run. Simple jobs go to the fast free AIs first, long pages and documents are no longer cut off, and fewer jobs end with errors. Expert mode fits on a laptop screen and a phone: the task box and Send stay in view."
+}

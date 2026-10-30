@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.26
+lastUpdatedVersion: 0.4.27
 ---
 
 # Getting started
@@ -196,3 +196,7 @@ A project can keep its own Simple or Expert setting. When it differs from the re
 ## The Expert look (0.4.26)
 
 Expert mode has a cleaner, Chaos-style look. Each page has a title at the top, money tiles with icons on Credits and Subscriptions, and projects and runs show as tidy rows. In the light look the whole Expert window is light, including the chat bar, the Talk bar and the sidebar search. The Command page keeps its tools in one short notice row instead of four stacked bars. The sidebar and the bottom dock are the same as before.
+
+## Files, folders and faster jobs (0.4.27)
+
+Meldmind now makes real Excel spreadsheets with working formulas and real Word documents, not a script that would make them. When you name a folder, the file is saved there too, and the answer says exactly where it went. Every file you name is saved, including scripts like PowerShell, SQL and Google Apps Script, and Python scripts are really run. Simple jobs go to the fast free AIs first, long pages and documents are no longer cut off, and fewer jobs end with errors. Expert mode fits on a laptop screen and a phone: the task box and Send stay in view.
