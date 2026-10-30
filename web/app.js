@@ -375,6 +375,15 @@ function syncUiMode() {
   S.askMode = shouldAskMode(S.settings, { fresh });
   if (document.body) document.body.dataset.ui = S.uiMode;
 }
+// 0.4.27 (panel item 3a): the active project can change after the first paint (the phone companion's project, a
+// project that was deleted). Whoever changes S.project after load calls this: the window mode is resolved again
+// from the settled project and the global choice, and the project mode note is painted for that project.
+function projectSettled() {
+  const before = S.uiMode;
+  syncUiMode();
+  if (S.uiMode !== before) { syncChrome(); render(); }
+  else paintProjectModeNote();
+}
 function applyState(st) {
   S.settingsLoaded = true;
   const settings = st.settings || S.settings || {};
@@ -584,7 +593,7 @@ function onMission(m) {
       const noun = m.kind === "single" ? "Answer" : m.kind === "research" ? "Deep research" : m.kind === "opinion" ? "Second opinion" : "Mission";
       const stateWord = (m.kind === "research" || m.kind === "single") && m.status === "aborted" ? "stopped" : m.status.replace("-", " ");
       if (simpleFail) {
-        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || "", error: m.error || "", oneAI: !!m.retry?.oneAI };
+        S.simpleFail = { provider: m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "", text: S.lastOrders || S.lastPrompt || "", error: m.error || "", oneAI: !!m.retry?.oneAI };
         if (S.view === "command") renderOutput();
       } else {
         const failed = m.status === "failed";
@@ -741,7 +750,8 @@ function renderUpdateBar() {
     bar.style.display = "";
     bar.classList.add("quiet");
     const href = esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest");
-    bar.innerHTML = `<div><b>Couldn't check for updates</b> <span class="small">You can keep working.</span></div><a class="btn sm" id="upd-dl" href="${href}" target="_blank" rel="noopener">Download</a><button class="ghost small" type="button" id="upd-hide">Hide</button>`;
+    // 0.4.27 (panel item 4): the check found nothing to download, so the link says where it goes.
+    bar.innerHTML = `<div><b>Couldn't check for updates</b> <span class="small">You can keep working.</span></div><a class="btn sm" id="upd-dl" href="${href}" target="_blank" rel="noopener">Open the download page</a><button class="ghost small" type="button" id="upd-hide">Hide</button>`;
     $("#upd-hide")?.addEventListener("click", () => { S.updateErrorHidden = true; bar.style.display = "none"; });
     return;
   }
@@ -767,7 +777,7 @@ function updateBoxHtml() {
   return `<b>Meldmind</b> v${esc(S.version || u.current || "")} <span class="dim">(an Everborn product by Everborn Productions. Take command of all your AIs.)</span> <button class="btn sm" id="s-upd" ${busy ? "disabled" : ""}>Check for updates</button>`
     + (u.available && u.desktop ? ` <button class="btn sm primary" id="s-upd-go" ${busy ? "disabled" : ""}>Update ready, restart</button>` : "")
     + (status ? ` <span class="dim">${status}</span>` : "")
-    + (u.error && !u.available ? ` <span>Couldn't check for updates</span> <a class="btn sm" href="${esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest")}" target="_blank" rel="noopener">Download</a>` : (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : ""));
+    + (u.error && !u.available ? ` <span>Couldn't check for updates</span> <a class="btn sm" href="${esc(u.downloadUrl || "https://github.com/everbornproductions-stack/command-center-releases/releases/latest")}" target="_blank" rel="noopener">Open the download page</a>` : (u.error ? ` <span class="dim">(last check failed: ${esc(u.error)})</span>` : ""));
 }
 function renderUpdateBox() {
   const box = $("#s-upd-box"); if (!box) return;
@@ -821,11 +831,13 @@ function paintProjectModeNote() {
   bar?.remove();
   bar = document.createElement("div");
   bar.id = "cc-project-mode-note";
-  bar.className = "update-bar";
+  // 0.4.27 (panel item 3b): a quiet bar (no dark blue of its own), so its words take the notice colours of the look and
+  // theme it sits in. The forced light text was invisible on the light Mac notice strip.
+  bar.className = "update-bar quiet";
   bar.setAttribute("role", "group");
   bar.setAttribute("aria-label", "Project mode");
   bar.dataset.project = proj.id; bar.dataset.own = note.own;
-  bar.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#eef2f8"; // light text on the bar's dark blue in both themes
+  bar.style.cssText = "display:flex;align-items:center;gap:8px;flex-wrap:wrap";
   const p = document.createElement("span");
   p.textContent = note.text;
   const use = document.createElement("button");
@@ -1996,8 +2008,16 @@ function outputFollowHtml() {
   return blocks.join("");
 }
 async function previewRoute() {
-  const prompt = $("#orders").value.trim(); if (!prompt) return;
-  const box = $("#route"); box.style.display = ""; box.innerHTML = `<span class="muted">Classifying…</span>`;
+  const prompt = $("#orders").value.trim();
+  const box = $("#route");
+  // 0.4.27 (panel item 12b): with an empty box this did nothing at all, so the header's "Preview route" looked dead.
+  if (!prompt) {
+    if (box) { box.style.display = ""; box.innerHTML = `<span class="muted">Type what you want first. Preview route then shows which AI would take it and about what it costs.</span>`; box.scrollIntoView?.({ block: "nearest" }); }
+    $("#orders")?.focus();
+    return;
+  }
+  box.style.display = ""; box.innerHTML = `<span class="muted">Classifying…</span>`;
+  box.scrollIntoView?.({ block: "nearest" });
   try {
     const r = await api(`/route?prompt=${encodeURIComponent(prompt)}&mode=${encodeURIComponent(S.costMode || S.settings.defaultMode)}`);
     S.routePreview = r;
@@ -2243,6 +2263,14 @@ async function sendOrders() {
       const started = await api("/mission", { method: "POST", body: { goal: prompt, mode: costMode, projectId, qa, budgetUsd, runAt: S.whenMode || "now", grokbot: S.grokbotChoice, browser: S.browserChoice, employees: S.missionEmployees?.length ? S.missionEmployees : undefined, private: priv, skip, ...packBody, ...ask, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       if (started.scheduled) toast(`Queued for ${new Date(started.scheduled.scheduledFor).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ${started.scheduled.reason}`);
       noteBackground(started);
+    }
+    // 0.4.27 (panel item 10, Dana): in Simple chat the box empties once the job is on its way, so a second Send
+    // does not run the same job again. The words stay in the answer title (S.lastPrompt) and in History.
+    if (simple) {
+      const box = $("#orders");
+      if (box && box.value.trim() === prompt) box.value = "";
+      S.lastOrders = "";
+      const note = $("#mask-line"); if (note) note.textContent = maskNotice("");
     }
   } catch (e) {
     S.awaitingRun = false;
@@ -2898,7 +2926,7 @@ function renderSettings(v) {
       <div class="panel" id="settings-group-projects-media"><h3>Projects &amp; Media <span class="right">credits tracked · API where one exists</span></h3>
         <div class="row small" style="margin-bottom:10px;gap:10px;flex-wrap:wrap;align-items:center">
           <span>Active project: <b>${esc(activeProjObj?.name || S.project || "None")}</b></span>
-          ${activeProjObj ? `<label class="row small" style="gap:6px">Project mode <select id="s-proj-uimode" data-proj-uimode="${esc(activeProjObj.id)}" aria-label="Project UI mode"><option value="" ${!activeProjObj.uiMode ? "selected" : ""}>Use global (${esc(S.uiMode)})</option><option value="simple" ${activeProjObj.uiMode === "simple" ? "selected" : ""}>Simple</option><option value="expert" ${activeProjObj.uiMode === "expert" ? "selected" : ""}>Expert</option></select></label>` : ""}
+          ${activeProjObj ? `<label class="row small" style="gap:6px">Project mode <select id="s-proj-uimode" data-proj-uimode="${esc(activeProjObj.id)}" aria-label="Project UI mode"><option value="" ${!activeProjObj.uiMode ? "selected" : ""}>Use global (${globalUiMode() === "expert" ? "Expert" : "Simple"})</option><option value="simple" ${activeProjObj.uiMode === "simple" ? "selected" : ""}>Simple</option><option value="expert" ${activeProjObj.uiMode === "expert" ? "selected" : ""}>Expert</option></select></label>` : ""}
         </div>
         <div class="grid" style="gap:10px">${mediaP.map(card).join("")}</div></div>
       <div class="panel" id="settings-group-privacy"><h3>Privacy</h3>
@@ -3404,7 +3432,7 @@ async function boot() {
 installClickTracking(document);
 // 0.4.21: a run on screen is re-read when the window comes back and every few seconds, so Live ops is never stale.
 liveSync({ getLive: () => S.live, fetchRun: (id) => api(`/missions/${encodeURIComponent(id)}`), apply: (run) => { if (run.kind === "council") onCouncil(run); else onMission(run); } });
-window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, projectChanged: () => projectSettled(), go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 if (TEAM_JOIN) { let tries = 0; const t = setInterval(() => { tries++; if (S?.view && S.view !== "setup" && !S.connectWizard && document.querySelector("#view")) { clearInterval(t); window.CC.go("together"); } else if (tries > 40) clearInterval(t); }, 500); }
 installPasswordTip(document, localStorage);
 // featuresReady: set once the feature modules are in and the screen was drawn again with them (tests wait on it before typing)

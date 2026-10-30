@@ -177,7 +177,7 @@ function renderSide() {
     for (const it of g.items) {
       const b = itemButton(it, limits, "si");
       if (isSelected(CC, it)) { b.classList.add("on"); b.setAttribute("aria-current", "page"); }
-      b.addEventListener("click", () => openItem(st.ctx, it));
+      b.addEventListener("click", () => { openItem(st.ctx, it); if (isPhone() && st && !st.collapsed) setCollapsed(true); });
       list.append(b);
     }
     inner.append(list);
@@ -196,9 +196,17 @@ function renderSide() {
   if (typing) { box.focus(); try { box.setSelectionRange(caret[0] ?? box.value.length, caret[1] ?? box.value.length); } catch { /* not a text box */ } }
 }
 
+// 0.4.27 (panel item 2): on a phone the open sidebar took 270 of 390 px and pushed the page off the right edge.
+// Under 760 px it starts as the slim rail, opens over the page, and closes again after a pick. The saved choice is
+// the computer's; a phone never overwrites it.
+const PHONE = "(max-width: 760px)";
+function isPhone() {
+  try { return typeof matchMedia === "function" && matchMedia(PHONE).matches; } catch { return false; }
+}
+
 function setCollapsed(on) {
   st.collapsed = !!on;
-  save(LS_SIDE, st.collapsed ? "closed" : "open");
+  if (!isPhone()) save(LS_SIDE, st.collapsed ? "closed" : "open");
   st.side.classList.toggle("mx-collapsed", st.collapsed);
   document.body.classList.toggle("mx-side-closed", st.collapsed);
   const target = st.side.querySelector(st.collapsed ? ".mx-reopen" : ".mx-srch");
@@ -356,6 +364,7 @@ function setExpert(on) {
   document.body.classList.toggle("mx-expert", on);
   if (on) {
     st.items = makeItems(st.CC);
+    if (isPhone()) st.collapsed = true;
     st.side.hidden = false;
     st.side.classList.toggle("mx-collapsed", st.collapsed);
     document.body.classList.toggle("mx-side-closed", st.collapsed);
@@ -387,6 +396,13 @@ export default {
     }));
     st.keydown = (e) => lpKey(e);
     document.addEventListener("keydown", st.keydown, true);
+    // Turning a tablet or narrowing the window to phone width folds the sidebar to its rail; widening brings the saved choice back.
+    try {
+      const mq = matchMedia(PHONE);
+      st.onPhone = () => { if (!st?.expert) return; const want = mq.matches ? true : store(LS_SIDE, "open") === "closed"; if (want !== st.collapsed) { st.collapsed = want; st.side.classList.toggle("mx-collapsed", want); document.body.classList.toggle("mx-side-closed", want); } };
+      mq.addEventListener("change", st.onPhone);
+      st.off.push(() => mq.removeEventListener("change", st.onPhone));
+    } catch { /* no matchMedia: the computer layout */ }
     // a click on the dimmed backdrop (not on a tool) closes the launchpad
     lp.addEventListener("click", (e) => { if (e.target === lp || e.target.classList.contains("mx-lpg") || e.target.classList.contains("mx-lpv")) closeLaunchpad(); });
     if ((CC.uiMode?.() || "simple") === "expert") setExpert(true); else side.hidden = true;

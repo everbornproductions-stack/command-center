@@ -118,14 +118,22 @@ test("item 3 + A1 + item 10: update and graphics notices sit inside the Mac wind
       assert.ok(g.inStrip, "the notice row is in the Mac window");
       assert.ok(g.stripTop >= g.headBottom - 1, `notices start under the header ${JSON.stringify(g)}`);
       assert.ok(g.appTop >= g.stripBottom - 1 && g.mainTop >= g.stripBottom - 1, `the page starts below the notices ${JSON.stringify(g)}`);
-      assert.ok(g.offerH <= 44, `the graphics offer is one line (${g.offerH}px)`);
+      // 0.4.27 (panel item 4): one notice shows at a time; the other waits behind "1 of 2" and a Next button.
+      // (Until 0.4.26 both bars showed at once and this test counted five buttons on screen.)
       const hits = await hitTest(t.page, ["#mac-notices button", "#mac-notices a"]);
-      assert.ok(hits.length >= 5, `found ${hits.length} notice buttons`);
+      assert.ok(hits.length >= 3, `found ${hits.length} notice buttons (the update notice's two and Next)`);
       assert.deepEqual(covered(hits), [], `${theme} ${width}: notice buttons`);
+      assert.match(await t.page.evaluate(() => document.querySelector("#mac-notices .mac-note-count")?.textContent || ""), /^[12] of 2$/);
       // The update notice text is readable on the strip.
       assert.deepEqual(low(await paintedContrast(t.page, "#mac-notices b, #mac-notices #cc-look-offer > span", { max: 6 })), [], "notice text");
-      // Hide closes the update notice and the window body moves back up.
+      // Hide closes the update notice, the graphics offer comes up in its place (one line, every button on top),
+      // and closing that too moves the window body back up.
       await t.page.click("#mac-notices #upd-hide, #mac-notices #upd-fail button.ghost");
+      await t.page.waitForFunction(() => getComputedStyle(document.getElementById("cc-look-offer")).visibility !== "hidden" && document.getElementById("cc-look-offer").getBoundingClientRect().height > 10, null, { timeout: WAIT });
+      const offerH = await t.page.evaluate(() => document.getElementById("cc-look-offer").getBoundingClientRect().height);
+      assert.ok(offerH <= 44, `the graphics offer is one line (${offerH}px)`);
+      assert.deepEqual(covered(await hitTest(t.page, ["#mac-notices #cc-look-offer button"])), [], `${theme} ${width}: offer buttons`);
+      assert.deepEqual(low(await paintedContrast(t.page, "#mac-notices #cc-look-offer > span", { max: 2 })), [], "offer text");
       await t.page.click("#mac-notices #cc-look-offer .cc-look-x");
       await t.page.waitForFunction(() => document.getElementById("app").getBoundingClientRect().top < 80, null, { timeout: WAIT });
     } finally { await t.close(); }

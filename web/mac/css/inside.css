@@ -22,7 +22,7 @@ body[data-style="mac"][data-ui="expert"] {
   --cx-divider: #f3f4f6;    /* header rule, row dividers */
   --cx-text: #111827;       /* 17.7:1 on card */
   --cx-text-2: #4b5563;     /* 7.6:1 on card */
-  --cx-muted: #6b7280;      /* 4.8:1 on card, 4.6:1 on canvas and hover (Chaos's #9ca3af fails) */
+  --cx-muted: #4b5563;      /* 0.4.27: was #6b7280 (4.8:1 on card, but 4.07:1 measured on painted paper at 390); now 7.6:1 */
   --cx-acc: #0a6fd6;        /* Meldmind blue, darkened: white on it 4.9:1; as text on white 4.9:1 */
   --cx-acc-hover: #085bb0;  /* white on it 6.7:1 */
   --cx-on-acc: #ffffff;
@@ -145,7 +145,7 @@ body[data-style="mac"][data-ui="expert"] #app #view {
 @media (min-width: 1200px) {
   body[data-style="mac"][data-ui="expert"] #app #view { padding: 28px 32px; }
 }
-/* Command fills the pane; with the page header on top it becomes a column so each side still scrolls on its own. */
+/* Command: with the page header on top it becomes a column (0.4.27: the whole page scrolls, see the 0.4.27 block below). */
 body[data-style="mac"][data-ui="expert"] #app #view:has(> .cmd) {
   display: flex;
   flex-direction: column;
@@ -730,6 +730,9 @@ body[data-style="mac"][data-ui="expert"]:not([data-theme="dark"]) #app :is(.feed
   filter: brightness(.5) saturate(1.3);
 }
 
+/* 0.4.27: an AI with no key is named in the feed in grey (#4b5563), 2.35:1 on the dark card. Dark uses the muted grey. */
+body[data-style="mac"][data-ui="expert"][data-theme="dark"] #app .feed .ev .who[style*="#4b5563"] { color: var(--cx-muted) !important; }
+
 /* ---------- AI status strip: colour only (layout stays as it is, above the dock) ---------- */
 body[data-style="mac"][data-ui="expert"] #app .strip {
   border-top: 1px solid var(--cx-line);
@@ -756,10 +759,106 @@ body[data-style="mac"][data-ui="expert"] #app .strip .tile :is(.sub, .badge) {
   font-variant-numeric: tabular-nums;
 }
 body[data-style="mac"][data-ui="expert"][data-theme="light"] #app .strip .tile .sub { color: var(--cx-text-2); }
+/* 0.4.27 (panel item 6): at 1024 wide "Connected" was drawn over the AI name. The label gets its own line above the name. */
+body[data-style="mac"][data-ui="expert"] #app .strip .tile .badge {
+  position: static;
+  order: -1;
+  align-self: flex-start;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 body[data-style="mac"][data-ui="expert"][data-theme="light"] #app .strip .tile .badge {
   filter: none;
   font-weight: 500;
   color: color-mix(in srgb, var(--c, var(--cx-acc)) 35%, var(--cx-text));
+}
+
+/* ---------- 0.4.27 (panel items 1, 2, 6, 7, 8): room, phone width, tabs that wrap, disabled buttons, text size ---------- */
+/* Command is one page that scrolls in #view. The order column is no longer its own short scroll box (it was 124 px
+   tall holding 4,334 px), and the Send row sits right under the task box, the way Simple already orders its box. */
+body[data-style="mac"][data-ui="expert"] #app #view > .cmd {
+  flex: none;
+  height: auto;
+  max-height: none;
+  grid-template-rows: auto;
+  align-items: start;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .cmd :is(.orders, .cmd-side) {
+  overflow: visible;
+  max-height: none;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > * { order: 5; }
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > :is(#graduate-slot, #cmd-mode-banner) { order: 0; }
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > #orders { order: 1; }
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > .row:has(> #go) { order: 2; margin-top: 0; padding-top: 4px; flex-wrap: wrap; }
+/* Send comes first in its row, so it never drops to a third line in the narrow column beside the Live feed. */
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > .row > #go { order: -1; }
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > #route { order: 3; }
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > :is(#mask-line, #send-hint) { order: 4; }
+/* The run type, priority and when tabs wrap inside their card instead of running under the next card. */
+body[data-style="mac"][data-ui="expert"] #app #view .seg { flex-wrap: wrap; max-width: 100%; }
+/* Disabled main buttons read as disabled and stay readable (white on grey was 3.94:1). */
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) :is(.btn.primary, #go):disabled {
+  background: var(--cx-gray-bg);
+  border-color: var(--cx-line-2);
+  color: var(--cx-text-2);
+  opacity: 1;
+  cursor: not-allowed;
+}
+/* 11 px text on the Subscriptions plan table and other small labels is now 13 px (Walt and Dorothy). */
+body[data-style="mac"][data-ui="expert"] #app #view :is(.plan-compare .plan-row, #cc-price th, #cc-price td, .mrow, .mrow input, .skillgrid, .sig, .task .who, .task .cost) {
+  font-size: .8125rem;
+}
+
+/* Short windows (a 1366 x 800 or 1024 x 768 laptop): a smaller task box, and the Finish / Momentum / Project tools row is
+   one line with a More button for the rest. Phone width gets the same one-line row. */
+@media (max-height: 899px) {
+  body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > #orders {
+    flex: none;
+    min-height: 6rem;
+    height: 7.5rem;
+  }
+  body[data-style="mac"][data-ui="expert"] #app #view > .cx-head { margin-bottom: 16px; }
+  body[data-style="mac"][data-ui="expert"] #app #view { padding-top: 16px; }
+  body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > #cmd-mode-banner { padding-top: 10px; padding-bottom: 10px; margin-bottom: 10px; }
+}
+@media (max-height: 899px), (max-width: 760px) {
+  body[data-style="mac"][data-ui="expert"] #app .cx-notes:not(.cx-open):not(:has(:is(.mm-why, .mm-resume, .mm-owner, .fp-card, .fp-pair):not([hidden]))) {
+    position: relative;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    padding-right: 76px;
+  }
+  body[data-style="mac"][data-ui="expert"] #app .cx-notes > :is(.fp-bar, .mm-bar, .projbar) > *,
+  body[data-style="mac"][data-ui="expert"] #app .cx-notes .projbar .pb-tools > * { flex-shrink: 0; }
+  body[data-style="mac"][data-ui="expert"] #app .cx-notes { margin-top: 10px; }
+}
+body[data-style="mac"][data-ui="expert"] #app .cx-notes { position: relative; }
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed).cx-notes #cx-notes-more {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  z-index: 1;
+  box-shadow: -10px 0 8px var(--cx-card);
+}
+body[data-style="mac"][data-ui="expert"] #app .cx-notes.cx-open #cx-notes-more { position: static; order: 9; box-shadow: none; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes #cx-notes-more[hidden] { display: none; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes:not(.cx-open) [data-cx-over] { visibility: hidden; }
+
+/* Phone width: the header wraps (title on top, buttons below), KPI tiles are one column, and nothing is wider than the page. */
+@media (max-width: 760px) {
+  body[data-style="mac"][data-ui="expert"] #app #view { padding: 14px 12px; overflow-wrap: anywhere; }
+  body[data-style="mac"][data-ui="expert"] #app #view > .cx-head { flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+  body[data-style="mac"][data-ui="expert"] #app #view > .cx-head > div:first-child { flex: 1 1 100%; min-width: 0; }
+  body[data-style="mac"][data-ui="expert"] #app #view > .cx-head .cx-act { justify-content: flex-start; }
+  body[data-style="mac"][data-ui="expert"] #app #view .kpi { grid-template-columns: minmax(0, 1fr); }
+  body[data-style="mac"][data-ui="expert"] #app #view .cmd { grid-template-columns: minmax(0, 1fr); }
+  body[data-style="mac"][data-ui="expert"] #app #view :is(.panel, .pcard, .kpi .k, .cmd, .cmd > *, .row) { min-width: 0; max-width: 100%; }
+  body[data-style="mac"][data-ui="expert"] #app #view :is(table, pre) { display: block; max-width: 100%; overflow-x: auto; }
+  body[data-style="mac"][data-ui="expert"] #app #view .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  body[data-style="mac"][data-ui="expert"] #app #view :is(.grid, .row, .panel, .cat-h) > * { min-width: 0; max-width: 100%; }
+  body[data-style="mac"][data-ui="expert"] #app #view .panel > h3 { flex-wrap: wrap; }
+  body[data-style="mac"][data-ui="expert"] #app .cx-notes { margin-left: 12px; margin-right: 12px; }
 }
 
 /* ---------- motion: fade in when the page changes, small hover moves ---------- */

@@ -48,6 +48,8 @@ function backdropOk() {
 // In the Mac look the row moves into its own strip right under the title bar, and the window body starts
 // below it (--mac-note-h). Unmount puts it back where it was, so the classic look is unchanged.
 let NOTICE_HOME = null;
+// Which notice shows first when several wait: the person's own project, then Expert setup, then updates, then the rest.
+const NOTICE_ORDER = ["cc-project-mode-note", "cc-expert-card", "update-bar", "upd-fail", "cc-look-offer"];
 function mountNotices(root) {
   const notices = document.getElementById("notices");
   if (!notices) return;
@@ -60,8 +62,41 @@ function mountNotices(root) {
     // Anything already placed right after the row (the Expert setup card) comes along.
     for (let n = NOTICE_HOME.next; n && n.id === "cc-expert-card"; n = NOTICE_HOME.next) { NOTICE_HOME.next = n.nextSibling; strip.appendChild(n); }
   }
+  // 0.4.27 (panel item 4): three bars at once took 135 px. One shows at a time, the rest wait behind "1 of 3" and Next.
+  // A waiting bar keeps a tiny box (shell.css .mac-queued), so a bar the app hides drops out of the queue by itself.
+  const pager = document.createElement("div");
+  pager.className = "mac-note-pager";
+  pager.hidden = true;
+  pager.innerHTML = '<span class="mac-note-count" aria-live="polite"></span><button type="button" class="btn sm" id="mac-note-next" aria-label="Show the next notice">Next</button>';
+  strip.appendChild(pager);
+  let current = null;
+  const rank = (e) => { const i = NOTICE_ORDER.indexOf(e.id); return i < 0 ? NOTICE_ORDER.length : i; };
+  const bars = () => [...strip.querySelectorAll(":scope > :not(#notices):not(.mac-note-pager), #notices > *")];
+  const queue = () => {
+    const want = bars().filter((e) => e.getBoundingClientRect().height > 0);
+    return want.map((e, i) => [e, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map((x) => x[0]);
+  };
+  pager.querySelector("button").addEventListener("click", () => {
+    const q = queue();
+    if (q.length < 2) return;
+    current = q[(q.indexOf(current) + 1) % q.length];
+    paint();
+    pager.querySelector("button").focus({ preventScroll: true });
+  });
   const paint = () => {
-    const shown = [...strip.querySelectorAll(":scope > :not(#notices), #notices > *")].some((e) => e.getBoundingClientRect().height > 0);
+    const q = queue();
+    if (!q.includes(current)) current = q[0] || null;
+    const paged = q.length > 1;
+    for (const e of bars()) {
+      e.classList.toggle("mac-queued", paged && e !== current);
+      e.classList.toggle("mac-note-cur", paged && e === current);
+    }
+    strip.classList.toggle("mac-paged", paged);
+    if (pager.hidden === paged) pager.hidden = !paged;
+    const count = paged ? `${q.indexOf(current) + 1} of ${q.length}` : "";
+    const countEl = pager.querySelector(".mac-note-count");
+    if (countEl.textContent !== count) countEl.textContent = count;
+    const shown = q.length > 0;
     strip.classList.toggle("on", shown);
     const h = shown ? Math.ceil(strip.getBoundingClientRect().height) : 0;
     const v = `${h}px`;
@@ -76,6 +111,8 @@ function mountNotices(root) {
   paint();
   CLEANUPS.push(() => {
     ro?.disconnect(); mo.disconnect();
+    pager.remove();
+    for (const e of strip.querySelectorAll(".mac-queued, .mac-note-cur")) e.classList.remove("mac-queued", "mac-note-cur");
     document.body.style.removeProperty("--mac-note-h");
     if (NOTICE_HOME?.parent?.isConnected) {
       const extra = [...strip.children].filter((c) => c !== notices);
@@ -146,9 +183,14 @@ export default {
       const text = crumbFor(CC.S?.view, LABELS);
       if (crumbEl && crumbEl.textContent !== text) crumbEl.textContent = text;
     }
+    // 0.4.27 (panel item 5): while the engine does not answer, the pill says "Starting..." with a grey dot,
+    // not "4 ready" in green. The live connection dot (#conn-dot, kept in the hidden classic top bar) is the source.
     function paintReady() {
-      const text = readyLine(CC.S?.providers);
+      const dot = document.getElementById("conn-dot");
+      const down = !!document.getElementById("engine-starting") || !!document.getElementById("engine-down") || (!!dot && !/\bgreen\b/.test(dot.className));
+      const text = down ? "Starting..." : readyLine(CC.S?.providers);
       if (readyEl && readyEl.textContent !== text) readyEl.textContent = text;
+      readyEl?.parentElement?.classList.toggle("mac-wait", down);
     }
     function flashMode(mode) {
       if (!flash) return;

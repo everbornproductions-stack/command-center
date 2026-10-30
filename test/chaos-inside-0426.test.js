@@ -264,7 +264,8 @@ test("header: Command, Projects, Credits and Settings get a page header that sur
     assert.deepEqual(proxies, [["preview", "Preview route", false], ["go", "Send orders", false]]);
     // The Finish, Momentum and Project tools bars sit in one notice row above the page.
     const notes = await t.page.evaluate(() => { const box = document.querySelector("#app .view-col > .cx-notes"); return box ? [...box.children].map((c) => c.id) : null; });
-    if (notes) assert.ok(notes.every((id) => ["fpbar", "mmbar", "projbar"].includes(id)) && notes.length >= 1, `notice row holds ${notes}`);
+    // 0.4.27: the row also holds its own More button (cx-notes-more), which opens the row on a short window.
+    if (notes) assert.ok(notes.every((id) => ["fpbar", "mmbar", "projbar", "cx-notes-more"].includes(id)) && notes.some((id) => id !== "cx-notes-more"), `notice row holds ${notes}`);
     // The Mac look off and on again (stopMac): nothing of the part is left behind.
     const gone = await t.page.evaluate(async () => {
       const mod = await import("/mac/index.js");

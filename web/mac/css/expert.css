@@ -14,7 +14,7 @@ body[data-style="mac"] .mx-sidein { width: 236px; height: 100%; overflow: auto; 
 body[data-style="mac"] .mx-sidehead { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
 body[data-style="mac"] .mx-srch { flex: 1; min-width: 0; border: 0; border-radius: 8px; padding: 7px 10px; background: rgba(120, 120, 128, .15); color: inherit; font: inherit; }
 body[data-style="mac"] .mx-collapse { flex: none; width: 28px; height: 28px; border: 0; border-radius: 7px; background: rgba(120, 120, 128, .15); color: inherit; cursor: pointer; }
-body[data-style="mac"] #mac-side .grp { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 0; background: transparent; color: var(--dim, #6e6e73); font: inherit; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 8px 8px 4px; margin-top: 6px; cursor: pointer; text-align: left; }
+body[data-style="mac"] #mac-side .grp { display: flex; align-items: center; justify-content: space-between; width: 100%; border: 0; background: transparent; color: var(--dim, #6e6e73); font: inherit; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 8px 8px 4px; margin-top: 6px; cursor: pointer; text-align: left; }
 body[data-style="mac"] #mac-side .si { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; text-align: left; border: 0; background: transparent; color: inherit; padding: 5px 8px; border-radius: 7px; font: inherit; font-size: 13px; cursor: pointer; }
 body[data-style="mac"] #mac-side .si:hover { background: rgba(120, 120, 128, .15); }
 body[data-style="mac"] #mac-side .si.on { background: var(--mac-acc-btn, #0062d6); color: #fff; }
@@ -85,3 +85,6 @@ body[data-style="mac"][data-theme="dark"] #mac-side .si.on { color: #fff; text-s
 body[data-style="mac"]:not([data-theme="dark"]) #mac-side { --dim: #3f3f46; }
 body[data-style="mac"]:not([data-theme="dark"]) #mac-side .grp,
 body[data-style="mac"]:not([data-theme="dark"]) #mac-side .mx-none { color: #3f3f46; }
+/* 0.4.27 (panel item 7): the light sidebar was see-through enough that "People" at the bottom measured 1.77:1 over a
+   dark part of the wallpaper. A nearly solid light panel keeps every heading readable over any picture. */
+body[data-style="mac"]:not([data-theme="dark"]) #mac-side.mx-side:not([hidden]) { background: rgba(250, 250, 252, .96); }
