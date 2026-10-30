@@ -43,8 +43,9 @@ export function saveEveryNamedFile({ goal = "", names = [], deliverable = "", ta
     if (hit) {
       r = { ok: true, name: path.basename(hit.name || hit.path), requested: want, path: hit.path, bytes: hit.bytes, ext: fileExt(hit.path), previewable: false, readable: false, projectId: projectId || null, inProjectFolder: true, fromStep: hit.taskId || null };
     } else if (OFFICE_EXT.includes(ext)) {
-      const src = texts.find((x) => hasTable(x.text)) || texts[0];
-      r = save({ goal, name: want, text: src.text, projectId, missionId });
+      // a Word file is the answer itself; a spreadsheet is the first answer with a table (the final answer first)
+      const src = ext === "docx" ? (texts[0].text.trim() ? texts[0] : texts[1] || texts[0]) : texts.find((x) => hasTable(x.text)) || texts[0];
+      r = ext === "docx" && truncated && src === texts[0] ? { ok: false, name: want, error: `Not saved: the result was cut off (${truncated}), so ${want} was not written.` } : save({ goal, name: want, text: src.text, projectId, missionId });
     } else {
       const b = bodyForFile(want, texts);
       if (b) r = save({ goal, name: want, text: fenced(want, b.body), projectId, missionId });

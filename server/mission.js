@@ -40,7 +40,7 @@ import { isNavStateEnabled } from "./web-config.js";
 import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
 import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, namedFiles, isSavableName, NO_SAVE_STEP_LINE, FILE_BLOCK_LINE, dropSaveOnlySteps, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
-import { saveNamedFile, writeProjectFile, codeFor, fileBody, NOT_SAVED_LINE } from "./named-file.js";
+import { saveNamedFile, writeProjectFile, codeFor, fileBody, NOT_SAVED_LINE, wantedFile, officeNote } from "./named-file.js";
 import { bodyForFile } from "./code-files.js";
 import { saveEveryNamedFile } from "./save-named-files.js";
 import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
@@ -1586,7 +1586,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         const s = Date.now();
         let text = "";
         let stopReason = null;
-        const workSystem = toneAdd(crewMember(t) ? crewSystem(crewMember(t), goal) : `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.${t.capability === "code" ? `\n${NO_REMOVED_APIS_LINE}` : ""}${stepFileNames(t).length ? `\n${FILE_BLOCK_LINE}` : ""}`, tone);
+        const workSystem = toneAdd(crewMember(t) ? crewSystem(crewMember(t), goal) : `You are a specialist (${t.capability}) on a team working toward this goal:\n${goal}\n\nDo only your task. Output the deliverable itself in Markdown, no preamble, no questions back.${t.capability === "code" ? `\n${NO_REMOVED_APIS_LINE}` : ""}${stepFileNames(t).length ? `\n${FILE_BLOCK_LINE}` : ""}`, tone) + officeNote(goal);
         const workMessages = [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE: ${t.deliverable}${inputs ? `\n\n${inputs}` : ""}${context ? `\n\nCONTEXT:\n${context}` : ""}${taskWeb ? `\n\n${taskWeb}` : ""}` }];
         try {
           // MCP tools (Phase 16) ride along for specialists that can call them; writes ask first.
@@ -1791,7 +1791,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const s5 = Date.now();
     let text = "";
     let asmStop = null;
-    const asmSystem = toneAdd(`You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}${lib?.sources?.length ? " Keep every [L1], [L2] ... library tag exactly as written; they refer to the library excerpts listed at the end." : ""}${mission.sources.length ? "" : " Do not add [1] style citations and do not mention search results: nothing was searched."}`, tone);
+    const asmSystem = toneAdd(`You assemble the final deliverable for the user from the team's task outputs. Assembly guidance: ${plan.assembly || "combine into one clean document"}. Output the deliverable in Markdown, well structured, no preamble. Do not mention tasks or teams; just deliver.${mission.sources.length ? " Keep every [n] citation exactly as written; the numbers refer to the web sources listed at the end." : ""}${lib?.sources?.length ? " Keep every [L1], [L2] ... library tag exactly as written; they refer to the library excerpts listed at the end." : ""}${mission.sources.length ? "" : " Do not add [1] style citations and do not mention search results: nothing was searched."}`, tone) + officeNote(goal);
     const asmMessages = [{ role: "user", content: `GOAL:\n${goal}${memNote}\n\n${finished.map((t) => `## ${t.title}\n${t.output}`).join("\n\n")}${mission.sources.length ? `\n\n${sourcesBlock(mission.sources, mission.searchEngine)}` : ""}${lib?.block ? `\n\n${lib.block}` : ""}` }];
     try {
       for await (const ev of fallbackChat({ allowStandIn: true,
@@ -1847,7 +1847,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     { const ruleOpts = ownerRuleOpts(); // 0.4.25: the owner's own folder names apply on the owner license only
       mission.deliverable = stripPrivateRules(mission.deliverable || "", goal, ruleOpts);
       for (const t of mission.tasks) if (typeof t.output === "string" && t.output && !t.media) t.output = stripPrivateRules(t.output, goal, ruleOpts); }
-    const want = namedFile(goal);
+    const want = wantedFile(goal); // 0.4.27: .xlsx, .xlsm and .docx too
     const fext = fileExt(want) || (mission.classification?.capability === "code" ? "html" : "");
     const tr = checkTruncation(mission.deliverable || "", { ext: fext, capability: mission.classification?.capability, stop: mission.assemblerStop });
     if (tr.truncated) mission.deliverableTruncated = tr.reason;
