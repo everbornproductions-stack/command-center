@@ -39,9 +39,39 @@ function nameFromFirstLine(code) {
   return m && safeFileName(m[1]) ? safeFileName(m[1]) : "";
 }
 
+// ---- 0.4.28 (dogfood catalog-json): a closing fence with words glued onto it ----
+// A carry-on reply was joined right after a closing fence: "]\n```The JSON was not cut off ...". The fence line was
+// no longer a bare ``` so the block ran on through the sentence and into the next block, and catalog.json was saved
+// with the sentence inside it. Inside an open block, a fence line followed by words (not a language or a file name)
+// is the closing fence plus the start of the next paragraph: it is split onto two lines.
+const isInfoString = (rest) => {
+  const s = String(rest || "").trim();
+  if (!s) return true;
+  if (/(?:title|file(?:name)?)\s*=/i.test(s)) return true;
+  const toks = s.split(/[\s:]+/).filter(Boolean);
+  return toks.length <= 2 && toks.every((t) => /^[\w+#./\\-]+$/.test(t)) && !/[.!?]$/.test(s);
+};
+/** Put a closing fence that has text glued onto it on its own line, with a blank line before the text. */
+export function unglueFences(text) {
+  const lines = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let open = null;
+  for (const line of lines) {
+    const m = /^(\s*)(`{3,}|~{3,})(.*)$/.exec(line);
+    if (!m) { out.push(line); continue; }
+    if (!open) { open = m[2]; out.push(line); continue; }
+    if (m[2][0] === open[0] && m[2].length >= open.length) {
+      if (!m[3].trim()) { open = null; out.push(line); continue; }
+      if (!isInfoString(m[3])) { out.push(`${m[1]}${m[2]}`, "", m[3].trimStart()); open = null; continue; }
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
 // -> [{ name, lang, text }]
 export function extractCodeFiles(markdown) {
-  const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
+  const lines = unglueFences(markdown).split("\n");
   const found = [];
   const used = new Set();
   let n = 0;
@@ -128,6 +158,17 @@ export function looksLikeCode(text, ext = "") {
   return t.split("\n").map((l) => l.trim()).filter(Boolean).some((l) => CODE_LINE.test(l) && !/^[A-Z][^{}();=[\]$<>|]*[.!?]$/.test(l));
 }
 
+// Blocks with the same content (JSON compared by value, other files by their words) count once.
+function sameOnce(blocks, ext) {
+  const key = (b) => {
+    const t = String(b.text || "").trim();
+    if (ext === "json") { try { return `json:${JSON.stringify(JSON.parse(t))}`; } catch { /* compare the words */ } }
+    return t.replace(/\s+/g, " ");
+  };
+  const seen = new Set();
+  return blocks.filter((b) => { const k = key(b); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
 /** { body, from, how } for the file `name`, or null when no answer holds it clearly. */
 export function bodyForFile(name, texts = []) {
   const want = baseOf(name), ext = extOf(name);
@@ -149,7 +190,8 @@ export function bodyForFile(name, texts = []) {
   const langs = langsFor(ext);
   if (ext === "txt") return null; // a ```text block is usually sample output, not the file
   for (const s of parsed) {
-    const same = s.blocks.filter((b) => langs.includes(b.lang) || (/^code-\d+\./.test(b.name) && extOf(b.name) === ext));
+    // 0.4.28 (dogfood catalog-json): the same file given twice (the AI repeated it in full) is one file, not a question
+    const same = sameOnce(s.blocks.filter((b) => langs.includes(b.lang) || (/^code-\d+\./.test(b.name) && extOf(b.name) === ext)), ext);
     if (same.length === 1) return { body: same[0].text, from: s.from ?? null, how: "language" };
     // 0.4.28: several blocks in the language and none named for the file: the clear main block, saved under the asked name
     const main = same.length > 1 ? mainBlock(same.filter((b) => /^code-\d+\./.test(b.name) || extOf(b.name) === ext)) : null;
