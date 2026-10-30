@@ -30,7 +30,7 @@ export default {
         if (d.type === "sep") {
           return `<div class="sep${d.expert ? " ex" : ""}" role="separator"></div>`;
         }
-        const isActive = (d.action.type === "view" && d.action.view === currentView) ||
+        const isActive = ((d.action.type === "view" || d.action.type === "chat") && d.action.view === currentView) ||
                          (d.action.type === "path" && currentView === "command");
         const runClass = isActive ? " run" : "";
         const exClass = d.expert ? " ex" : "";
@@ -83,7 +83,16 @@ export default {
       const type = b.dataset.actionType;
       const target = b.dataset.actionTarget;
 
-      if (type === "view") {
+      if (type === "chat") {
+        // 0.4.28 (Chris: "the chat button does nothing"): Simple already shows the Command page, so going there did
+        // nothing visible. Open chat the same way "Just chat instead" does, then put the cursor in the box.
+        if (typeof CC.go === "function" && CC.S?.view !== "command") CC.go("command");
+        currentView = "command";
+        bus.emit("view", "command");
+        bus.emit("chat", { open: true });
+        render();
+        setTimeout(() => { const box = document.getElementById("orders"); if (box) { box.scrollIntoView({ block: "center" }); box.focus(); } }, 60);
+      } else if (type === "view") {
         if (typeof CC.go === "function") CC.go(target);
         currentView = target;
         bus.emit("view", target);

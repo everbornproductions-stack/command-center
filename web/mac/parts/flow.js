@@ -701,6 +701,8 @@ export default {
       }),
       bus.on("mode", () => sync()),
       bus.on("view", () => sync()),
+      // 0.4.28: the dock's Chat button (same as "Just chat instead")
+      bus.on("chat", () => { if (!simple()) return; chatOnly = true; releaseAnswer(); render(); sync(); }),
     ];
     CC.mac ||= {};
     CC.mac.flow = { get state() { return state; }, start: (p) => set(F.start(state, p), { force: true }), reset: resetAll, back: goBack };

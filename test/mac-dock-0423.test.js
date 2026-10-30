@@ -29,7 +29,7 @@ test("dock data: itemsFor simple vs expert and valid actions", () => {
     assert.ok(item.label);
     assert.ok(item.icon);
     assert.ok(item.gradient);
-    assert.ok(["path", "view", "open"].includes(item.action.type));
+    assert.ok(["path", "view", "open", "chat"].includes(item.action.type));
   }
 });
 
