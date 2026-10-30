@@ -114,6 +114,16 @@ function check(f, file) {
       res.notes.push(`exit ${r.code}: ${r.out.trim().slice(0, 300).replace(/\s+/g, " ")}`);
       res.ok = r.code === 0 && new RegExp(f.expect || ".").test(r.out); break;
     }
+    case "sqlite": {
+      const r = PY(dir, `import sqlite3\nc=sqlite3.connect(':memory:')\nc.executescript(open(r'''${p}''',encoding='utf-8').read())\nt=[x[0] for x in c.execute("select name from sqlite_master where type='table'")]\nprint(len(t), ','.join(t))`);
+      res.notes.push(r.code === 0 ? `runs in SQLite: ${r.out.trim()}` : "SQLite error: " + r.out.trim().split("\n").pop());
+      res.ok = r.code === 0 && Number(r.out.trim().split(/\s+/)[0]) >= 3; break;
+    }
+    case "json": { try { const j = JSON.parse(text()); res.notes.push(Array.isArray(j) ? `${j.length} items` : "object"); res.ok = true; } catch (e) { res.notes.push("not valid JSON: " + e.message); } break; }
+    case "ps1parse": {
+      const r = run("powershell", ["-NoProfile", "-Command", `$e=$null;[void][System.Management.Automation.Language.Parser]::ParseFile('${p}',[ref]$null,[ref]$e);if($e){$e|%{$_.Message};exit 1}else{'parsed ok'}`], dir);
+      res.notes.push(r.out.trim().slice(0, 200)); res.ok = r.code === 0 && /param\s*\(/i.test(text()); break;
+    }
     case "ps1": {
       const r = run("powershell", ["-NoProfile", "-Command", `$e=$null;[void][System.Management.Automation.Language.Parser]::ParseFile('${p}',[ref]$null,[ref]$e);if($e){$e|%{$_.Message};exit 1}else{'parsed ok'}`], dir);
       res.notes.push(r.out.trim().slice(0, 200));
