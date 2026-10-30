@@ -15,14 +15,14 @@
 //    (Google AI Studio, OpenRouter's free route, Groq's free tier) and never go past the daily or
 //    per-minute allowance the app knows about; those calls are recorded at $0 and flagged free.
 //  - Spend caps (alerts plugin) are respected: a provider at 100% of its cap is never a stand-in.
-import { PROVIDERS, findModel, estimateCostAt, modelPrice } from "./registry.js";
+import { PROVIDERS, findModel, estimateCostAt, modelPrice, isLiteModel, isLongOutputJob } from "./registry.js";
 import { assertSpendAllowed } from "./cost-guard.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc, getContext, runAs } from "./store.js";
 import { noteCall, BUDGET_TEXT } from "./health.js";
 import { bus, emit } from "./events.js";
 import { chatWithTools } from "./mcp.js";
-import { rank, heuristicClassify } from "./router.js";
+import { rank, heuristicClassify, isSlowAgent } from "./router.js";
 import { allEntries } from "./ledger.js";
 import { describePause } from "./pause.js";
 import { noteReply as noteFreeReply } from "./free-limits.js";
@@ -106,10 +106,18 @@ export function modelName(pid, model) {
   return findModel(model)?.name || PROVIDERS[pid]?.models?.find((x) => x.id === model)?.name || model;
 }
 
+// 0.4.27 (dogfood 2026-10-30): a free Gemini key asked for Gemini 4 Argon (a paid-only model) gets "exceeded your
+// current quota". That says nothing about the free Flash models, so it benches that one model, not all of Gemini.
+// Only for AIs whose keys sit on a free tier (Gemini, Groq). An OpenRouter or Mistral 402 means the account is out.
+const FREE_KEY_AIS = new Set(["google", "groq"]);
+export function paidOnlyModel(pid, model) {
+  const tier = FREE_TIERS[pid];
+  return FREE_KEY_AIS.has(pid) && !!tier && !!model && !tier.models.includes(model);
+}
 export function markTrouble(pid, kind, detail = "", { quiet = false, missionId = null, model = null } = {}) {
   if (!KINDS.includes(kind) || (!PROVIDERS[pid] && pid !== "freebuff")) return null; // Freebuff is an app-like coder, not in the registry
   const st = state();
-  const perModel = !!model && MODEL_KINDS.includes(kind);
+  const perModel = !!model && (MODEL_KINDS.includes(kind) || (kind === "credits" && paidOnlyModel(pid, model)));
   const box = perModel ? modelBox(st) : st.skip;
   const key = perModel ? modelKey(pid, model) : pid;
   const prev = box[key];
@@ -292,31 +300,35 @@ export function freeTierView() {
 // 0. another model of the SAME provider first: cheapest and free first, never one already tried, never
 //    one on a cooldown, never a paid model when Free only is on. A 429 or a 503 only benches the model
 //    that got it, so the rest of this AI's family is still the first choice before any other provider.
-export function sameProviderChoice({ provider, model, tried = [], freeOnly = freeOnlyOn(), capped = cappedNow() }) {
+// longOutput (0.4.27): a long build never drops to a lite sibling; with only lite left, another AI is asked first
+// (the lite model is still a last resort).
+export function sameProviderChoice({ provider, model, tried = [], freeOnly = freeOnlyOn(), capped = cappedNow(), longOutput = false }) {
   const p = PROVIDERS[provider];
   if (!p || p.kind !== "text" || p.demo) return null;
   if (trouble(provider) || capped.includes(provider)) return null; // credits, a bad key or a cap sits the whole AI out
   const used = new Set(tried.map((t) => t.model));
   const ban = troubledModels();
-  const list = (p.models || []).filter((m) => m.id !== model && !used.has(m.id) && !ban[modelKey(provider, m.id)] && (!freeOnly || isFreeModel(provider, m.id)));
+  const list = (p.models || []).filter((m) => m.id !== model && !used.has(m.id) && !ban[modelKey(provider, m.id)] && (!freeOnly || isFreeModel(provider, m.id)) && (!longOutput || !isLiteModel(m.id)));
   if (!list.length) return null;
   const price = (m) => { const pr = modelPrice(m.id); return (pr.in || 0) + (pr.out || 0); };
   const best = list.map((m, i) => [m, i]).sort((a, b) => costTier(provider, a[0].id) - costTier(provider, b[0].id) || price(a[0]) - price(b[0]) || a[1] - b[1])[0][0];
   return { provider, model: best.id, name: best.name, via: null, priceModel: null, free: !!isFreeModel(provider, best.id), same: true };
 }
 
-export function nextChoice({ provider, model, tried = [], cls = {}, mode = "balanced", small = false, settings = fallbackSettings(), allowStandIn = true, skipSame = false }) {
+// fast (0.4.27): QA and other quick checks never wait on a slow agent app while an API model can answer.
+// longOutput: a long build skips lite models while another model is left.
+export function nextChoice({ provider, model, tried = [], cls = {}, mode = "balanced", small = false, settings = fallbackSettings(), allowStandIn = true, skipSame = false, fast = false, longOutput = false, needTools = false }) {
   const triedProviders = new Set(tried.map((t) => t.provider));
   const triedModels = tried.map((t) => t.model);
   const capped = cappedNow();
   const freeOnly = freeOnlyOn();
   // 0. another model of this same AI, before anything else (see above)
-  const same = skipSame ? null : sameProviderChoice({ provider, model, tried, freeOnly, capped }); // an AI that refused earlier in this run is not asked again, not even a sibling model
+  const same = skipSame ? null : sameProviderChoice({ provider, model, tried, freeOnly, capped, longOutput }); // an AI that refused earlier in this run is not asked again, not even a sibling model
   if (same) return same;
   // no other provider may stand in unless the caller allows it (Auto / unpinned routes do)
   if (allowStandIn !== true) return null;
   // 1. a coding job reaches Claude Code (the person's own plan) first
-  const code = planFirstForCode({ tried, cls, freeOnly });
+  const code = fast ? null : planFirstForCode({ tried, cls, freeOnly, mode, needTools });
   if (code && !freeOnly) return code;
   // 2. the same model through OpenRouter (a paid route: never while Free only is on)
   if (!freeOnly && settings.openrouterFirst && !triedProviders.has("openrouter") && openrouterReady() && !capped.includes("openrouter")) {
@@ -328,8 +340,10 @@ export function nextChoice({ provider, model, tried = [], cls = {}, mode = "bala
   const skip = troubled();
   const skipModel = troubledModels();
   const ok = (m) => !triedProviders.has(m.provider) && !triedModels.includes(m.model) && !skip[m.provider] && !skipModel[modelKey(m.provider, m.model)] && !capped.includes(m.provider) && m.provider !== provider && (!freeOnly || isFreeModel(m.provider, m.model));
-  let list = rank({ capability: cls.capability || "reasoning", difficulty: cls.difficulty || 2, mode, needWeb: !!cls.needWeb, small, exclude: triedModels }).filter(ok);
-  if (!list.length && cls.needWeb) list = rank({ capability: cls.capability || "reasoning", difficulty: cls.difficulty || 2, mode, small, exclude: triedModels }).filter(ok);
+  const extra = { needTools, longOutput };
+  let list = rank({ capability: cls.capability || "reasoning", difficulty: cls.difficulty || 2, mode, needWeb: !!cls.needWeb, small, exclude: triedModels, ...extra }).filter(ok);
+  if (!list.length && cls.needWeb) list = rank({ capability: cls.capability || "reasoning", difficulty: cls.difficulty || 2, mode, small, exclude: triedModels, ...extra }).filter(ok);
+  if (fast && list.some((m) => !isSlowAgent(m))) list = list.filter((m) => !isSlowAgent(m));
   const qualityFirst = mode === "quality" || mode === "max";
   if (!qualityFirst && list.length > 1) list = list.map((m, i) => [m, i]).sort((a, b) => costTier(a[0].provider, a[0].model) - costTier(b[0].provider, b[0].model) || a[1] - b[1]).map((x) => x[0]);
   const m = list[0];
@@ -362,6 +376,13 @@ export async function* fallbackChat(opts, run = {}) {
   // only stand in when the route sets allowStandIn (Auto and the unpinned routes do). Otherwise the
   // stand-ins are other models of this same AI, and then a plain stop.
   const allowStandIn = opts.allowStandIn === true;
+  // 0.4.27: QA, classify and titles are quick checks: no slow agent app as a stand-in while an API model is left.
+  const fast = run.fast ?? ["qa", "classify", "title"].includes(run.role);
+  // 0.4.27: a long build (code, a page, a document) does not drop to a lite model while a bigger one is left.
+  const longOutput = run.longOutput ?? (!fast && isLongOutputJob({ capability: cls.capability, difficulty: cls.difficulty, maxTokens: opts.maxTokens }));
+  const needTools = run.needTools === true;
+  const pick = { fast, longOutput, needTools };
+  const lastResort = () => { const all = lastResortChoices({ tried, cls, freeOnly: freeOnlyOn(), longOutput }); return (fast && all.some((c) => !isSlowAgent(c.provider)) ? all.filter((c) => !isSlowAgent(c.provider)) : all)[0] || null; };
   const outOfOptions = () => Object.assign(new Error(`${modelName(provider, model)} is busy or out. Pick another AI or turn on Let Meldmind choose.`), { code: "pinned_out", status: 409 });
   const freeTier = !!PROVIDERS[provider]?.demo || freeNow(provider, model);
   const freeOnly = freeOnlyOn();
@@ -392,17 +413,17 @@ export async function* fallbackChat(opts, run = {}) {
   const rateHit = new Set(); // a 429 sends the job to another company first, a sibling model of the same key only if nobody else is left
   const stand = () => {
     const skipSame = !!run.skipProviders?.has(provider);
-    if (!allowStandIn) return nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: false, skipSame });
-    const other = (hop < settings.maxHops && rateHit.has(provider) && !skipSame) ? nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: true, skipSame: true }) : null;
+    if (!allowStandIn) return nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: false, skipSame, ...pick });
+    const other = (hop < settings.maxHops && rateHit.has(provider) && !skipSame) ? nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: true, skipSame: true, ...pick }) : null;
     if (other && !other.same) return other;
-    const counted = hop < settings.maxHops ? nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: true, skipSame }) : null;
-    return counted || lastResortChoices({ tried, cls, freeOnly })[0] || null;
+    const counted = hop < settings.maxHops ? nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn: true, skipSame, ...pick }) : null;
+    return counted || lastResort();
   };
 
   // Free only: never start on a paid AI
   if (wantsPaid) {
     tried.push({ provider, model });
-    const next = nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn }) || (allowStandIn ? lastResortChoices({ tried, cls, freeOnly })[0] : null);
+    const next = nextChoice({ provider, model, tried, cls, mode, small, settings, allowStandIn, ...pick }) || (allowStandIn ? lastResort() : null);
     if (!next) throw freeOnlyError();
     yield switchTo(next, "freeonly", "", false);
   }
@@ -454,13 +475,16 @@ export async function* fallbackChat(opts, run = {}) {
       // a spend-cap stop is not a provider fault: no failure on its record, no trouble mark, just a stand-in
       const kind = e.code === "empty" ? "empty" : e.code === "refused" ? "refused" : e.code === "cap" ? "cap" : troubleKind(e);
       if (kind) failures.push({ provider, kind });
-      if (kind === "credits" || kind === "rate") noteFreeReply(provider, { status: e.status, text: e.message }); // 0.4.22 daily limit tracker
+      // 0.4.27: a paid-only model on a free key (Gemini 4 Argon on a free Gemini key) is out on its own; the free
+      // models of that AI are not out for the day, and not skipped for the rest of the run.
+      const paidOnly = kind === "credits" && paidOnlyModel(provider, model);
+      if ((kind === "credits" || kind === "rate") && !paidOnly) noteFreeReply(provider, { status: e.status, text: e.message }); // 0.4.22 daily limit tracker
       if (kind === "rate") rateHit.add(provider);
-      if (kind === "credits" || kind === "rate") { run.skipProviders?.add(provider); run.onTrouble?.(provider, kind); }
+      if ((kind === "credits" || kind === "rate") && !paidOnly) { run.skipProviders?.add(provider); run.onTrouble?.(provider, kind); }
       if (!kind || !settings.on) { if (kind) { e.failures = failures; e.plain = nothingCameBack(failures); if (e.code === "empty" || e.code === "refused") e.message = e.plain; } throw e; }
       // A failure that belongs to one model is remembered on that model only, and never moves the
       // provider's own health light: the rest of the AI's models stay usable (0.4.21 Gemini check).
-      const oneModel = !!model && (kind === "empty" || kind === "rate" || kind === "server");
+      const oneModel = !!model && (kind === "empty" || kind === "rate" || kind === "server" || paidOnly);
       if (kind === "empty") { if (!oneModel) noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, "server", "sent back an empty answer", { quiet: true, missionId: run.missionId || null, model }); }
       else if (kind === "refused") noteCall(provider, false, Date.now() - t0, e); // the AI is fine; this one job went to another
       else if (kind !== "cap") { if (!oneModel) noteCall(provider, false, Date.now() - t0, e); markTrouble(provider, kind, e.message, { missionId: run.missionId || null, model }); }
