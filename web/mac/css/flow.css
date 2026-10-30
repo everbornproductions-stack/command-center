@@ -106,3 +106,31 @@ body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .ord
 body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .orders:not(:focus-within) #cc-composer-ais { display: none; }
 body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] #simple-answer { scroll-margin-bottom: 120px; }
 body[data-style="mac"][data-mac-flow="on"] #cc-canvas { display: none !important; }
+/* 0.4.28: five more paths (Spreadsheet, Document, Slides, App or script, List or data). Simple drawn pictures, no images. */
+body[data-style="mac"] #mac-flow .mf-art-sheet { background: linear-gradient(0deg, rgba(255,255,255,.55) 1px, transparent 1px) 0 0 / 100% 22px, linear-gradient(90deg, rgba(255,255,255,.55) 1px, transparent 1px) 0 0 / 46px 100%, linear-gradient(135deg,#30d158,#0a7d3c); }
+body[data-style="mac"] #mac-flow .mf-art-doc { background: linear-gradient(rgba(29,29,31,.28), rgba(29,29,31,.28)) 26% 32% / 48% 6px no-repeat, linear-gradient(rgba(29,29,31,.18), rgba(29,29,31,.18)) 26% 48% / 48% 4px no-repeat, linear-gradient(rgba(29,29,31,.18), rgba(29,29,31,.18)) 26% 60% / 40% 4px no-repeat, linear-gradient(rgba(29,29,31,.18), rgba(29,29,31,.18)) 26% 72% / 44% 4px no-repeat, linear-gradient(#fff,#fff) 50% 70% / 58% 82% no-repeat, linear-gradient(135deg,#5ac8fa,#0062d6); }
+body[data-style="mac"] #mac-flow .mf-art-slides { background: linear-gradient(rgba(255,255,255,.9), rgba(255,255,255,.9)) 50% 46% / 62% 58% no-repeat, linear-gradient(rgba(255,255,255,.7), rgba(255,255,255,.7)) 50% 86% / 4px 18% no-repeat, linear-gradient(135deg,#ff9f0a,#ff375f); }
+body[data-style="mac"] #mac-flow .mf-art-code { position: relative; background: linear-gradient(135deg,#2c2c34,#5e5ce6); }
+body[data-style="mac"] #mac-flow .mf-art-code::after { content: "</>"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font: 700 34px/1 ui-monospace, "Cascadia Code", Consolas, monospace; }
+body[data-style="mac"] #mac-flow .mf-art-data { background: repeating-linear-gradient(0deg, rgba(255,255,255,.22) 0 14px, transparent 14px 28px), linear-gradient(135deg,#64d2ff,#5e5ce6); }
+body[data-style="mac"] #mac-flow .mf-subrow { display: flex; align-items: center; gap: 10px; }
+body[data-style="mac"] #mac-flow .mf-subrow .mf-sub { flex: 1; min-width: 0; margin: 0; }
+body[data-style="mac"] #mac-flow .mf-scrollbtns { display: flex; gap: 6px; flex: none; }
+body[data-style="mac"] #mac-flow .mf-scroll { width: 36px; height: 36px; border: 1px solid var(--mf-line); border-radius: 999px; background: var(--mf-glass); color: var(--mf-tx); font: 600 22px/1 -apple-system, "Segoe UI", sans-serif; cursor: pointer; padding: 0 0 3px; }
+body[data-style="mac"] #mac-flow .mf-scroll[hidden] { display: none; }
+body[data-style="mac"] #mac-flow .mf-scroll:disabled { opacity: .4; cursor: default; }
+body[data-style="mac"] #mac-flow .mf-scroll:hover:not(:disabled) { background: rgba(120,120,128,.18); }
+body[data-style="mac"] #mac-flow .mf-scroll:focus-visible { outline: 3px solid var(--mf-acc); outline-offset: 2px; }
+body[data-style="mac"] #mac-flow .mf-paths { scroll-padding: 0 6px; }
+body[data-style="mac"] #mac-flow .mf-file { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--mf-line); background: var(--mf-glass); }
+body[data-style="mac"] #mac-flow .mf-file[hidden] { display: none; }
+body[data-style="mac"] #mac-flow .mf-file.bad { border: 2px solid var(--mf-warn); background: rgba(255,159,10,.14); }
+body[data-style="mac"] #mac-flow .mf-file-name { font-size: 15px; word-break: break-word; }
+body[data-style="mac"] #mac-flow .mf-file-path { color: var(--mf-dim); font-size: 12px; word-break: break-all; }
+@media (max-width: 760px) {
+  body[data-style="mac"] #mac-flow .mf-path { width: 200px; }
+}
+body[data-style="mac"] #mac-flow .mf-hint { margin: 10px 2px 0; color: var(--mf-dim); font-size: 14px; }
+/* 0.4.28: a button centres its content, so a card with a two-line blurb sat higher than the others. Cards stack from the top. */
+body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card { display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; }
+body[data-style="mac"] #mac-flow .mf-path > .mf-art, body[data-style="mac"] #mac-flow .mf-card > .mf-art { flex: none; }
