@@ -25,7 +25,7 @@
     "files": [{ "name": "desktop-cleanup.ps1", "check": "ps1parse" }] },
   { "id": "quiz-python", "industry": "Teacher", "persona": "Mrs. Lopez, 5th grade teacher", "kind": "program",
     "goal": "Write a Python program that makes a 10-question multiplication quiz worksheet with an answer key: it prints the worksheet and the answer key, uses a fixed random seed so the same worksheet comes out each time, and uses only the standard library. Save it as {dir}\\times_quiz.py",
-    "files": [{ "name": "times_quiz.py", "check": "python", "expect": "(?i)answer" }] },
+    "files": [{ "name": "times_quiz.py", "check": "python", "expect": "[Aa]nswer" }] },
   { "id": "mock-api", "industry": "App developer", "persona": "Dev, building a booking app prototype", "kind": "program",
     "goal": "Write a small Node.js HTTP server (only built-in modules) for a booking app prototype: GET /slots returns a JSON list of 8 sample time slots, POST /book with a slot id marks it booked and returns the slot, and unknown paths return 404 JSON. Include a self-test: when run with --test it starts on a random port, calls both endpoints, prints 'self-test passed' and exits. Save it as {dir}\\booking-server.js",
     "files": [{ "name": "booking-server.js", "check": "node", "args": ["--test"], "expect": "self-test passed" }] }
