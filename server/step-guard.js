@@ -312,7 +312,7 @@ export function namedFile(goal) {
 // An AI may write "Saved as index.html (project root)" about a file it cannot write. Those lines are removed;
 // the real result (path, or "not saved") is shown by the app from what was actually written.
 export function stripSaveClaims(text) {
-  return clean(text).replace(/^[ \t>*_#-]*(?:saved as|file(?:s)? (?:has been |was |were )?(?:saved|written|created)|(?:i\s+)?(?:have\s+)?(?:saved|wrote|written|created) (?:the |your |it )?(?:file |image |png |svg )?(?:as|to|in|at)|saved to|saved in|saved at|output (?:file )?(?:saved|written)|save (?:it|this|the file) (?:to|in|as))\b[^\n]*\n?/gim, "").replace(/\n{3,}/g, "\n\n").trim();
+  return clean(text).replace(/^[ \t>*_#-]*(?:\*\*)?status:?\s*(?:\*\*)?\s*not saved\b[^\n]*\n?/gim, "").replace(/^[ \t>*_#-]*(?:saved as|file(?:s)? (?:has been |was |were )?(?:saved|written|created)|(?:i\s+)?(?:have\s+)?(?:saved|wrote|written|created) (?:the |your |it )?(?:file |image |png |svg )?(?:as|to|in|at)|saved to|saved in|saved at|output (?:file )?(?:saved|written)|save (?:it|this|the file) (?:to|in|as))\b[^\n]*\n?/gim, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 // 0.4.21 (dogfood 08): a step must not run on an earlier step that failed or came back empty. Running it on

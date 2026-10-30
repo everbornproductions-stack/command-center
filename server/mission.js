@@ -41,6 +41,7 @@ import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
 import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
 import { saveNamedFile, writeProjectFile, codeFor, fileBody, isWritableName, NOT_SAVED_LINE } from "./named-file.js";
+import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
 import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE } from "./run-node-test.js";
 import { isLocalSaveStep, SAVE_LINE, savePost, splitPost, stripHelperNotes } from "./mindmedia-step.js";
@@ -1847,9 +1848,23 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       mission.savedFile = { ok: false, name: mission.savedFile.name, error: `Not saved: ${mission.savedFile.name} is not on the disk.` };
       log(mission.savedFile.error, { level: "error" });
     }
+    // 0.4.27 (dogfood batch 1): a copy also goes to the folder the person named, and the answer says where
+    const asked = askedFolder(goal);
+    if (asked) {
+      const files = [...(mission.savedFile?.ok && mission.savedFile.path ? [mission.savedFile] : []), ...wrote.filter((w) => w.path)];
+      const seen = new Set();
+      const copied = copyToAskedFolder(asked, files.filter((f) => { const k = String(f.path).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }));
+      if (copied.length) {
+        mission.askedFolder = { folder: asked, files: copied };
+        if (mission.savedFile?.ok) { const c = copied.find((x) => x.path && x.name.replace(/-\d+(\.[^.]+)$/, "$1").toLowerCase() === String(mission.savedFile.name).toLowerCase()); if (c) mission.savedFile.copiedTo = c.path; }
+        for (const c of copied) log(c.error || `Saved a copy of ${c.name} in ${asked}.`, c.error ? { level: "error" } : {});
+      }
+    }
     // the final answer says plainly what was written, what was not, and what was not run
     {
       const tail = [];
+      if (mission.savedFile?.ok && !mission.askedFolder && !wrote.some((w) => w.path === mission.savedFile.path)) tail.push(`Saved ${mission.savedFile.name} in ${mission.savedFile.where || "your project folder"}: ${mission.savedFile.path}`);
+      for (const c of mission.askedFolder?.files || []) tail.push(c.error || `Saved ${c.name} in ${mission.askedFolder.folder}`);
       for (const w of wrote) tail.push(`Wrote ${w.name} (${w.bytes} bytes)`);
       for (const t of unsaved) tail.push(t.notSaved.line);
       for (const t of mission.tasks) if (t.notRun) tail.push(t.notRun.line);
