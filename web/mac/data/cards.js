@@ -75,6 +75,77 @@ export const PATHS = {
       { id: "retro", name: "Retro pixel", desc: "Nostalgic 8-bit art and sound.", gradient: "g7", prompt: "A retro pixel mod adding [classic arcade levels]", popular: false },
       { id: "chaos", name: "Sandbox chaos", desc: "Unpredictable fun and physics sandbox.", gradient: "g8", prompt: "A sandbox chaos mod featuring [gravity reversing tools]", popular: false }
     ]
+  },
+  // 0.4.28: the file paths. Each saves a real file; `ext` picks the kind of file when a style needs another one.
+  spreadsheet: {
+    id: "spreadsheet",
+    title: "What kind of spreadsheet?",
+    describePlaceholder: "Say what the sheet is for and what it should add up",
+    finish: "Open spreadsheet",
+    styles: [
+      { id: "budget", name: "Budget", desc: "Money in, money out, and totals that add up.", gradient: "g4", prompt: "A budget for [my house: rent, food, gas]", popular: true },
+      { id: "tracker", name: "Tracker", desc: "Track tasks, hours or habits by date.", gradient: "g1", prompt: "A tracker for [my daily workouts]", popular: false },
+      { id: "invoice", name: "Invoice", desc: "Items, prices, tax and a total due.", gradient: "g2", prompt: "An invoice for [three hours of lawn care]", popular: false },
+      { id: "schedule", name: "Schedule", desc: "Who does what, and when.", gradient: "g9", prompt: "A schedule for [my shop staff this week]", popular: false },
+      { id: "sales", name: "Sales report", desc: "Sales by month with totals and averages.", gradient: "g5", prompt: "A sales report for [my bakery this year]", popular: false },
+      { id: "inventory", name: "Inventory", desc: "Stock on hand and what to reorder.", gradient: "g7", prompt: "An inventory for [my shop shelves]", popular: false }
+    ]
+  },
+  document: {
+    id: "document",
+    title: "What kind of document?",
+    describePlaceholder: "Say who it is for and what it should say",
+    finish: "Open document",
+    styles: [
+      { id: "letter", name: "Letter", desc: "A clear, polite letter ready to send.", gradient: "g1", prompt: "A letter to [my landlord about a repair]", popular: true },
+      { id: "plan", name: "Plan", desc: "Goals, steps and dates on a page or two.", gradient: "g4", prompt: "A plan for [opening a food truck]", popular: false },
+      { id: "guide", name: "Guide", desc: "How to do something, step by step.", gradient: "g5", prompt: "A guide to [closing the shop at night]", popular: false },
+      { id: "resume", name: "Resume", desc: "Your work and skills on one page.", gradient: "g9", prompt: "A resume for [a store manager job]", popular: false },
+      { id: "proposal", name: "Proposal", desc: "An offer with the work and the price.", gradient: "g2", prompt: "A proposal for [cleaning an office every week]", popular: false },
+      { id: "notes", name: "Meeting notes", desc: "What was said and who does what next.", gradient: "g7", prompt: "Meeting notes for [our Monday team call]", popular: false }
+    ]
+  },
+  slides: {
+    id: "slides",
+    title: "What kind of slides?",
+    describePlaceholder: "Say what the talk is about and who will watch it",
+    finish: "Open slides",
+    styles: [
+      { id: "pitch", name: "Pitch", desc: "Win someone over in a few slides.", gradient: "g8", prompt: "A pitch for [my bakery to a new investor]", popular: true },
+      { id: "training", name: "Training", desc: "Teach a team how to do a job.", gradient: "g4", prompt: "Training on [how to greet customers]", popular: false },
+      { id: "update", name: "Update", desc: "Where things stand and what is next.", gradient: "g1", prompt: "An update on [this month at the shop]", popular: false },
+      { id: "sales", name: "Sales deck", desc: "What you sell and why it helps.", gradient: "g2", prompt: "A sales deck for [our cleaning service]", popular: false },
+      { id: "lesson", name: "Lesson", desc: "A short class with one idea per slide.", gradient: "g5", prompt: "A lesson on [saving money each month]", popular: false },
+      { id: "recap", name: "Event recap", desc: "What happened and the numbers.", gradient: "g9", prompt: "A recap of [our open house weekend]", popular: false }
+    ]
+  },
+  script: {
+    id: "script",
+    title: "What kind of app or script?",
+    describePlaceholder: "Say what the tool should do, step by step",
+    finish: "Open file",
+    styles: [
+      { id: "python", name: "Python script", desc: "A small program that runs on your PC.", gradient: "g3", ext: "py", prompt: "A Python script that [renames photos by date]", popular: true },
+      { id: "calculator", name: "Web calculator", desc: "One page that works in any browser.", gradient: "g1", ext: "html", prompt: "A web calculator for [tips and splitting the bill]", popular: false },
+      { id: "powershell", name: "PowerShell", desc: "Handy jobs on Windows, like moving files.", gradient: "g9", ext: "ps1", prompt: "A PowerShell script that [cleans out my Downloads]", popular: false },
+      { id: "sheets", name: "Google Sheets script", desc: "Adds a button or a job to a Google Sheet.", gradient: "g4", ext: "gs", prompt: "A Google Sheets script that [emails me new rows]", popular: false },
+      { id: "javascript", name: "JavaScript program", desc: "A small program for Node on your PC.", gradient: "g5", ext: "js", prompt: "A JavaScript program that [checks my links]", popular: false },
+      { id: "sql", name: "Database query", desc: "Pull the rows you need from a database.", gradient: "g7", ext: "sql", prompt: "A query that [finds customers who spent the most]", popular: false }
+    ]
+  },
+  data: {
+    id: "data",
+    title: "What kind of list?",
+    describePlaceholder: "Say what the list is about and which columns it needs",
+    finish: "Open list",
+    styles: [
+      { id: "contacts", name: "Contacts", desc: "Names, phones and emails in columns.", gradient: "g1", prompt: "Contacts for [my best customers]", popular: true },
+      { id: "products", name: "Products", desc: "Items, prices and how many are left.", gradient: "g2", prompt: "Products in [my shop]", popular: false },
+      { id: "leads", name: "Leads", desc: "People to follow up with, and when.", gradient: "g4", prompt: "Leads from [the home show]", popular: false },
+      { id: "events", name: "Events", desc: "Dates, places and times.", gradient: "g5", prompt: "Events for [our summer season]", popular: false },
+      { id: "tasks", name: "To do list", desc: "Tasks, owners and due dates.", gradient: "g9", prompt: "A to do list for [moving the office]", popular: false },
+      { id: "json", name: "Data for an app", desc: "The same list, ready for an app to read.", gradient: "g7", ext: "json", prompt: "Data for an app with [the menu items]", popular: false }
+    ]
   }
 };
 
