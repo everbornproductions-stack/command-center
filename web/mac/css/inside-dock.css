@@ -1,0 +1,104 @@
+/* Mac part "inside", second sheet (0.4.26 polish): light-theme colours for the Talk bar (#vt-bar), the chat dock
+   (.cc-dock) and the sidebar "Search features" box. Loaded by parts/inside.js after inside.css.
+
+   Rules for this file:
+   - COLOUR ONLY. No size, padding, margin, gap, border width, position, display or font size changes, so the
+     Talk bar and the chat dock keep exactly the layout and the scrolling bottom they have today.
+   - Light only: every rule starts with body[data-style="mac"][data-ui="expert"][data-theme="light"]. The dark Mac theme,
+     Simple mode and the classic look (no data-style) never match, so they look the same as before.
+   - Every colour comes from a --cx-* token (defined in inside.css). */
+
+/* ---------- Talk bar and chat dock: re-point the classic colour variables, so everything that reads them follows ---------- */
+body[data-style="mac"][data-ui="expert"][data-theme="light"] :is(.cc-dock, #vt-bar) {
+  --bg: var(--cx-canvas); --bg-2: var(--cx-card);
+  --panel: var(--cx-card); --panel-solid: var(--cx-card); --card-bg: var(--cx-card);
+  --line: var(--cx-line); --line-2: var(--cx-line-2);
+  --text: var(--cx-text); --muted: var(--cx-muted); --dim: var(--cx-muted);
+  --accent: var(--cx-acc); --accent-2: var(--cx-acc-text); --accent-soft: var(--cx-acc-tint); --focus-ring: var(--cx-acc);
+  --green: var(--cx-green-tx); --amber: var(--cx-amber-tx); --red: var(--cx-red-tx); --violet: var(--cx-purple-tx);
+  --field-bg: var(--cx-card); --field-text: var(--cx-text); --field-border: var(--cx-line-2); --field-placeholder: var(--cx-muted);
+  background-color: var(--cx-card);
+  border-top-color: var(--cx-line);
+  color: var(--cx-text);
+  color-scheme: light;
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #vt-bar.vt-float { border-color: var(--cx-line); }
+
+/* Text */
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #vt-bar .vt-strip { color: var(--cx-text-2); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #vt-bar .vt-strip b,
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #vt-bar .vt-state,
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #vt-bar label { color: var(--cx-text); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #vt-bar .vt-line { color: var(--cx-amber-tx); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] :is(.cc-dock, #vt-bar) a { color: var(--cx-acc-text); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock .dock-ctx { color: var(--cx-muted); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock .dock-status { border-color: var(--cx-line-2); color: var(--cx-text); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock .dock-chip { border-color: var(--cx-line-2); background-color: transparent; color: var(--cx-text-2); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock .dock-chip:hover { color: var(--cx-text); }
+
+/* The typing box: white field, grey-300 edge, dark text, a placeholder at 4.8:1. */
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock textarea {
+  background-color: var(--cx-card);
+  border-color: var(--cx-line-2);
+  color: var(--cx-text);
+  caret-color: var(--cx-text);
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock textarea::placeholder { color: var(--cx-muted); opacity: 1; }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock textarea:focus { border-color: var(--cx-acc); box-shadow: 0 0 0 2px var(--cx-ring); }
+
+/* Buttons: Chaos outline (white, grey-200 edge, body grey text); Send and a lit Talk are solid blue with white text. */
+body[data-style="mac"][data-ui="expert"][data-theme="light"] :is(.cc-dock, #vt-bar) .btn {
+  background: var(--cx-card);
+  border-color: var(--cx-line);
+  color: var(--cx-text-2);
+  filter: none;
+  box-shadow: none;
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] :is(.cc-dock, #vt-bar) .btn:hover:not(:disabled) {
+  background: var(--cx-hover);
+  border-color: var(--cx-line-2);
+  color: var(--cx-text);
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] :is(.cc-dock, #vt-bar) .btn.primary {
+  background: var(--cx-acc);
+  border-color: var(--cx-acc);
+  color: var(--cx-on-acc);
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] :is(.cc-dock, #vt-bar) .btn.primary:hover:not(:disabled) {
+  background: var(--cx-acc-hover);
+  border-color: var(--cx-acc-hover);
+  color: var(--cx-on-acc);
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] :is(.cc-dock, #vt-bar) :is(.ghost, button.ghost, .dock-toggle) { background: transparent; color: var(--cx-muted); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] :is(.cc-dock, #vt-bar) :is(.ghost, button.ghost, .dock-toggle):hover { color: var(--cx-acc-text); }
+
+/* Mode chips (Single, Council, Mission, Research, Second opinion): Chaos filter chips. The edge is an inset ring,
+   not a border, so every chip keeps its size. Active = solid blue with white text. */
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock .dock-modes {
+  background: transparent;
+  border-color: transparent;
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock .dock-modes button {
+  background: var(--cx-card);
+  color: var(--cx-text-2);
+  box-shadow: inset 0 0 0 1px var(--cx-line);
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock .dock-modes button:hover {
+  color: var(--cx-acc-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cx-acc) 40%, var(--cx-line));
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] .cc-dock .dock-modes button.on {
+  background: var(--cx-acc);
+  color: var(--cx-on-acc);
+  box-shadow: inset 0 0 0 1px var(--cx-acc);
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] :is(.cc-dock, #vt-bar) :where(button, a, textarea, input):focus-visible {
+  outline: 3px solid var(--cx-ring);
+  outline-offset: 1px;
+}
+
+/* ---------- sidebar "Search features": the placeholder and typed text were near white on the light glass ---------- */
+/* Same near-black grey as the light sidebar headings (expert.css 0.4.25) for the placeholder, dark text when typing.
+   Background, size and shape are left as they are. */
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #mac-side .mx-srch { color: #18181b; caret-color: #18181b; }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #mac-side .mx-srch::placeholder { color: #3f3f46; opacity: 1; }

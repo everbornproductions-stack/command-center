@@ -1,0 +1,781 @@
+/* Mac part "inside" (0.4.26): Chaos-style paper for the Expert window body.
+   Scope: Mac look + Expert only. The frame, sidebar, dock and Talk bar are not matched.
+   Design brief: design-chaos-to-meldmind/BRIEF.md (tokens in section d, rules in section c).
+
+   Rules for this file:
+   - Every rule starts with body[data-style="mac"][data-ui="expert"]. Simple mode and the classic look never match.
+   - Inside the window, rules stay under #app #view, #app .cx-notes, #app .feed or #app .strip.
+     The Talk bar (#vt-bar) and the chat dock (.cc-dock) sit beside #view, so nothing here reaches them.
+     Their light-theme colours (and the sidebar search text) are in the second sheet, inside-dock.css (colour only).
+   - The theme comes from body[data-theme] only (the Mac light / dark button). html[data-theme] (the classic
+     theme) does not matter inside, so the inside always matches the frame (brief option A).
+   - Every colour comes from a --cx-* token. Sizes use rem so the text size setting still scales the inside. */
+
+/* ---------- light (Mac shell light) ---------- */
+body[data-style="mac"][data-ui="expert"] {
+  --cx-canvas: #f9fafb;     /* page behind cards (opaque on purpose: contrast and no blur cost) */
+  --cx-card: #ffffff;
+  --cx-sunk: #f3f4f6;       /* wells: graph, sparks, skill grid. No text on it below 14px muted. */
+  --cx-hover: #f9fafb;      /* row hover */
+  --cx-line: #e5e7eb;       /* card border */
+  --cx-line-2: #d1d5db;     /* card hover border, field border */
+  --cx-divider: #f3f4f6;    /* header rule, row dividers */
+  --cx-text: #111827;       /* 17.7:1 on card */
+  --cx-text-2: #4b5563;     /* 7.6:1 on card */
+  --cx-muted: #6b7280;      /* 4.8:1 on card, 4.6:1 on canvas and hover (Chaos's #9ca3af fails) */
+  --cx-acc: #0a6fd6;        /* Meldmind blue, darkened: white on it 4.9:1; as text on white 4.9:1 */
+  --cx-acc-hover: #085bb0;  /* white on it 6.7:1 */
+  --cx-on-acc: #ffffff;
+  --cx-acc-text: #0a6fd6;   /* links / ghost hover */
+  --cx-acc-tint: #eaf3fd;
+  --cx-acc-on-tint: #085bb0; /* 0.4.26: text on the tint (#0a6fd6 on #eaf3fd is only 4.4:1; this is 6.0:1) */
+  --cx-ring: rgba(10, 111, 214, .5);
+  /* status pills: background / text (all 4.8:1 or better at 12px) */
+  --cx-gray-bg: #f3f4f6;   --cx-gray-tx: #4b5563;
+  --cx-blue-bg: #eff6ff;   --cx-blue-tx: #1d4ed8;
+  --cx-green-bg: #f0fdf4;  --cx-green-tx: #15803d;
+  --cx-amber-bg: #fffbeb;  --cx-amber-tx: #b45309;
+  --cx-orange-bg: #fff7ed; --cx-orange-tx: #c2410c;
+  --cx-purple-bg: #faf5ff; --cx-purple-tx: #7e22ce;
+  --cx-red-bg: #fef2f2;    --cx-red-tx: #b91c1c;
+  /* notice banner (Chaos amber notice) */
+  --cx-note-bg: #fffbeb; --cx-note-line: #fde68a; --cx-note-title: #78350f; --cx-note-tx: #92400e;
+  /* score text on card */
+  --cx-score-low: #b91c1c; --cx-score-mid: #b45309; --cx-score-high: #15803d;
+  /* shape, type, space */
+  --cx-r-card: 8px; --cx-r-ctl: 6px; --cx-r-pill: 999px;
+  --cx-shadow-pop: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -4px rgba(0,0,0,.1);
+  --cx-fs-h1: 1.5rem;   --cx-fw-h1: 700;   /* 24px */
+  --cx-fs-h2: 1rem;     --cx-fw-h2: 600;   /* 16px */
+  --cx-fs-kpi: 1.5rem;  --cx-fw-kpi: 700;
+  --cx-fs-body: .875rem;                   /* 14px */
+  --cx-fs-sub: .75rem;                     /* 12px */
+  --cx-pad-page: 24px; --cx-pad-tile: 20px; --cx-pad-head: 16px 20px; --cx-pad-row: 14px 20px;
+  --cx-gap: 16px; --cx-gap-section: 24px;
+}
+
+/* ---------- dark (Mac shell dark) ---------- */
+body[data-style="mac"][data-ui="expert"][data-theme="dark"] {
+  --cx-canvas: #0b0f17;
+  --cx-card: #111827;
+  --cx-sunk: #0d131f;
+  --cx-hover: #1f2937;
+  --cx-line: #1f2937;
+  --cx-line-2: #374151;
+  --cx-divider: #1a2230;
+  --cx-text: #f9fafb;       /* 17.0:1 on card */
+  --cx-text-2: #d1d5db;     /* 12.0:1 */
+  --cx-muted: #9ca3af;      /* 7.0:1 on card, 7.6:1 on canvas, 5.8:1 on hover */
+  --cx-acc: #0a6fd6;        /* white on it 4.9:1 */
+  --cx-acc-hover: #0b62bd;  /* white on it 6.0:1 (hover darkens, as in Chaos) */
+  --cx-on-acc: #ffffff;
+  --cx-acc-text: #64b5ff;   /* links / ghost hover on card 8.1:1 */
+  --cx-acc-tint: #12243d;
+  --cx-acc-on-tint: #93c5fd;
+  --cx-ring: rgba(100, 181, 255, .5);
+  --cx-gray-bg: #1f2937;   --cx-gray-tx: #d1d5db;   /* 10.0:1 */
+  --cx-blue-bg: #172846;   --cx-blue-tx: #93c5fd;   /* 8.2:1 */
+  --cx-green-bg: #14322f;  --cx-green-tx: #86efac;  /* 9.8:1 */
+  --cx-amber-bg: #332c23;  --cx-amber-tx: #fcd34d;  /* 9.6:1 */
+  --cx-orange-bg: #342624; --cx-orange-tx: #fdba74; /* 8.6:1 */
+  --cx-purple-bg: #282146; --cx-purple-tx: #d8b4fe; /* 8.5:1 */
+  --cx-red-bg: #321f2b;    --cx-red-tx: #fca5a5;    /* 8.1:1 */
+  --cx-note-bg: #2a2416; --cx-note-line: #4d3f1c; --cx-note-title: #fde68a; --cx-note-tx: #fcd34d;
+  --cx-score-low: #f87171; --cx-score-mid: #fbbf24; --cx-score-high: #4ade80;
+  --cx-shadow-pop: 0 10px 15px -3px rgba(0,0,0,.45), 0 4px 6px -4px rgba(0,0,0,.4);
+}
+
+/* Optional Chaos orange instead of Meldmind blue (both themes): white on #c2410c 5.2:1. Do not use #f97316 behind white text (2.8:1). */
+/* body[data-style="mac"][data-ui="expert"] { --cx-acc: #c2410c; --cx-acc-hover: #9a3412; --cx-acc-tint: #fff7ed; --cx-acc-on-tint: #9a3412; --cx-ring: rgba(194,65,12,.5); } */
+/* body[data-style="mac"][data-ui="expert"][data-theme="dark"] { --cx-acc-text: #fdba74; --cx-acc-tint: #342624; --cx-acc-on-tint: #fdba74; } */
+
+/* ---------- paper inside; the glass stays on the frame ---------- */
+body[data-style="mac"][data-ui="expert"] #app,
+body[data-style="mac"][data-ui="expert"].mac-noblur #app {
+  background: var(--cx-canvas);
+}
+body[data-style="mac"][data-ui="expert"] #app::before {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Re-point the classic variables inside the window, so un-restyled bits follow. This sits on the content
+   areas, not on #app, so the Talk bar and the chat dock keep exactly the values they had. */
+body[data-style="mac"][data-ui="expert"] #app #view,
+body[data-style="mac"][data-ui="expert"] #app .cx-notes,
+body[data-style="mac"][data-ui="expert"] #app .feed,
+body[data-style="mac"][data-ui="expert"] #app .strip {
+  --bg: var(--cx-canvas); --bg-2: var(--cx-card);
+  --panel: var(--cx-card); --panel-solid: var(--cx-card);
+  --line: var(--cx-line); --line-2: var(--cx-line-2);
+  --text: var(--cx-text); --muted: var(--cx-muted); --dim: var(--cx-muted);
+  --card-bg: var(--cx-card); --sunk-bg: var(--cx-sunk); --card-hover: var(--cx-hover);
+  --accent: var(--cx-acc); --accent-2: var(--cx-acc-text); --accent-soft: var(--cx-acc-tint); --focus-ring: var(--cx-acc);
+  --green: var(--cx-green-tx); --amber: var(--cx-amber-tx); --red: var(--cx-red-tx); --violet: var(--cx-purple-tx);
+  --field-bg: var(--cx-card); --field-text: var(--cx-text); --field-border: var(--cx-line-2); --field-placeholder: var(--cx-muted);
+  --radius: var(--cx-r-card);
+  color: var(--cx-text);
+  color-scheme: light;
+}
+body[data-style="mac"][data-ui="expert"][data-theme="dark"] #app #view,
+body[data-style="mac"][data-ui="expert"][data-theme="dark"] #app .cx-notes,
+body[data-style="mac"][data-ui="expert"][data-theme="dark"] #app .feed,
+body[data-style="mac"][data-ui="expert"][data-theme="dark"] #app .strip {
+  color-scheme: dark;
+}
+
+/* No blur anywhere in the content (it is opaque now, and many nested blurs cost every frame on the Arc laptop). */
+body[data-style="mac"][data-ui="expert"] #app #view *,
+body[data-style="mac"][data-ui="expert"] #app .cx-notes,
+body[data-style="mac"][data-ui="expert"] #app .cx-notes *,
+body[data-style="mac"][data-ui="expert"] #app .feed,
+body[data-style="mac"][data-ui="expert"] #app .feed *,
+body[data-style="mac"][data-ui="expert"] #app .strip,
+body[data-style="mac"][data-ui="expert"] #app .strip * {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ---------- the page ---------- */
+body[data-style="mac"][data-ui="expert"] #app #view {
+  padding: var(--cx-pad-page);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+@media (min-width: 1200px) {
+  body[data-style="mac"][data-ui="expert"] #app #view { padding: 28px 32px; }
+}
+/* Command fills the pane; with the page header on top it becomes a column so each side still scrolls on its own. */
+body[data-style="mac"][data-ui="expert"] #app #view:has(> .cmd) {
+  display: flex;
+  flex-direction: column;
+}
+body[data-style="mac"][data-ui="expert"] #app #view > .cmd {
+  flex: 1 1 0;
+  height: auto;
+  min-height: 0;
+  gap: var(--cx-gap-section);
+}
+
+/* ---------- page header (parts/inside.js puts it at the top of #view) ---------- */
+body[data-style="mac"][data-ui="expert"] #app #view > .cx-head {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 var(--cx-gap-section);
+}
+body[data-style="mac"][data-ui="expert"] #app #view > .cx-head .cx-title {
+  margin: 0;
+  font-size: var(--cx-fs-h1);
+  font-weight: var(--cx-fw-h1);
+  line-height: 1.25;
+  letter-spacing: -.01em;
+  color: var(--cx-text);
+}
+body[data-style="mac"][data-ui="expert"] #app #view > .cx-head .cx-sub {
+  margin: 4px 0 0;
+  font-size: var(--cx-fs-body);
+  color: var(--cx-muted);
+}
+body[data-style="mac"][data-ui="expert"] #app #view > .cx-head .cx-act {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+body[data-style="mac"][data-ui="expert"] #app #view > .cx-head .cx-act:empty { display: none; }
+/* The old in-page titles the header now replaces. */
+body[data-style="mac"][data-ui="expert"] #app #view:has(> .cx-head) .projects-grid > div:first-child > .row:first-child:not(:has(button, a, input, select)),
+body[data-style="mac"][data-ui="expert"] #app #view:has(> .cx-head) .lv-wrap > .row:first-child:has(> h3) {
+  display: none;
+}
+
+/* ---------- cards: .panel becomes a Chaos card ---------- */
+body[data-style="mac"][data-ui="expert"] #app #view .panel,
+body[data-style="mac"][data-ui="expert"] #app #view .pcard-set {
+  background: var(--cx-card);
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-card);
+  box-shadow: none;
+  padding: var(--cx-pad-tile);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .pcard-set { border-left: 3px solid var(--c, var(--cx-line)); }
+body[data-style="mac"][data-ui="expert"] #app #view .panel > h3 {
+  margin: 0 0 12px;
+  font-size: var(--cx-fs-h2);
+  font-weight: var(--cx-fw-h2);
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cx-text);
+}
+/* Section header row: a full-width rule under the title, as in a Chaos section card. */
+body[data-style="mac"][data-ui="expert"] #app #view .panel:not(.deliv-wait):not(.idle) > h3:first-child,
+body[data-style="mac"][data-ui="expert"] #app #view .panel:not(.deliv-wait):not(.idle) > :empty:first-child + h3 {
+  margin: calc(var(--cx-pad-tile) * -1) calc(var(--cx-pad-tile) * -1) 16px;
+  padding: var(--cx-pad-head);
+  border-bottom: 1px solid var(--cx-divider);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .panel > h3 .right {
+  font-family: var(--sans);
+  font-size: var(--cx-fs-sub);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--cx-muted);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .ops.idle > h3 { white-space: nowrap; min-width: 0; }
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .ops.idle > h3 .right { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .deliv-wait,
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .ops.idle {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+/* ---------- text ---------- */
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .muted { color: var(--cx-muted); }
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .dim { color: var(--cx-muted); }
+body[data-style="mac"][data-ui="expert"] #app #view .hint { color: var(--cx-muted); }
+body[data-style="mac"][data-ui="expert"] #app #view .mono.dim,
+body[data-style="mac"][data-ui="expert"] #app #view .mono.muted { font-family: var(--sans); font-variant-numeric: tabular-nums; }
+body[data-style="mac"][data-ui="expert"] #app #view a:not(.btn) { color: var(--cx-acc-text); }
+body[data-style="mac"][data-ui="expert"] #app #view label.lbl {
+  font-size: var(--cx-fs-sub);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cx-muted);
+  margin: 12px 0 6px;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .md h3 { color: var(--cx-acc-text); }
+
+/* ---------- buttons ---------- */
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn {
+  min-height: 2rem;
+  padding: 5px 12px;
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-ctl);
+  background: var(--cx-card);
+  color: var(--cx-text-2);
+  font-size: var(--cx-fs-body);
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: none;
+  filter: none;
+  transition: background-color .15s, border-color .15s, color .15s, transform .1s;
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn:hover {
+  background: var(--cx-hover);
+  border-color: var(--cx-line-2);
+  color: var(--cx-text);
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn.sm {
+  min-height: 1.75rem;
+  padding: 3px 10px;
+  font-size: .8rem;
+  border-radius: var(--cx-r-ctl);
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) :is(.btn.primary, #go),
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn.primary:hover {
+  background: var(--cx-acc);
+  border-color: var(--cx-acc);
+  color: var(--cx-on-acc);
+  filter: none;
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) :is(.btn.primary, #go):hover:not(:disabled) {
+  background: var(--cx-acc-hover);
+  border-color: var(--cx-acc-hover);
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn.danger {
+  background: var(--cx-card);
+  border-color: color-mix(in srgb, var(--cx-red-tx) 35%, var(--cx-card));
+  color: var(--cx-red-tx);
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn.danger:hover { background: var(--cx-red-bg); }
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn.done { border-color: var(--cx-green-tx); }
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn.on {
+  background: var(--cx-acc-tint);
+  border-color: var(--cx-acc);
+  color: var(--cx-acc-on-tint);
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) :is(.ghost, button.ghost) {
+  background: transparent;
+  border: 0;
+  color: var(--cx-muted);
+  transition: color .15s;
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) :is(.ghost, button.ghost):hover { color: var(--cx-acc-text); }
+/* "Open live view" in the Live ops card reads as the Chaos "View All" link. */
+body[data-style="mac"][data-ui="expert"] #app #view .ops .lv-ops-foot .btn {
+  border-color: transparent;
+  background: transparent;
+  color: var(--cx-muted);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .ops .lv-ops-foot .btn::after { content: " \2192"; }
+body[data-style="mac"][data-ui="expert"] #app #view .ops .lv-ops-foot .btn:hover { color: var(--cx-acc-text); background: transparent; }
+
+/* ---------- pills, filter chips, tables, empty state ---------- */
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .chip {
+  padding: 2px 8px;
+  border: 0;
+  border-radius: var(--cx-r-pill);
+  background: var(--cx-gray-bg);
+  color: var(--cx-gray-tx);
+  font-family: var(--sans);
+  font-size: var(--cx-fs-sub);
+  font-weight: 500;
+  line-height: 1.4;
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .chip.green { background: var(--cx-green-bg); color: var(--cx-green-tx); }
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .chip.amber { background: var(--cx-amber-bg); color: var(--cx-amber-tx); }
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .chip.red { background: var(--cx-red-bg); color: var(--cx-red-tx); }
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .chip.violet { background: var(--cx-purple-bg); color: var(--cx-purple-tx); }
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .chip.blue { background: var(--cx-blue-bg); color: var(--cx-blue-tx); }
+body[data-style="mac"][data-ui="expert"] #app #view .sig { font-weight: 500; font-size: var(--cx-fs-sub); }
+body[data-style="mac"][data-ui="expert"] #app #view .sig.ok { background: var(--cx-green-bg); color: var(--cx-green-tx); }
+body[data-style="mac"][data-ui="expert"] #app #view :is(.sig.low, .sig.attention) { background: var(--cx-red-bg); color: var(--cx-red-tx); }
+body[data-style="mac"][data-ui="expert"] #app #view .sig.renewing { background: var(--cx-amber-bg); color: var(--cx-amber-tx); }
+
+body[data-style="mac"][data-ui="expert"] #app #view .seg {
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .seg button {
+  padding: 4px 10px;
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-ctl);
+  background: var(--cx-card);
+  color: var(--cx-text-2);
+  font-size: var(--cx-fs-sub);
+  font-weight: 500;
+  transition: border-color .15s, color .15s, background-color .15s;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .seg button:hover {
+  border-color: color-mix(in srgb, var(--cx-acc) 40%, var(--cx-line));
+  color: var(--cx-acc-text);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .seg button.on {
+  background: var(--cx-acc);
+  border-color: var(--cx-acc);
+  color: var(--cx-on-acc);
+}
+
+body[data-style="mac"][data-ui="expert"] #app #view table.tbl { font-size: var(--cx-fs-body); }
+body[data-style="mac"][data-ui="expert"] #app #view table.tbl th {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--cx-line);
+  color: var(--cx-muted);
+  font-size: var(--cx-fs-sub);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+body[data-style="mac"][data-ui="expert"] #app #view table.tbl td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--cx-divider);
+}
+body[data-style="mac"][data-ui="expert"] #app #view table.tbl tr:hover td { background: var(--cx-hover); }
+
+body[data-style="mac"][data-ui="expert"] #app #view .empty {
+  padding: 40px 16px;
+  border: 0;
+  border-radius: var(--cx-r-card);
+  color: var(--cx-muted);
+  font-size: var(--cx-fs-body);
+}
+
+/* ---------- typing fields and the focus ring ---------- */
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image]):not([type=hidden]), select, textarea) {
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-r-ctl);
+  background-color: var(--cx-card);
+  color: var(--cx-text);
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes) :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=button]):not([type=submit]):not([type=reset]):not([type=image]):not([type=hidden]), select) {
+  min-height: 2.25rem;
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes) :is(input, select, textarea, [contenteditable]):focus {
+  border-color: var(--cx-acc);
+  box-shadow: 0 0 0 3px var(--cx-ring);
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) :where(button, a, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 3px solid var(--cx-ring);
+  outline-offset: 1px;
+}
+body[data-style="mac"][data-ui="expert"] #app #view :is(input, textarea)::placeholder { color: var(--cx-muted); }
+
+/* ---------- KPI tiles (Credits, Subscriptions) ---------- */
+body[data-style="mac"][data-ui="expert"] #app #view .kpi {
+  gap: var(--cx-gap);
+  /* Four across when each tile gets at least 12.5rem, else two across (never three plus one). */
+  grid-template-columns: repeat(auto-fill, minmax(clamp(calc((100% - 3 * var(--cx-gap)) / 4), calc((12.5rem - (100% - 3 * var(--cx-gap)) / 4) * 1000), calc((100% - var(--cx-gap)) / 2)), 1fr));
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k {
+  position: relative;
+  min-width: 0;
+  padding: var(--cx-pad-tile);
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-card);
+  background: var(--cx-card);
+  box-shadow: none;
+  transition: border-color .15s;
+  --cx-k-bg: var(--cx-blue-bg);
+  --cx-k-tx: var(--cx-blue-tx);
+  --cx-k-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'/%3E%3C/svg%3E");
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k:hover { border-color: var(--cx-line-2); }
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k:nth-child(4n+2) {
+  --cx-k-bg: var(--cx-green-bg);
+  --cx-k-tx: var(--cx-green-tx);
+  --cx-k-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E");
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k:nth-child(4n+3) {
+  --cx-k-bg: var(--cx-orange-bg);
+  --cx-k-tx: var(--cx-orange-tx);
+  --cx-k-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m17 2 4 4-4 4'/%3E%3Cpath d='M3 11v-1a4 4 0 0 1 4-4h14'/%3E%3Cpath d='m7 22-4-4 4-4'/%3E%3Cpath d='M21 13v1a4 4 0 0 1-4 4H3'/%3E%3C/svg%3E");
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k:nth-child(4n) {
+  --cx-k-bg: var(--cx-purple-bg);
+  --cx-k-tx: var(--cx-purple-tx);
+  --cx-k-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2'/%3E%3Ccircle cx='9' cy='9' r='2'/%3E%3Cpath d='m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21'/%3E%3C/svg%3E");
+}
+/* The 40px tinted square and its 20px icon, top right. */
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k::before,
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k::before {
+  top: var(--cx-pad-tile);
+  right: var(--cx-pad-tile);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--cx-r-card);
+  background: var(--cx-k-bg);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k::after {
+  top: calc(var(--cx-pad-tile) + 10px);
+  right: calc(var(--cx-pad-tile) + 10px);
+  width: 20px;
+  height: 20px;
+  background: var(--cx-k-tx);
+  -webkit-mask: var(--cx-k-icon) center / 20px 20px no-repeat;
+  mask: var(--cx-k-icon) center / 20px 20px no-repeat;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k .l,
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k .v {
+  padding-right: 52px;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k .l {
+  font-size: var(--cx-fs-body);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cx-muted);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k .v {
+  margin-top: 4px;
+  font-family: var(--sans);
+  font-size: var(--cx-fs-kpi);
+  font-weight: var(--cx-fw-kpi);
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: var(--cx-text);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k .v .dim { font-weight: 500; color: var(--cx-muted); }
+body[data-style="mac"][data-ui="expert"] #app #view .kpi .k .s {
+  margin-top: 4px;
+  font-size: var(--cx-fs-sub);
+  color: var(--cx-muted);
+}
+/* Bars and the skill grid sit in a sunk well. */
+body[data-style="mac"][data-ui="expert"] #app #view .sparks {
+  padding: 6px 6px 0;
+  border-radius: var(--cx-r-ctl);
+  background: var(--cx-sunk);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .sparks i { background: color-mix(in srgb, var(--cx-acc) 70%, transparent); }
+body[data-style="mac"][data-ui="expert"] #app #view .skillgrid .cell {
+  background: var(--cx-sunk) !important; /* themes.js uses !important here */
+  color: var(--cx-text) !important;
+  font-family: var(--sans);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .skillgrid .cell[style*="#113b3a"] {
+  background: var(--cx-green-bg) !important;
+  color: var(--cx-green-tx) !important;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .skillgrid .hd { color: var(--cx-text-2); }
+
+/* ---------- Command ---------- */
+body[data-style="mac"][data-ui="expert"] #app #view .cmd-side { gap: var(--cx-gap); }
+body[data-style="mac"][data-ui="expert"] #app #view .graph-wrap {
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-card);
+  background: var(--cx-sunk);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .graph-wrap .node-label { fill: var(--cx-text); }
+body[data-style="mac"][data-ui="expert"] #app #view .graph-wrap .node-sub { fill: var(--cx-text-2); }
+body[data-style="mac"][data-ui="expert"] #app #view .graph-wrap .edge { stroke: var(--cx-line-2); }
+body[data-style="mac"][data-ui="expert"] #app #view .task {
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-card);
+  background: var(--cx-card);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .task .who,
+body[data-style="mac"][data-ui="expert"] #app #view .task .cost { font-family: var(--sans); color: var(--cx-muted); }
+body[data-style="mac"][data-ui="expert"] #app #view .task .bar { background: var(--cx-sunk); }
+body[data-style="mac"][data-ui="expert"] #app #view .route {
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-card);
+  background: var(--cx-card);
+}
+
+/* One notice row: the Finish, Momentum and Project tools bars, gathered by parts/inside.js into .cx-notes.
+   0.4.26 polish: the three bars no longer draw boxes of their own (display: contents), so their buttons flow as one
+   run of small chips and the row fits on one or two lines at 1440 wide instead of three or four. Nothing is hidden:
+   every bar keeps all its controls, and their order stays Finish, Momentum, Project tools. */
+body[data-style="mac"][data-ui="expert"] #app .cx-notes {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 4px;
+  margin: 16px var(--cx-pad-page) 0;
+  padding: 6px 10px;
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-card);
+  background: var(--cx-card);
+  font-size: var(--cx-fs-sub);
+}
+@media (min-width: 1200px) {
+  body[data-style="mac"][data-ui="expert"] #app .cx-notes { margin: 20px 32px 0; }
+}
+body[data-style="mac"][data-ui="expert"] #app .cx-notes:empty { display: none; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > :is(.fp-bar, .mm-bar, .projbar):not([hidden]) { display: contents; }
+/* The bars' children are the row's items now. Finish first, then Momentum, then the project tools
+   (the order the bars were added in varies). */
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > .fp-bar > * { order: 1; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > .mm-bar > * { order: 2; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > .projbar > *,
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > .projbar .pb-tools > * { order: 3; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes .projbar .pb-tools { display: contents; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes > :is(.fp-bar, .mm-bar, .projbar) > * { min-width: 0; margin: 0; }
+/* Whole-line extras (Why these, Pick up where you left off, Tune, the Finish cards) still take a line of their own. */
+body[data-style="mac"][data-ui="expert"] #app .cx-notes :is(.mm-why, .mm-resume, .mm-owner, .fp-card, .fp-pair) { flex: 1 0 100%; }
+/* A thin rule before each group label stands in for the bar edges. */
+body[data-style="mac"][data-ui="expert"] #app .cx-notes :is(.pb-lbl, .mm-label) {
+  color: var(--cx-muted);
+  font-size: var(--cx-fs-sub);
+  white-space: nowrap;
+  margin: 0 2px 0 6px;
+  padding-left: 10px;
+  border-left: 1px solid var(--cx-line);
+}
+/* No rule in front of whichever group comes first. */
+body[data-style="mac"][data-ui="expert"] #app .cx-notes:not(:has(> .fp-bar)) > .mm-bar > .mm-label,
+body[data-style="mac"][data-ui="expert"] #app .cx-notes:not(:has(> .fp-bar, > .mm-bar)) > .projbar > .pb-lbl { margin-left: 0; padding-left: 0; border-left: 0; }
+/* Small chips. ":is(#view, .cx-notes, .feed).cx-notes" matches only the notice row; it carries the same weight as the
+   shared button rules above (which name #view), so these sizes win over .btn.sm there. */
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed).cx-notes :is(.btn, .btn.sm) {
+  min-height: 1.5rem;
+  padding: 1px 7px;
+  font-size: var(--cx-fs-sub);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+body[data-style="mac"][data-ui="expert"] #app .cx-notes .fp-bar .fp-finish { margin-left: 0; }
+body[data-style="mac"][data-ui="expert"] #app .cx-notes .fp-bar .fp-pill { order: 1; padding: 1px 8px; font-size: var(--cx-fs-sub); }
+
+/* The Expert setup notice in the notice strip under the title bar: the Chaos amber notice. */
+body[data-style="mac"][data-ui="expert"] #mac-notices .dock-card {
+  border: 1px solid var(--cx-note-line);
+  border-radius: var(--cx-r-card);
+  background: var(--cx-note-bg);
+  color: var(--cx-note-tx);
+}
+body[data-style="mac"][data-ui="expert"] #mac-notices .dock-card b { color: var(--cx-note-title); }
+body[data-style="mac"][data-ui="expert"] #mac-notices .dock-card .btn.primary {
+  border-color: var(--cx-acc);
+  background: var(--cx-acc);
+  color: var(--cx-on-acc);
+  filter: none;
+}
+body[data-style="mac"][data-ui="expert"] #mac-notices .dock-card :is(.ghost, button.ghost) { color: var(--cx-note-tx); }
+
+/* ---------- Projects: Chaos client-row cards ---------- */
+body[data-style="mac"][data-ui="expert"] #app #view .pcards {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .pcard {
+  position: relative;
+  padding: 16px 48px 16px 68px;
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-card);
+  background: var(--cx-card);
+  box-shadow: none;
+  transition: border-color .15s, background-color .15s;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .pcard:hover {
+  transform: none;
+  border-color: color-mix(in srgb, var(--cx-acc) 35%, var(--cx-line));
+  background: color-mix(in srgb, var(--cx-acc-tint) 30%, var(--cx-card));
+}
+body[data-style="mac"][data-ui="expert"] #app #view .pcard::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid var(--cx-muted);
+  border-right: 2px solid var(--cx-muted);
+  transform: translate(0, -50%) rotate(45deg);
+  transition: transform .15s;
+  pointer-events: none;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .pcard:hover::after { transform: translate(2px, -50%) rotate(45deg); }
+body[data-style="mac"][data-ui="expert"] #app #view .pcard > .cx-av {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--cx-r-card);
+  background: color-mix(in srgb, var(--c, var(--cx-acc)) 12%, var(--cx-card));
+  color: color-mix(in srgb, var(--c, var(--cx-acc)) 35%, var(--cx-text)); /* 5:1 or better for any project colour, white and black included */
+  font-size: var(--cx-fs-body);
+  font-weight: 700;
+  line-height: 1;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .pcard h4 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 2px;
+  font-size: var(--cx-fs-body);
+  font-weight: 600;
+  color: var(--cx-text);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .pcard:hover h4 { color: var(--cx-acc-text); }
+body[data-style="mac"][data-ui="expert"] #app #view .pcard .small { font-size: var(--cx-fs-sub); }
+body[data-style="mac"][data-ui="expert"] #app #view .pcard .cats { margin-top: 8px; }
+
+/* Recent runs and other plain rows in a card: Chaos list rows. */
+/* The rows set their padding and rule inline (var(--line), already re-pointed); only the hover is added. */
+body[data-style="mac"][data-ui="expert"] #app #view .panel [data-run] {
+  border-radius: var(--cx-r-ctl);
+  transition: background-color .15s;
+}
+body[data-style="mac"][data-ui="expert"] #app #view .panel [data-run]:hover { background: var(--cx-hover); }
+
+/* ---------- Live view ---------- */
+body[data-style="mac"][data-ui="expert"] #app #view .lv-picks { gap: 6px; }
+body[data-style="mac"][data-ui="expert"] #app #view .lv-picks .btn.on {
+  background: var(--cx-acc);
+  border-color: var(--cx-acc);
+  color: var(--cx-on-acc);
+}
+body[data-style="mac"][data-ui="expert"] #app #view .lv-free-head b { font-size: var(--cx-fs-h2); font-weight: 600; }
+
+/* ---------- live feed (inside #app, right) ---------- */
+body[data-style="mac"][data-ui="expert"] #app .feed {
+  border: 0;
+  border-left: 1px solid var(--cx-line);
+  border-radius: 0;
+  background: var(--cx-card);
+  box-shadow: none;
+}
+body[data-style="mac"][data-ui="expert"] #app .feed .feed-head {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--cx-divider);
+  color: var(--cx-text);
+  font-size: var(--cx-fs-body);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+body[data-style="mac"][data-ui="expert"] #app .feed .feed-list {
+  gap: 0;
+  padding: 0;
+}
+body[data-style="mac"][data-ui="expert"] #app .feed .ev {
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--cx-divider);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: background-color .15s;
+}
+body[data-style="mac"][data-ui="expert"] #app .feed .ev:hover { background: var(--cx-hover); }
+body[data-style="mac"][data-ui="expert"] #app .feed .ev .who { font-size: var(--cx-fs-sub); font-weight: 600; letter-spacing: 0; }
+body[data-style="mac"][data-ui="expert"] #app .feed .ev .txt { color: var(--cx-text-2); }
+body[data-style="mac"][data-ui="expert"] #app .feed .ev.err .txt { color: var(--cx-red-tx); }
+body[data-style="mac"][data-ui="expert"] #app .feed .ev .t {
+  font-family: var(--sans);
+  font-size: .6875rem;
+  color: var(--cx-muted);
+}
+/* The AI names keep their own colour; on paper it is darkened so it stays readable (the bar keeps the full colour). */
+body[data-style="mac"][data-ui="expert"]:not([data-theme="dark"]) #app :is(.feed .ev .who, #view .task-follow .who) {
+  filter: brightness(.5) saturate(1.3);
+}
+
+/* ---------- AI status strip: colour only (layout stays as it is, above the dock) ---------- */
+body[data-style="mac"][data-ui="expert"] #app .strip {
+  border-top: 1px solid var(--cx-line);
+  background: var(--cx-canvas);
+  box-shadow: none;
+}
+body[data-style="mac"][data-ui="expert"] #app .strip .tile {
+  border: 1px solid var(--cx-line);
+  border-radius: var(--cx-r-card);
+  background: var(--cx-card);
+  box-shadow: none;
+}
+body[data-style="mac"][data-ui="expert"] #app .strip .tile:hover { border-color: var(--cx-line-2); }
+body[data-style="mac"][data-ui="expert"] #app .strip .tile.active { box-shadow: 0 0 0 1px var(--c, var(--cx-acc)) inset; }
+body[data-style="mac"][data-ui="expert"] #app .strip .tile.active::after { border-radius: var(--cx-r-card); }
+body[data-style="mac"][data-ui="expert"] #app .strip .tile .light { box-shadow: none; }
+body[data-style="mac"][data-ui="expert"] #app .strip .tile .name { color: var(--cx-text); }
+body[data-style="mac"][data-ui="expert"] #app .strip .tile .sub { color: var(--cx-muted); }
+body[data-style="mac"][data-ui="expert"] #app .strip .tile .meter { background: var(--cx-sunk); }
+/* 0.4.26 polish: the sub line and the status label use Inter (no monospace inside). On paper the label takes a darkened
+   mix of its AI colour (5:1 or better for any colour) and the sub line the body grey (7.6:1), instead of a filter. */
+body[data-style="mac"][data-ui="expert"] #app .strip .tile :is(.sub, .badge) {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #app .strip .tile .sub { color: var(--cx-text-2); }
+body[data-style="mac"][data-ui="expert"][data-theme="light"] #app .strip .tile .badge {
+  filter: none;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--c, var(--cx-acc)) 35%, var(--cx-text));
+}
+
+/* ---------- motion: fade in when the page changes, small hover moves ---------- */
+@keyframes cx-fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+body[data-style="mac"][data-ui="expert"] #app #view[data-cx-enter] > * {
+  animation: cx-fade-in-up .3s ease-out both;
+}
+body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn:active:not(:disabled) { transform: translateY(1px); }
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="mac"][data-ui="expert"] #app #view[data-cx-enter] > * { animation: none; }
+  body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed, .strip) :is(.btn, .pcard, .pcard::after, .kpi .k, .seg button, .ev, .tile, [data-run]) { transition: none; }
+  body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn:active { transform: none; }
+  body[data-style="mac"][data-ui="expert"] #app #view .pcard:hover::after { transform: translate(0, -50%) rotate(45deg); }
+}
+/* The Light mode setting (calmer screen) turns the motion off too. */
+body.light-mode[data-style="mac"][data-ui="expert"] #app #view[data-cx-enter] > * { animation: none; }

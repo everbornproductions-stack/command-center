@@ -11,4 +11,5 @@ export const PARTS = [
   "runbar",     // Expert run bar: run mode, priority, when, free only
   "liveops",    // Live Ops screen, Simple "AIs working" bars and "Show steps"
   "panel",      // the advanced settings panel that slides in from the right
+  "inside",     // 0.4.26: Chaos-style paper inside the Expert window (page header, cards, KPI tiles, one notice row)
 ];
