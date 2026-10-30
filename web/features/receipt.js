@@ -106,6 +106,42 @@ function mountBar() {
   host.prepend(el);
 }
 
+// 0.4.28 (Chris): the Mac look hides the classic top bar, so "You saved" vanished from view. A compact copy sits in
+// the Mac title bar next to the "ready" pill: this month's savings, all time in the tip, a click opens Credits.
+function mountMacSaved() {
+  const bar = document.getElementById("mac-titlebar");
+  if (!bar || document.getElementById("cc-money-saved-mac")) return;
+  if (!document.getElementById("cc-ms-mac-css")) {
+    const st = document.createElement("style");
+    st.id = "cc-ms-mac-css";
+    st.textContent = `#cc-money-saved-mac{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:4px 10px;min-height:26px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;background:rgba(22,163,74,.14);color:#15803d}
+body[data-theme="dark"] #cc-money-saved-mac{background:rgba(74,222,128,.14);color:#86efac}
+#cc-money-saved-mac:focus-visible{outline:2px solid var(--mac-acc,#0a84ff);outline-offset:2px}
+@media (max-width:760px){#cc-money-saved-mac .cc-msm-when{display:none}}`;
+    document.head.appendChild(st);
+  }
+  const b = document.createElement("button");
+  b.type = "button";
+  b.id = "cc-money-saved-mac";
+  b.innerHTML = `<span aria-hidden="true">$</span><span>Saved <b data-cc-ms="month">$0.00</b></span><span class="cc-msm-when">this month</span>`;
+  b.title = `All time $0.00. ${SAVED_TIP}`;
+  b.setAttribute("aria-label", "You saved $0.00 this month. All time $0.00. Estimate. Opens Credits.");
+  b.addEventListener("click", () => { try { window.CC.go?.("credits"); } catch {} });
+  const ready = document.getElementById("mac-ready");
+  if (ready) ready.before(b); else bar.appendChild(b);
+  if (macLast) paintMacSaved(macLast.month, macLast.all);
+}
+let macLast = null;
+function paintMacSaved(month, all) {
+  macLast = { month, all };
+  const b = document.getElementById("cc-money-saved-mac");
+  if (!b) return;
+  const mv = b.querySelector("[data-cc-ms='month']");
+  if (mv) mv.textContent = month;
+  b.title = `All time ${all}. ${SAVED_TIP}`;
+  b.setAttribute("aria-label", `You saved ${month} this month. All time ${all}. Estimate. Opens Credits.`);
+}
+
 window.addEventListener("resize", placeSavedTip);
 window.addEventListener("scroll", placeSavedTip, true);
 
@@ -114,10 +150,11 @@ function savedMoney(n) {
   return money(v, v !== 0 && Math.abs(v) < 0.01 ? 4 : 2);
 }
 function paintBar(monthSaved, allSaved) {
-  const el = document.getElementById("cc-money-saved");
-  if (!el) return;
   const month = savedMoney(monthSaved);
   const all = savedMoney(allSaved);
+  paintMacSaved(month, all);
+  const el = document.getElementById("cc-money-saved");
+  if (!el) return;
   const mv = el.querySelector("[data-cc-ms='month']");
   const av = el.querySelector("[data-cc-ms='all']");
   if (mv) mv.textContent = month;
@@ -128,6 +165,7 @@ function paintBar(monthSaved, allSaved) {
 
 async function refreshBar() {
   mountBar();
+  mountMacSaved();
   const now = Date.now();
   if (now - barAt < 4000 && document.getElementById("cc-money-saved")?.dataset.ready === "1") return;
   barAt = now;
@@ -255,6 +293,11 @@ const barBoot = setInterval(() => {
   barTries += 1;
   refreshBar();
 }, 1500);
+
+// 0.4.28: the Mac title bar can be built (or rebuilt on a look change) after the boot loop above has stopped
+const macWatch = new MutationObserver(() => { if (document.getElementById("mac-titlebar") && !document.getElementById("cc-money-saved-mac")) mountMacSaved(); });
+macWatch.observe(document.body, { childList: true, subtree: true });
+mountMacSaved();
 
 CC.register({
   id: "receipt",
