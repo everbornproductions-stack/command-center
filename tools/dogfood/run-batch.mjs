@@ -44,6 +44,8 @@ async function api(p, { method = "GET", body } = {}) {
 }
 
 const MEDIA_ROOTS = [path.join(process.env.APPDATA || "", "Everborn Command", "data", "projects")];
+// the app never overwrites, so a second run saves name-2.ext: accept that too
+const sameName = (got, want) => { const g = got.toLowerCase(), w = want.toLowerCase(); if (g === w) return true; const i = w.lastIndexOf("."); const base = w.slice(0, i), ext = w.slice(i); if (!g.endsWith(ext) || !g.startsWith(base + "-")) return false; return /^\d+$/.test(g.slice(base.length + 1, g.length - ext.length)); };
 function findOutput(name, dir, since) {
   const direct = path.join(dir, name);
   if (fs.existsSync(direct)) return { path: direct, where: "asked folder" };
@@ -56,7 +58,7 @@ function findOutput(name, dir, since) {
       for (const e of ents) {
         const p = path.join(d, e.name);
         if (e.isDirectory()) stack.push(p);
-        else if (e.name.toLowerCase() === name.toLowerCase() && fs.statSync(p).mtimeMs >= since) {
+        else if (sameName(e.name, name) && fs.statSync(p).mtimeMs >= since) {
           fs.copyFileSync(p, direct);
           return { path: direct, where: `app media folder (${path.relative(root, p)})` };
         }
