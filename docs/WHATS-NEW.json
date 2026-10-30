@@ -1,4 +1,12 @@
 {
+  "0.4.26": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Expert mode has a cleaner, Chaos-style look: each page has a title, money tiles with icons, and projects and runs show as tidy rows.",
+      "In the light look the whole Expert window is light, including the chat bar, the Talk bar and the sidebar search.",
+      "The Command page keeps its tools in one short notice row instead of four stacked bars."
+    ]
+  },
   "0.4.25": {
     "title": "What's new in Meldmind",
     "bullets": [

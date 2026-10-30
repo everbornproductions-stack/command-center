@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.25
+lastUpdatedVersion: 0.4.26
 ---
 
 # Getting started
@@ -192,3 +192,7 @@ A new helper persona, Rin, tests how the menus and buttons feel. The Missions, C
 ## Simple, Expert and easier to read text (0.4.25)
 
 A project can keep its own Simple or Expert setting. When it differs from the rest of the app, a note says so with a button to use one mode everywhere. Text is easier to read in the light and dark looks, and notice bars and buttons are no longer hidden under the window header or the bottom bars.
+
+## The Expert look (0.4.26)
+
+Expert mode has a cleaner, Chaos-style look. Each page has a title at the top, money tiles with icons on Credits and Subscriptions, and projects and runs show as tidy rows. In the light look the whole Expert window is light, including the chat bar, the Talk bar and the sidebar search. The Command page keeps its tools in one short notice row instead of four stacked bars. The sidebar and the bottom dock are the same as before.
