@@ -54,6 +54,7 @@ import { namedSources, attachSources, sourceBlock, projectFolders, namedFolders,
 import { cleanPlan, stripPrivateRules } from "./private-rules.js";
 import { ownerRuleOpts } from "./private-rules-owner.js";
 import { safeMediaDir } from "./project-media.js";
+import { pickReviewers, qaExcerpt, parseVerdict, QA_MAX_TOKENS } from "./qa-pick.js";
 
 // ---- Never-say-no planner workaround chain (Slice A5, Item 9) ----
 // Order: 1. installed_app -> 2. browser_helper -> 3. smaller_steps -> 4. closest_option.
@@ -1389,14 +1390,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     // QA: a reviewer gets 60 seconds, then the next one. A reply that is not JSON is asked for once more, then the reviewer is switched.
     // A check that could not be done is never a pass.
     const QA_MS = () => Number(process.env.CC_QA_TIMEOUT_MS) || 60000;
-    const qaReviewers = (t, skip = []) => {
-      const ranked = openRank({ capability: "analysis", difficulty: 2, mode: looking, exclude: [t.model], small: true });
-      const seen = new Set();
-      let list = ranked.filter((m) => m.provider !== t.provider && !skip.includes(m.provider) && !seen.has(m.provider) && seen.add(m.provider)).slice(0, 3);
-      if (!list.length) list = ranked.filter((m) => !skip.includes(m.provider)).slice(0, 1);
-      if (!list.length) list = openRank({ capability: "analysis", mode: looking, small: true }).slice(0, 1);
-      return list;
-    };
+    const qaReviewers = (t, skip = []) => pickReviewers(openRank, { mode: looking, taskProvider: t.provider, taskModel: t.model, skip }); // 0.4.27: fast API reviewers, agents last (server/qa-pick.js)
     const askReviewer = async (t, reviewer, text, { fix = false } = {}) => {
       const ragent = `${id}:${t.id}:qa`;
       emit("agent.msg", { from: t.provider, to: reviewer.provider, missionId: id, text: `QA "${t.title}"` });
@@ -1408,13 +1402,13 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       const s3 = Date.now();
       try {
         for (let attempt = 0; attempt < 2; attempt++) {
-          const r = await completeFallback({ allowStandIn: true, provider: reviewer.provider, model: reviewer.model, maxTokens: 500, signal: to.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}${attempt ? " Your last reply was not valid JSON. Reply with the JSON object and nothing else." : ""}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}${memNote}\n\nOUTPUT TO CHECK:\n${text.slice(0, 12000)}` }] },
+          const r = await completeFallback({ allowStandIn: true, provider: reviewer.provider, model: reviewer.model, maxTokens: QA_MAX_TOKENS, signal: to.signal, system: `You QA another AI's deliverable. Reply with JSON only: {"pass": true|false, "score": 1-10, "issues": ["<=15 words each", ...], "fix": "if not pass, the single most important correction in <=40 words"}${attempt ? " Your last reply was not valid JSON. Reply with the JSON object and nothing else." : ""}`, messages: [{ role: "user", content: `TASK: ${t.title}\nINSTRUCTIONS: ${t.instructions}\nDELIVERABLE REQUIRED: ${t.deliverable}${memNote}\n\nOUTPUT TO CHECK:\n${qaExcerpt(text)}` }] },
             { missionId: id, taskId: t.id, role: "qa", small: true, tools: false, cls: { capability: "analysis", difficulty: 2 }, mode: looking, avoid: [{ provider: t.provider, model: t.model }, ...held], skipProviders: skipSet, onTrouble: runTrouble }, { onFallback: (ev) => stoodIn(ev, ragent, "qa", t.id) });
           const ms = Date.now() - s3;
           noteCall(r.provider, true, ms);
           const e = recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, taskId: t.id, role: "qa", ms });
           spend(e); t.cost = +(t.cost + e.cost).toFixed(5);
-          const j = extractJson(r.text);
+          const j = parseVerdict(r.text);
           if (j && typeof j === "object" && ("pass" in j || "score" in j)) {
             emit("agent.done", { agent: ragent, provider: r.provider, model: r.model, missionId: id, taskId: t.id, ms, cost: e.cost });
             const score = Number(j.score);

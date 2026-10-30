@@ -10,7 +10,7 @@
 //  - Ollama / LM Studio are found by probing localhost (short timeout) and added without typing.
 //  - what every result shows: which AI did the step, what it cost, and why a step was handed off.
 // Nothing here prints or stores a key. Probes and balance calls use the injectable fetch so tests never touch a network.
-import { PROVIDERS } from "./registry.js";
+import { PROVIDERS, isLiteModel } from "./registry.js";
 import { hasSecret, getSecret } from "./vault.js";
 import { doc, putDoc, currentUserId } from "./store.js";
 import { FREE_TIERS, fallbackSettings, trouble, markTrouble, modelTrouble } from "./fallback.js";
@@ -142,7 +142,8 @@ export function localUp(pid) {
 // ---------- last resort ----------
 // Free AIs that are connected and not already tried, best first. These hops do not count against maxHops.
 // freeOnly drops the subscription apps and Grok Bot. Coding jobs put Claude Code first among the apps.
-export function lastResortChoices({ tried = [], cls = {}, freeOnly = freeOnlyOn() } = {}) {
+// longOutput (0.4.27): a long build tries the bigger free models before the lite ones.
+export function lastResortChoices({ tried = [], cls = {}, freeOnly = freeOnlyOn(), longOutput = false } = {}) {
   const out = [];
   const used = (pid, model) => tried.some((t) => t.provider === pid && t.model === model);
   const add = (pid, model, name, why, extra = {}) => {
@@ -156,7 +157,8 @@ export function lastResortChoices({ tried = [], cls = {}, freeOnly = freeOnlyOn(
     const tier = FREE_TIERS[pid];
     if (!tier || !settings.freeTiers[pid]?.on || !keyed(pid) || trouble(pid) || describePause(pid)) continue;
     // gpt-oss-120b, then the first free Gemini Flash that is not on a cooldown, then openrouter/free
-    const order = pid === "groq" ? [...tier.models].reverse() : tier.models;
+    let order = pid === "groq" ? [...tier.models].reverse() : tier.models;
+    if (longOutput) order = [...order.filter((m) => !isLiteModel(m)), ...order.filter((m) => isLiteModel(m))];
     const model = order.find((m) => !used(pid, m) && !modelTrouble(pid, m));
     if (!model) continue;
     add(pid, model, `${nameOf(pid)} free`, "built-in free AI");
@@ -179,8 +181,11 @@ export function lastResortChoices({ tried = [], cls = {}, freeOnly = freeOnlyOn(
   return out;
 }
 // Cross-provider choices ahead of the paid ones, for the normal (counted) hops: a coding job reaches Claude Code first.
-export function planFirstForCode({ tried = [], cls = {}, freeOnly = freeOnlyOn() } = {}) {
+// 0.4.27 (dogfood 2026-10-30): in Max savings and Speed a code step that only writes text goes to the fast free
+// models first; Claude Code (a slow agent run) is first only when the step needs its tools.
+export function planFirstForCode({ tried = [], cls = {}, freeOnly = freeOnlyOn(), mode = "balanced", needTools = false } = {}) {
   if (freeOnly || cls.capability !== "code" || fallbackSettings().subscriptions === false) return null;
+  if (!needTools && (mode === "savings" || mode === "economy" || mode === "speed")) return null;
   try {
     const r = readyPlanRoutes().find((x) => x.id === "claude-code" && !outOfQuota(x.id));
     if (!r) return null;

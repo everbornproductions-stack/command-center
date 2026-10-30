@@ -2,7 +2,7 @@
 // Score = learned capability (baseline + what the council taught us) minus a cost penalty
 // whose weight depends on the mode. Providers that are red or have no key are excluded.
 // With a track record for the task type (server/brain.js, Phase 28) quality, cost and speed come from it.
-import { CAPABILITIES, PROVIDERS, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice, findModel } from "./registry.js";
+import { CAPABILITIES, PROVIDERS, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice, findModel, isLiteModel, isLongOutputJob } from "./registry.js";
 import { demosHidden, realAiCanAnswer } from "./demo-visibility.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc, ctx } from "./store.js";
@@ -12,13 +12,56 @@ import { troubled, troubledModels, modelKey, freeNow, completeFallback } from ".
 import { adjust } from "./brain.js";
 import { describePause } from "./pause.js";
 import { unconnectedMcp } from "./provider-access.js";
-import { planOf, applyPreferFree, readPreferFree, applyPlanFirst } from "./plans.js";
+import { planOf, applyPreferFree, readPreferFree, readPlanFirst } from "./plans.js";
 import { bestModelEach, costWeight, normalizeMode, speedBoost } from "./modes.js";
 import { applyLocalFirst, batchNote, isBlockedFree, isLocalFree, keepCheapestSeller } from "./savings.js";
 import { extraRouteModels } from "./route-extras.js";
 import { searchCoversAnyModel } from "./search.js";
 import { applyTune } from "./learn-tune.js";
-import { freeOnlyOn, isFreeModel, costTier } from "./free-first.js";
+import { freeOnlyOn, isFreeModel, costTier, isPlanProvider, GROKBOT_TEXT } from "./free-first.js";
+
+// 0.4.27 (dogfood 2026-10-30): the apps on this PC that answer through a whole agent run (Claude Code, Codex and
+// Gemini CLI through the person's plan, Antigravity, Grok Bot) take a minute or more per step. A plain text step
+// does not need their tools, so they go after the fast API models, never in front of them.
+export function isSlowAgent(m) {
+  if (!m) return false;
+  const pid = typeof m === "string" ? m : m.provider;
+  if (typeof m === "object" && m.planRoute) return true;
+  return isPlanProvider(pid) || pid === "antigravity" || pid === GROKBOT_TEXT || PROVIDERS[pid]?.kind === "agent";
+}
+// Points a slow agent loses on a step that needs no tools. Max quality keeps the old ranking.
+export const AGENT_PENALTY = { savings: 30, speed: 40, balanced: 15, quality: 8, max: 0 };
+// Max savings and Speed: every fast free API model (and this PC) goes before a slow agent on a text step.
+const FAST_FIRST_MODES = new Set(["savings", "speed"]);
+
+// "Use my plan first" keeps its locked order: this PC, free allowances, then the login, then paid API. The old
+// check read a free Gemini or Groq model as paid on any job that was not "small" (its list price is above 0),
+// so the login jumped in front of every free model. The cost tier says what a model really costs.
+export function placePlanRows(scored, on = readPlanFirst()) {
+  if (!on || !Array.isArray(scored) || scored.length < 2) return scored;
+  const plan = scored.filter((m) => m.planRoute);
+  if (!plan.length) return scored;
+  const rest = scored.filter((m) => !m.planRoute);
+  const at = rest.findIndex((m) => costTier(m.provider, m.model) >= 3 && !m.free && !m.localFree);
+  const tagged = plan.map((m) => ({ ...m, planFirst: true }));
+  if (at < 0) return [...rest, ...tagged];
+  return [...rest.slice(0, at), ...tagged, ...rest.slice(at)];
+}
+// Max savings and Speed with no tools needed: slow agents go right after the last fast free row.
+// Paid rows keep their place relative to each other.
+export function fastFreeFirst(list) {
+  if (!Array.isArray(list) || list.length < 2) return list;
+  const slow = list.filter((m) => isSlowAgent(m));
+  if (!slow.length) return list;
+  const rest = list.filter((m) => !isSlowAgent(m));
+  let lastFree = -1;
+  rest.forEach((m, i) => { if (costTier(m.provider, m.model) <= 1) lastFree = i; });
+  if (lastFree < 0) return list;
+  const firstSlow = list.indexOf(slow[0]);
+  const freeAfter = list.findIndex((m, i) => i > firstSlow && !isSlowAgent(m) && costTier(m.provider, m.model) <= 1);
+  if (freeAfter < 0) return list; // already behind every free row
+  return [...rest.slice(0, lastFree + 1), ...slow, ...rest.slice(lastFree + 1)];
+}
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
 
@@ -124,8 +167,12 @@ export function availableModels() {
 }
 
 // mode: max | quality | balanced | savings (alias: economy) | speed
-export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false, includeApps = false }) {
+// needTools: the step must use files or tools itself, so a slow agent app is not held back.
+// longOutput: the step writes a long answer (code, a page, a document); the smallest lite models sit out while
+// another model can take it. Left out, it follows the task type (code, or writing that is not trivial).
+export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false, includeApps = false, needTools = false, longOutput = null }) {
   mode = normalizeMode(mode) || "balanced";
+  const long = longOutput == null ? (!small && isLongOutputJob({ capability, difficulty })) : !!longOutput;
   const weight = costWeight(mode);
   const covered = !!needWeb && searchCoversAnyModel();
   let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || covered || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
@@ -159,6 +206,8 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // Max quality keeps the best model each connected AI offers. Spend caps above still apply.
   // Prefer-free is skipped so a cheaper model does not replace that flagship.
   if (mode === "max") list = bestModelEach(list, capability);
+  // 0.4.27: long builds on Gemini Flash-Lite came back cut off (dogfood 2026-10-30). Lite sits out while a bigger model is left.
+  if (long && list.some((m) => !isLiteModel(m.model))) list = list.filter((m) => !isLiteModel(m.model));
   const scoreOf = (m) => {
     let est = estimateCostAt(m.model, estIn, estOut, when);
     // A model accepted from the provider list is not in the built-in table yet. Use the price that was saved with the switch.
@@ -187,6 +236,7 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
       else if (tier === 1 && freeNow(m.provider, m.model)) freeFirst = difficulty >= 3 ? 6 : 18;
     }
     const bonus = (free ? 40 : 0) + freeFirst;
+    const slowAgent = !needTools && isSlowAgent(m) ? (AGENT_PENALTY[mode] || 0) : 0;
     const skipReason = skip[m.provider]?.reason || bench[modelKey(m.provider, m.model)]?.reason || null;
     const plan = planOf(m.provider);
     const speed = learned ? learned.latencyPenalty : 0;
@@ -194,10 +244,11 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const meta = PROVIDERS[m.provider];
     const localFree = isLocalFree(m, meta);
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
-    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, tier, ...(localFree && freeFirst ? { localFirst: true } : {}), plan, localFree, skipped: skipReason, learned: record, score: +(q - penalty - health - speed + bonus + fast).toFixed(1) };
+    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, tier, ...(localFree && freeFirst ? { localFirst: true } : {}), plan, localFree, skipped: skipReason, learned: record, ...(slowAgent ? { slowAgent: true } : {}), score: +(q - penalty - health - speed + bonus + fast - slowAgent).toFixed(1) };
   };
   const scored = list.map(scoreOf);
-  let ordered = applyPlanFirst(applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), mode === "max" ? false : readPreferFree()), mode));
+  let ordered = placePlanRows(applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), mode === "max" ? false : readPreferFree()), mode));
+  if (!needTools && FAST_FIRST_MODES.has(mode)) ordered = fastFreeFirst(ordered);
   if (includeApps) {
     const appRows = extraRouteModels().filter((m) => m && m.kind === "app" && m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m));
     if (appRows.length) ordered = ordered.concat(appRows.map(scoreOf).sort((a, b) => b.score - a.score));

@@ -51,7 +51,7 @@ export const PROVIDERS = {
       M("gemini-4-argon", "Gemini 4 Argon", "flagship", 2, 10, { reasoning: 94, code: 92, writing: 91, research: 92, creative: 90, analysis: 94, math: 94, fast: 55 }, { default: true }),
       M("gemini-3.8-flash", "Gemini 3.8 Flash", "balanced", 0.75, 3.75, { reasoning: 86, code: 86, writing: 86, research: 86, creative: 84, analysis: 87, math: 88, fast: 88 }),
       M("gemini-3.6-flash", "Gemini 3.6 Flash", "balanced", 0.6, 3, { reasoning: 84, code: 84, writing: 85, research: 84, creative: 83, analysis: 85, math: 86, fast: 90 }),
-      M("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", "economy", 0.25, 1.5, { reasoning: 74, code: 76, writing: 78, research: 76, creative: 74, analysis: 76, math: 78, fast: 97 }),
+      M("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", "economy", 0.25, 1.5, { reasoning: 74, code: 76, writing: 78, research: 76, creative: 74, analysis: 76, math: 78, fast: 97 }, { lite: true }),
     ],
   },
   perplexity: {
@@ -92,7 +92,7 @@ export const PROVIDERS = {
     statusApi: "https://groqstatus.com/api/v2/status.json",
     models: [
       M("openai/gpt-oss-120b", "GPT-OSS 120B (Groq)", "economy", 0.15, 0.6, { reasoning: 82, code: 82, writing: 80, research: 70, creative: 76, analysis: 82, math: 84, fast: 98 }, { default: true }),
-      M("openai/gpt-oss-20b", "GPT-OSS 20B (Groq)", "economy", 0.075, 0.3, { reasoning: 72, code: 74, writing: 74, research: 62, creative: 70, analysis: 72, math: 76, fast: 99 }),
+      M("openai/gpt-oss-20b", "GPT-OSS 20B (Groq)", "economy", 0.075, 0.3, { reasoning: 72, code: 74, writing: 74, research: 62, creative: 70, analysis: 72, math: 76, fast: 99 }, { lite: true }),
     ],
   },
   mistral: {
@@ -208,6 +208,21 @@ export function findModel(modelId) {
     if (m) return m;
   }
   return null;
+}
+// 0.4.27 (dogfood 2026-10-30): the smallest "lite" models cut long builds short (an HTML page, a Word document
+// script). They stay fine for short answers, checks and titles, and are kept out of long-output steps while
+// a bigger model can take them.
+export function isLiteModel(modelId) {
+  const m = findModel(modelId);
+  if (m) return m.lite === true;
+  return /(^|[-/])(flash-)?lite($|[-/])/i.test(String(modelId || ""));
+}
+// A step that writes a long answer: code, a page, a document or a spreadsheet, or writing that is not trivial.
+export function isLongOutputJob({ capability = "", difficulty = 2, maxTokens = 0, namedFile = false } = {}) {
+  if (namedFile) return true;
+  if (Number(maxTokens) >= 8000) return true;
+  if (capability === "code") return true;
+  return capability === "writing" && Number(difficulty) >= 2;
 }
 export function providerOfModel(modelId) {
   return TEXT_PROVIDERS.find((p) => p.models.some((m) => m.id === modelId)) || null;
