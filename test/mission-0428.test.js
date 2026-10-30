@@ -396,9 +396,67 @@ test("tip-split: the finish step keeps the writing step's file and copies only t
   assert.equal(lone[0].ok, false);
 });
 
-test("tip-split: a run step never replaces a file a writing step wrote, and only one copy per file goes to the asked folder", () => {
-  assert.match(missionSrc, /if \(by && isCheckStep\(t\)\) \{ kept\.push\(\{ name: j\.name, by \}\); return false; \}/);
-  assert.match(missionSrc, /if \(!looksLikeCode\(j\.code, fileExt\(j\.name\)\)\)/);
+// Lead decision: "Run tests and fix any failures" is meant to fix the code. A check step's corrected FULL file wins
+// (real code, at least 60 percent of the writer's length); a snippet or an output line never does.
+const FIXED_TEST_FILE = TEST_FILE.replace("assert.strictEqual(result[1].amount, 30);", "assert.strictEqual(result[1].amount, 30);\n  assert.strictEqual(result.length, 2);");
+const T3_FIXED = `Ran the tests and fixed one assertion.\n\n**tipsplit.test.js**\n\n\`\`\`javascript\n${FIXED_TEST_FILE}\`\`\``;
+const T3_SNIPPET = "Fixed it:\n\n**tipsplit.test.js**\n\n```javascript\nassert.strictEqual(result.length, 2);\n```";
+
+test("full-file rule: 60 percent of the writer's length, real code only", () => {
+  assert.equal(S.FULL_FILE_SHARE, 0.6);
+  assert.equal(S.fullReplacement(600, 1000), true);
+  assert.equal(S.fullReplacement(599, 1000), false);
+  assert.equal(S.fullReplacement(18, 3478), false, "the 0.4.27 output line");
+  assert.equal(S.fullReplacement(10, 0), true, "nothing written before");
+});
+
+test("tip-split: a check step's corrected full file wins over the writer's version", () => {
+  const dir = tmpDir("cc-m0428-fix-");
+  const file = path.join(dir, "tipsplit.test.js");
+  fs.writeFileSync(file, FIXED_TEST_FILE);
+  const tasks = [
+    { id: "t2", title: "Write tipsplit.test.js using node:assert", status: "done", output: T2, writes: [{ name: "tipsplit.test.js", path: file, bytes: Buffer.byteLength(TEST_FILE) }] },
+    { id: "t3", title: "Run tests and fix any failures", status: "done", output: T3_FIXED, writes: [{ name: "tipsplit.test.js", path: file, bytes: Buffer.byteLength(FIXED_TEST_FILE) }] },
+  ];
+  const wrote = tasks.flatMap((t) => t.writes.map((w) => ({ ...w, taskId: t.id })));
+  assert.equal(S.lastGoodWrite("tipsplit.test.js", wrote, tasks).taskId, "t3", "the corrected full file is the last good write");
+  const out = S.saveEveryNamedFile({ goal: "x", names: ["tipsplit.test.js"], deliverable: "", tasks, wrote, save: () => assert.fail("no re-save needed") });
+  assert.equal(out[0].ok, true);
+  assert.equal(out[0].fromStep, "t3");
+  // from the answers alone (nothing written): the check step's full file is taken, newest first
+  const saved = [];
+  const save = ({ name, text }) => { const body = C.extractCodeFiles(text)[0].text; saved.push(body); return { ok: true, name, requested: name, path: null, bytes: body.length }; };
+  S.saveEveryNamedFile({ goal: "x", names: ["tipsplit.test.js"], deliverable: "", tasks: tasks.map((t) => ({ ...t, writes: [] })), wrote: [], save });
+  assert.match(saved[0], /assert\.strictEqual\(result\.length, 2\);/, "the fixed version");
+});
+
+test("tip-split: a short snippet or an output line from a check step never replaces the writer's file", () => {
+  const dir = tmpDir("cc-m0428-snip-");
+  const file = path.join(dir, "tipsplit.test.js");
+  fs.writeFileSync(file, TEST_FILE);
+  for (const [out3, bytes] of [[T3_SNIPPET, 40], [T3, 18]]) {
+    const tasks = [
+      { id: "t2", title: "Write tipsplit.test.js using node:assert", status: "done", output: T2, writes: [{ name: "tipsplit.test.js", path: file, bytes: Buffer.byteLength(TEST_FILE) }] },
+      { id: "t3", title: "Run tests and fix any failures", status: "done", output: out3, writes: [{ name: "tipsplit.test.js", path: path.join(dir, "other.js"), bytes }] },
+    ];
+    const wrote = tasks.flatMap((t) => t.writes.map((w) => ({ ...w, taskId: t.id })));
+    assert.equal(S.lastGoodWrite("tipsplit.test.js", wrote, tasks).taskId, "t2");
+    const saved = [];
+    const save = ({ name, text }) => { const body = C.extractCodeFiles(text)[0].text; saved.push(body); return { ok: true, name, requested: name, path: null, bytes: body.length }; };
+    S.saveEveryNamedFile({ goal: "x", names: ["tipsplit.test.js"], deliverable: "", tasks: tasks.map((t) => ({ ...t, writes: [] })), wrote: [], save });
+    assert.match(saved[0], /require\('node:assert'\)/, "the writer's full file, not the snippet");
+  }
+});
+
+test("tip-split: the step write and the asked-folder copy follow the full-file rule and say why", () => {
+  assert.match(missionSrc, /if \(code && fullReplacement\(bytes, by\.bytes\)\) \{ log\(`Saved \$\{j\.name\} from "\$\{t\.title\}": a corrected full file/);
+  assert.match(missionSrc, /under 60 percent of the \$\{by\.bytes\} bytes written/);
+  assert.match(missionSrc, /did not replace it: \$\{k\.why\}\./);
+  assert.match(missionSrc, /\|\| fullReplacement\(w\.bytes, prev\.bytes\)\) lastWrites\.set\(k, w\);/);
+});
+
+test("tip-split: a block with no code never replaces a file, and only one copy per file goes to the asked folder", () => {
+  assert.match(missionSrc, /const code = looksLikeCode\(j\.code, fileExt\(j\.name\)\);/);
   assert.match(missionSrc, /Not saved: the block for \$\{j\.name\} had no code in it\./);
   assert.match(missionSrc, /if \(seen\.has\(k\) \|\| seenName\.has\(n\)\) return false;/);
   assert.doesNotMatch(missionSrc, /\.\.\.wrote\.filter\(\(w\) => w\.path\)\];/);

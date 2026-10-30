@@ -29,28 +29,46 @@ export function fenced(name, body) {
 // ---- 0.4.28 (dogfood tip-split) ----
 // tipsplit.test.js was saved twice: the writing step's 3478-byte test file, then 18 bytes ("All tests passed.") from the
 // answer of the step that ran the tests, and the 18-byte copy landed in the asked folder. A run, check or verify step
-// reports on a file; it never replaces the code a writing step made for that file, and a block with no code in it
-// never replaces anything.
+// replaces the code a writing step made for that file only with a corrected full file (see fullReplacement), and a
+// block with no code in it never replaces anything.
 const CHECK_TITLE = /^\s*(?:run|re-?run|verify|check|double-check|test|confirm|validate|review|execute|qa)\b/i;
 /** A step that runs, checks or verifies files instead of writing them. */
 export function isCheckStep(t) {
   return !!t && (t.run === true || CHECK_TITLE.test(String(t.title || "")));
 }
-/** The last write of `name` by a writing step (else by any step), from the steps' write records. */
+// Lead decision (0.4.28): "Run tests and fix any failures" is meant to fix the code, so a check step's corrected FULL
+// file wins. It may replace the writer's version only when it is real code for the file type (checked before it is
+// written) and at least 60 percent of the writer's length, so a snippet or an output line never replaces the file.
+export const FULL_FILE_SHARE = 0.6;
+/** May a check step's version (nextLen bytes) replace the writer's version (prevLen bytes)? */
+export function fullReplacement(nextLen, prevLen) {
+  const p = Number(prevLen) || 0, n = Number(nextLen) || 0;
+  return !p || n >= FULL_FILE_SHARE * p;
+}
+/** The last good write of `name`: writing steps in order, and a check step's write only when it is a full file. */
 export function lastGoodWrite(name, wrote = [], tasks = []) {
   const byId = new Map((tasks || []).filter(Boolean).map((t) => [t.id, t]));
   const hits = (wrote || []).filter((w) => w?.path && same(w.name || w.path, name));
-  const writers = hits.filter((w) => !isCheckStep(byId.get(w.taskId)));
-  return (writers.length ? writers : hits).slice(-1)[0] || null;
+  let best = null;
+  for (const w of hits) {
+    if (!best || !isCheckStep(byId.get(w.taskId)) || fullReplacement(w.bytes, best.bytes)) best = w;
+  }
+  return best;
 }
-// The answers to look in for one file: check steps drop out when a writing step (or the final answer) has its code.
+// The answers to look in for one file (newest first): a check step's answer stays only when its block for the file is
+// real code and a full file (60 percent of the writing steps' version or more); otherwise the writers' code is used.
 function textsFor(want, texts, tasks) {
   const byId = new Map((tasks || []).filter(Boolean).map((t) => [t.id, t]));
   const checks = new Set(texts.filter((x) => isCheckStep(byId.get(x.from))).map((x) => x.from));
   if (!checks.size) return texts;
   const writers = texts.filter((x) => !checks.has(x.from));
-  const b = bodyForFile(want, writers);
-  return b && looksLikeCode(b.body, fileExt(want)) ? writers : texts;
+  const w = bodyForFile(want, writers);
+  if (!w || !looksLikeCode(w.body, fileExt(want))) return texts;
+  return texts.filter((x) => {
+    if (!checks.has(x.from)) return true;
+    const b = bodyForFile(want, [x]);
+    return !!b && looksLikeCode(b.body, fileExt(want)) && fullReplacement(Buffer.byteLength(b.body), Buffer.byteLength(w.body));
+  });
 }
 // The first body for the file that is really code (a source whose block is plain sentences is skipped).
 function codeBodyFor(want, texts) {

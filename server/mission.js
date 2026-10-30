@@ -42,7 +42,7 @@ import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAg
 import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, namedFiles, isSavableName, NO_SAVE_STEP_LINE, FILE_BLOCK_LINE, dropSaveOnlySteps, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
 import { saveNamedFile, writeProjectFile, codeFor, fileBody, NOT_SAVED_LINE, wantedFile, officeNote } from "./named-file.js";
 import { bodyForFile, looksLikeCode } from "./code-files.js";
-import { saveEveryNamedFile, isCheckStep } from "./save-named-files.js";
+import { saveEveryNamedFile, isCheckStep, fullReplacement } from "./save-named-files.js";
 import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
 import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE, findPythonCommand, runPython } from "./run-node-test.js";
@@ -1092,25 +1092,32 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (!jobs.length) { const b = bodyForFile(prim, [text]); if (b && (b.how !== "table" || /\.csv$/i.test(prim))) jobs = [{ name: prim, code: b.body }]; }
       // 0.4.23.1: a plain text file (notes, a list, a readme) is the step's whole answer (a .csv needs a block or a table)
       if (!jobs.length && t.capability !== "code" && /\.(?:md|txt)$/i.test(prim) && text.trim() && !isEmptyOutput(text)) jobs = [{ name: prim, code: fileBody(text, prim) }];
-      // 0.4.28 (dogfood tip-split): a run or verify step never replaces the code a writing step made for that file,
-      // and a block with no code in it (plain sentences such as "All tests passed.") never replaces or makes a code file
+      // 0.4.28 (dogfood tip-split): a block with no code in it (plain sentences such as "All tests passed.") never
+      // replaces or makes a code file. A run or verify step's block replaces the writer's version only when it is a
+      // corrected FULL file: real code and at least 60 percent of the writer's length (lead decision). Else the writer's stays.
       const bad = [];
       const kept = [];
       const sameName = (a, b) => path.basename(String(a || "")).toLowerCase() === path.basename(String(b || "")).toLowerCase();
-      const writtenBy = (n) => mission.tasks.find((x) => x !== t && !isCheckStep(x) && (x.writes || []).some((w) => sameName(w.name || w.path, n)));
+      const writtenBy = (n) => { for (let i = mission.tasks.length - 1; i >= 0; i--) { const x = mission.tasks[i]; if (x === t || isCheckStep(x)) continue; const w = (x.writes || []).filter((y) => sameName(y.name || y.path, n)).pop(); if (w) return { title: x.title, bytes: w.bytes }; } return null; };
       jobs = jobs.filter((j) => {
         const by = writtenBy(j.name);
-        if (by && isCheckStep(t)) { kept.push({ name: j.name, by }); return false; }
-        if (!looksLikeCode(j.code, fileExt(j.name))) {
-          if (by) kept.push({ name: j.name, by });
+        const code = looksLikeCode(j.code, fileExt(j.name));
+        const bytes = Buffer.byteLength(String(j.code || ""));
+        if (by && isCheckStep(t)) {
+          if (code && fullReplacement(bytes, by.bytes)) { log(`Saved ${j.name} from "${t.title}": a corrected full file (${bytes} bytes, "${by.title}" wrote ${by.bytes}).`); return true; }
+          kept.push({ name: j.name, by, why: code ? `its block was only ${bytes} bytes, under 60 percent of the ${by.bytes} bytes written` : "its block had no code in it" });
+          return false;
+        }
+        if (!code) {
+          if (by) kept.push({ name: j.name, by, why: "its block had no code in it" });
           else bad.push(`Not saved: the block for ${j.name} had no code in it.`);
           return false;
         }
         return true;
       });
-      for (const k of kept) log(`Kept ${k.name} as "${k.by.title}" wrote it. "${t.title}" did not replace it.`);
+      for (const k of kept) log(`Kept ${k.name} as "${k.by.title}" wrote it. "${t.title}" did not replace it: ${k.why}.`);
       // a step that only mentions another file ("reads invoices.csv") is checked for its own file, not that one
-      t.wantFiles = [...new Set([prim, ...jobs.map((j) => j.name)])].filter((n) => !kept.some((k) => sameName(k.name, n)) && !(isCheckStep(t) && writtenBy(n)));
+      t.wantFiles = [...new Set([prim, ...jobs.map((j) => j.name)])].filter((n) => !kept.some((k) => sameName(k.name, n)) && (jobs.some((j) => sameName(j.name, n)) || !(isCheckStep(t) && writtenBy(n))));
       if (!t.wantFiles.length) { emit("task.update", { missionId: id, task: pubTask(t) }); update(); return; }
       const lines = [];
       if (!jobs.length && !bad.length) bad.push(folders.length ? `Not saved: there was no code for ${prim} in this answer.` : NOT_SAVED_LINE);
@@ -1916,7 +1923,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       // 0.4.28 (dogfood tip-split): one copy per file, and only its final good version (the saved result first, else
       // the last write by a writing step), never an older or a check step's write of the same name
       const lastWrites = new Map();
-      for (const w of wrote) if (w.path) { const k = path.basename(String(w.name || w.path)).toLowerCase(); const prev = lastWrites.get(k); if (!prev || !isCheckStep(mission.tasks.find((x) => x.id === w.taskId)) || isCheckStep(mission.tasks.find((x) => x.id === prev.taskId))) lastWrites.set(k, w); }
+      for (const w of wrote) if (w.path) { const k = path.basename(String(w.name || w.path)).toLowerCase(); const prev = lastWrites.get(k); if (!prev || !isCheckStep(mission.tasks.find((x) => x.id === w.taskId)) || fullReplacement(w.bytes, prev.bytes)) lastWrites.set(k, w); }
       const files = [...savedAll.filter((r) => r.ok && r.path), ...(mission.savedFile?.ok && mission.savedFile.path ? [mission.savedFile] : []), ...lastWrites.values()];
       const seen = new Set(), seenName = new Set();
       const copied = copyToAskedFolder(asked, files.filter((f) => {
