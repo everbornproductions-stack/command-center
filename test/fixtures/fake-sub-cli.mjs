@@ -15,6 +15,9 @@ process.stdin.on("end", () => {
   if (log) fs.writeFileSync(log, JSON.stringify({ args, input, cwd: process.cwd(), keys: Object.keys(process.env).filter((k) => /KEY|TOKEN|SECRET/i.test(k)) }));
   if (mode === "signin") { process.stderr.write("Not logged in. Please run /login\n"); process.exit(1); }
   if (mode === "quota") { process.stderr.write("Usage limit reached for your plan. Try again later.\n"); process.exit(1); }
+  // 0.4.28 (dogfood loan-calc): Claude Code's own words, on stdout, with exit 1; and the same line printed as an "answer"
+  if (mode === "session") { process.stdout.write("You've hit your session limit · resets 2:30pm (America/Los_Angeles)\n"); process.exit(1); }
+  if (mode === "session-ok") { process.stdout.write("You've hit your session limit · resets 2:30pm (America/Los_Angeles)\n"); process.exit(0); }
   if (mode === "hang") {
     // a grandchild too, so the test can check the whole tree is stopped
     const kid = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });

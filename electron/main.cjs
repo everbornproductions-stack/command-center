@@ -12,6 +12,7 @@ const { pickFreePort, isOurServer } = require("./ports.cjs");
 const { createUpdateController, CHECK_EVERY_MS, quitInstallAction } = require("./updater.cjs");
 const { createWatchdog, describeProbeError } = require("./watchdog.cjs");
 const inst = require("./instance.cjs");
+const relaunch = require("./relaunch.cjs");
 const { createHotkey } = require("./hotkey.cjs");
 const a11y = require("./accessibility.cjs");
 a11y.early(app); // UI Automation needs an accessibility tree from the first page (0.4.21)
@@ -122,7 +123,13 @@ function setupUpdater() {
         }).then(({ response }) => { if (response === 0) shell.openExternal(page); }).catch(() => {});
       },
       result: (st) => { if (st.error) dialog.showMessageBox({ type: "warning", title: "Meldmind", message: "Couldn't check for updates", detail: st.detail || st.error, buttons: ["Download", "Later"], defaultId: 0, cancelId: 1, noLink: true }).then(({ response }) => { if (response === 0) shell.openExternal((st && st.downloadUrl) || `${RELEASES_PAGE}/latest`); }).catch(() => {}); else dialog.showMessageBox({ type: "info", title: "Meldmind", message: `You have the newest version (v${app.getVersion()}).` }); },
-      beforeQuit: () => { quittingForUpdate = true; },
+      // 0.4.28: free the one-copy lock now and leave a helper that starts the new version (see electron/relaunch.cjs)
+      beforeQuit: () => {
+        quittingForUpdate = true;
+        try { app.releaseSingleInstanceLock(); } catch {}
+        try { inst.clearRecord(userData, process.pid); } catch {}
+        relaunch.startRelaunchHelper({ packaged: isPackaged, log });
+      },
     },
   });
   globalThis.__ccUpdater = updater.bridge; // Settings > Check for updates keeps working through the server
