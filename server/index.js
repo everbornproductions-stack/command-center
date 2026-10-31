@@ -87,7 +87,7 @@ import { routeAdvice as browserRoute } from "./browser.js";
 import { hubAgents } from "./agents.js";
 import { isHook as isScheduleHook, handleHook as scheduleHook } from "./schedules.js";
 import { isHook as isMeldmindHook, handleHook as meldmindHook } from "./inbound.js";
-import { handleScheduleTick, TICK_PATH } from "./schedule-tick.js";
+import { handleScheduleTick, TICK_PATH, attachNextDueHint } from "./schedule-tick.js";
 import { isWorkerPath, handleWorkerRequest } from "./worker-service.js";
 import { publicWebConfig, isNavStateEnabled } from "./web-config.js";
 import { handleUsageHttp, isUsageHttp, freshUsageDoc } from "./usage.js";
@@ -1290,6 +1290,7 @@ async function handleHttp(req, res) {
       if (!HOSTED) return await api(req, res, url);
       let c;
       try { c = await contextForToken(bearer(req)); } catch (e) { return json(res, e.status || 401, { error: e.message, code: e.status === 401 ? "unauthorized" : undefined }); }
+      attachNextDueHint(res, c); // a schedule change tells the Worker when to wake the container (worker/hub-clock.js)
       return await als.run(c, () => api(req, res, url));
     }
     // static

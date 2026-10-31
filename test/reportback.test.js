@@ -128,7 +128,7 @@ test("help, tour, guide, and the page say Paste result, with no em-dash", () => 
   assert.match(read("electron/main.cjs"), /handle\("app:notify"/);
   assert.match(read("electron/desk-preload.cjs"), /notify: \(title, body\)/);
   assert.match(read("docs/hosted-hub.md"), /https:\/\/meldmind-hub\.fly\.dev/);
-  assert.match(read("docs/hosted-hub.md"), /CC_HUB_URL` stays `https:\/\/hub\.meldmind\.ai/);
+  assert.match(read("docs/hosted-hub.md"), /CC_HUB_URL` stays `https:\/\/hub\.everbornproductions\.com/);
   assert.match(read("docs/grokbot.md"), /callback_url` is unchanged/);
   assert.doesNotMatch(read("server/reportback.js"), /\/api\/handoff\/admin/);
   const notify = read("electron/main.cjs").slice(read("electron/main.cjs").indexOf('handle("app:notify"'));

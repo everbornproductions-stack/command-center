@@ -17,7 +17,7 @@ import crypto from "node:crypto";
 import { safeEqual } from "./safe-equal.js";
 import fs from "node:fs";
 import path from "node:path";
-import { HOSTED, doc, putDoc, getContext, runAs } from "./store.js";
+import { HOSTED, ctx, doc, putDoc, getContext, runAs } from "./store.js";
 import { normalizeMode } from "./modes.js";
 import { emit } from "./events.js";
 import { DATA_DIR } from "./paths.js";
@@ -104,6 +104,19 @@ export function missedSlot(s, now = io.now()) {
   }
   return null;
 }
+// The earliest upcoming cron slot in a schedule list (enabled cron schedules only), or null.
+// The hub uses it so the Cloudflare Worker can sleep the container until a schedule is due.
+export function earliestDue(list, now = io.now()) {
+  let best = null;
+  for (const s of Array.isArray(list) ? list : []) {
+    if (!s?.enabled || s.trigger?.type !== "cron" || !s.trigger.cron) continue;
+    let t = null;
+    try { t = nextRun(parseCron(s.trigger.cron), now); } catch { continue; }
+    if (t != null && (best == null || t < best)) best = t;
+  }
+  return best;
+}
+
 export function nextRun(c, from = Date.now()) {
   let t = slotOf(from) + 60000;
   const limit = from + 400 * 86400000;
@@ -179,7 +192,12 @@ export function weeklyPrompt(text) {
 
 // ---------- the documents ----------
 const all = () => doc(DOC, () => ({ list: [] }));
-const save = (d) => putDoc(DOC, d);
+// Hosted: remember this user's earliest next slot so the response can tell the Worker (server/schedule-tick.js).
+const save = (d) => {
+  putDoc(DOC, d);
+  if (HOSTED) { try { ctx().schedHint = { at: earliestDue(d.list, io.now()) }; } catch { /* no context: nothing to tell */ } }
+  return d;
+};
 const runsDoc = () => doc(RUNS, () => ({ list: [] }));
 const saveRuns = (d) => { if (d.list.length > LIMITS.runs) d.list.length = LIMITS.runs; putDoc(RUNS, d); };
 export const getSchedule = (id) => all().list.find((s) => s.id === id) || null;

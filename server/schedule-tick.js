@@ -2,6 +2,8 @@
 // The secret is CC_TICK_SECRET (a wrangler secret, never written into wrangler.jsonc).
 // Each call runs schedules tick() for every user who has a due cron slot. A slot is claimed in tick()
 // before the run starts, so a second tick does not run it again. Caps and approvals are unchanged.
+// The reply carries nextDue (the earliest slot still to come for anyone) so the Worker can let the container
+// sleep until then (worker/hub-clock.js).
 import crypto from "node:crypto";
 import { HOSTED, allContexts, getContext, runAs } from "./store.js";
 import { CFG, rest } from "./hosted.js";
@@ -10,6 +12,9 @@ import * as S from "./schedules.js";
 
 export const TICK_PATH = "/api/internal/schedules/tick";
 export const TICK_HEADER = "x-cc-tick-secret";
+// Response header read (and removed) by the Durable Object in worker/index.js: the earliest next cron slot
+// (ms since epoch) of the signed-in user whose request just changed their schedules. It never leaves Cloudflare.
+export const NEXT_DUE_HEADER = "x-cc-next-due";
 
 export function tickSecretOk(presented, secret = process.env.CC_TICK_SECRET || "") {
   const a = Buffer.from(String(presented ?? ""));
@@ -39,13 +44,32 @@ function dueIn(data, now) {
   return false;
 }
 
+// The earliest upcoming cron slot across every user: memory first (it is newer than Supabase), then Supabase.
+export function nextDueAcross(rows, now = Date.now()) {
+  let best = null;
+  const seen = new Set();
+  const take = (t) => { if (t != null && (best == null || t < best)) best = t; };
+  for (const c of allContexts()) {
+    if (!c?.userId) continue;
+    seen.add(c.userId);
+    take(S.earliestDue(c.docs?.schedules?.list, now));
+  }
+  for (const row of rows || []) {
+    if (!row?.user_id || seen.has(row.user_id)) continue;
+    take(S.earliestDue(row.data?.list, now));
+  }
+  return best;
+}
+
 // One pass at `now`: every user with a due slot, whether they are already in memory or only in Supabase.
+// Returns the runs started; `runs.nextDue` is the earliest slot still to come (null when there is none).
 export async function tickDueUsers(now = Date.now()) {
   const ids = new Set();
   for (const c of allContexts()) {
     if (c?.userId && dueIn(c.docs?.schedules, now)) ids.add(c.userId);
   }
-  for (const row of await listScheduleDocs()) {
+  const rows = await listScheduleDocs();
+  for (const row of rows) {
     if (row?.user_id && dueIn(row.data, now)) ids.add(row.user_id);
   }
   const runs = [];
@@ -64,7 +88,25 @@ export async function tickDueUsers(now = Date.now()) {
     catch (e) { console.error(`[schedules] tick ${id}: ${e.message}`); }
     for (const r of out || []) runs.push({ userId: id, id: r.id, scheduleId: r.scheduleId, slot: r.slot });
   }
+  runs.nextDue = nextDueAcross(rows, now);
   return runs;
+}
+
+// Hosted only: when this request changed the user's schedules, add their earliest next slot as a response
+// header so the Durable Object can set its wake-up alarm. Wraps writeHead, so every response path is covered.
+export function attachNextDueHint(res, c) {
+  if (!HOSTED || !res || !c || typeof res.writeHead !== "function") return;
+  const writeHead = res.writeHead;
+  res.writeHead = function (...args) {
+    const hint = c.schedHint;
+    if (hint) {
+      c.schedHint = null;
+      if (Number.isFinite(hint.at) && !this.headersSent) {
+        try { this.setHeader(NEXT_DUE_HEADER, String(hint.at)); } catch { /* headers already out */ }
+      }
+    }
+    return writeHead.apply(this, args);
+  };
 }
 
 // The signed-in user who owns this schedule id, loaded from memory or from Supabase.
@@ -86,7 +128,7 @@ export async function handleScheduleTick(req, res, send) {
   if (!tickSecretOk(req.headers[TICK_HEADER])) return send(res, 401, { error: "unauthorized" });
   try {
     const runs = await tickDueUsers(Date.now());
-    return send(res, 200, { ok: true, runs: runs.length, items: runs });
+    return send(res, 200, { ok: true, runs: runs.length, items: [...runs], nextDue: runs.nextDue ?? null });
   } catch (e) {
     console.error("[schedules] tick:", e.message);
     return send(res, 500, { error: "tick failed" });

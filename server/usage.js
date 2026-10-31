@@ -7,10 +7,11 @@ import crypto from "node:crypto";
 import { doc, putDoc } from "./store.js";
 import { isLoopback, localFetch } from "./loopback-fetch.js";
 import { METRICS_PRICES, monthlyCents, fromCents } from "./metrics-prices.js";
+import { DEFAULT_HUB_URL } from "./hub-address.js";
 
 export const SHARE_LABEL = "Share anonymous usage counts to help improve Meldmind";
 export const SHARE_DETAIL = "Once a day, if this is on, Meldmind sends counts only: a random install id, the app version, the operating system, your plan, how many times each feature was used, and anonymous quality signals (provider, task type, thumbs up/down or retry/accept, cost and latency bucket). No prompts, answers, chats, file names, emails, keys, or identifying ids. You can turn this off here.";
-export const HUB_PING_URL = "https://hub.meldmind.ai/api/metrics/ping";
+export const HUB_PING_URL = `${DEFAULT_HUB_URL}/api/metrics/ping`;
 export const KIND = "usage";
 const FEATURE_NAME = /^[a-z][a-z0-9]{0,23}$/;
 const FEATURE_DENY = new Set(["email", "prompt", "content", "file", "files", "key", "name", "text", "message", "secret", "token", "chat"]);

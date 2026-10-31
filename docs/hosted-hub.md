@@ -4,7 +4,24 @@ Goal: the command center runs as a hub in the cloud so Chris, and later every su
 
 ## Decision from Chris (relayed 2026-10-18, updated the same afternoon)
 
-First call: free or cheapest host. Updated call: **everything under Cloudflare**, which already runs the Everborn sites and DNS. So: Cloudflare Containers on the Workers Paid plan ($5/month) running the existing Node 24 image, a thin Worker in front (also carries the WebSocket), hub at **hub.meldmind.ai** through Cloudflare DNS. The Worker is named **meldmind-hub**. The Windows installer is served from **R2** at downloads.everbornproductions.com (Pages caps files at 25 MB; the installer is 112 MB). Supabase stays the database and auth (no D1 migration). Chris runs the plan upgrade and the deploy himself. Fly.io stays documented as the fallback only, with the same public address.
+First call: free or cheapest host. Updated call: **everything under Cloudflare**, which already runs the Everborn sites and DNS. So: Cloudflare Containers on the Workers Paid plan ($5/month) running the existing Node 24 image, a thin Worker in front (also carries the WebSocket), hub at **hub.everbornproductions.com** through Cloudflare DNS for now (**hub.meldmind.ai** once meldmind.ai is a Cloudflare zone; see *Hub address* below). The Worker is named **meldmind-hub**. The Windows installer is served from **R2** at downloads.everbornproductions.com (Pages caps files at 25 MB; the installer is 112 MB). Supabase stays the database and auth (no D1 migration). Chris runs the plan upgrade and the deploy himself. Fly.io stays documented as the fallback only, with the same public address.
+
+## Turn on checklist (2026-10-30)
+
+Everything below is ready in git. Nothing has been deployed, paid for, signed in or set as a secret. Chris turns it on once all the builds are done:
+
+1. Install Docker Desktop: `winget install Docker.DockerDesktop`, start it once and wait for "Engine running".
+2. Turn on Workers Paid ($5/month): Cloudflare dashboard > Workers & Pages > Plans.
+3. Run the one command from the `command-center` folder: `powershell -ExecutionPolicy Bypass -File tools\deploy-hub.ps1` (run it with `-WhatIf` first to see every step without running anything). It signs in to Cloudflare if needed (browser), deploys, sets the four secrets (you paste only the Supabase secret key, hidden), and checks `/api/health`.
+4. Supabase > Authentication > URL configuration: Site URL `https://hub.everbornproductions.com`, add `https://hub.everbornproductions.com/**` to Redirect URLs (and run `supabase/hosted.sql` if it was never run).
+5. Upload the installer to the R2 bucket `everborn-downloads` (*Installer download on R2* below).
+6. Test sign-in: open `https://hub.everbornproductions.com`, enter your email, open the magic link on the same device. Then make a test schedule a few minutes out and check it runs.
+
+## Hub address (one setting)
+
+The hub address is the route `pattern` and `CC_HUB_URL` in `wrangler.jsonc` (the block marked HUB ADDRESS). Both say `hub.everbornproductions.com` today, because everbornproductions.com is a zone in Chris's Cloudflare account (with capitalcitylife.com and captialcitylife.com). meldmind.ai is not a zone there, so a `hub.meldmind.ai` route would fail the deploy.
+
+To move to hub.meldmind.ai later: add meldmind.ai as a zone in Cloudflare, change the two lines as the comment in `wrangler.jsonc` shows (keep `hub.everbornproductions.com` as a second route so installed apps that use it keep working), set `DEFAULT_HUB_URL` in `server/hub-address.js` and `CC_HUB_URL` in `fly.toml` to the same address, update the Supabase redirect URLs, and run `tools\deploy-hub.ps1` again. The Worker reads the address from `CC_HUB_URL` (the schedule tick in `worker/hub-clock.js`), and the desktop app's usage ping default comes from `server/hub-address.js`, so nothing else hard-codes the host.
 
 The appId (`com.everborn.command`), the updater feed (`everbornproductions-stack/command-center-releases`, `latest.yml`), the installer names (`Meldmind-Setup-<version>`) and `CC_OWNER_EMAILS` are unchanged. Moving the hub address does not move existing desktop installs.
 
@@ -62,7 +79,7 @@ browser ◀──(WebSocket, per-user events)── hub
 | `CC_SSO_PROVIDERS` | no | `google,azure` shows "Continue with Google / Microsoft" on the sign-in page (Phase 24). Turn the providers on in Supabase Auth first; see docs/extras.md |
 | `CC_LIVE_PRICING` | no | `off` keeps the built-in model prices instead of OpenRouter's daily list (Phase 24) |
 
-Publishing sign-in (Google Drive, Instagram via Meta, HighLevel and Slack) returns to `http://127.0.0.1:<port>/` on the desktop. On the hub the redirect is built from `CC_HUB_URL` and must be https (`https://hub.meldmind.ai/`). A non-https hub address is refused. Settings shows that exact redirect URL on each of the four connectors.
+Publishing sign-in (Google Drive, Instagram via Meta, HighLevel and Slack) returns to `http://127.0.0.1:<port>/` on the desktop. On the hub the redirect is built from `CC_HUB_URL` and must be https (`https://hub.everbornproductions.com/`). A non-https hub address is refused. Settings shows that exact redirect URL on each of the four connectors.
 
 ## Deploy runbook (Cloudflare Containers)
 
@@ -77,7 +94,7 @@ Checked against the [Containers docs](https://developers.cloudflare.com/containe
 | Long-lived WebSockets | The `Container` class proxies WebSocket upgrades to the container in both directions (`hub.fetch(request)`; the docs warn only that `containerFetch` does not do WebSockets, which the Worker here does not use). The UI reconnects automatically after any drop. |
 | Outbound calls (Supabase, Anthropic, OpenAI, …) | Allowed; egress to North America/Europe has 1 TB/month included. |
 | Memory | `lite` instance = 1/16 vCPU, 256 MiB. The server idles around 70 MB locally. Move to `basic` (1 vCPU, 1 GiB) if `wrangler tail` ever shows OOM restarts. |
-| Durability | Instances can be stopped by platform events (host restarts) and are stopped on purpose after `sleepAfter` (15 min idle). All state is in Supabase, so a restart loses only a mission that was mid-flight (it shows as failed; re-run it). Off-peak scheduled missions and cron schedules run while the container is awake. The cron below wakes it every 5 minutes, so those slots keep firing. |
+| Durability | Instances can be stopped by platform events (host restarts) and are stopped on purpose after `sleepAfter` (15 min idle). All state is in Supabase, so a restart loses only a mission that was mid-flight (it shows as failed; re-run it). Off-peak scheduled missions run while the container is awake. Cron schedules wake it on time (see *Schedules on the hub*) and it sleeps again 15 minutes later. |
 | Image build | `wrangler deploy` builds the image with **Docker on the PC** and pushes it to Cloudflare's registry. Docker Desktop (free for personal use) must be installed and running once. |
 
 ### Real monthly cost (October 2026, [Cloudflare pricing](https://developers.cloudflare.com/containers/pricing/))
@@ -87,50 +104,55 @@ Checked against the [Containers docs](https://developers.cloudflare.com/containe
 | Workers Paid plan (required for Containers) | **$5.00/month** flat, card required |
 | Container usage included in the plan | 25 GiB-hours memory, 375 vCPU-minutes, 200 GB-hours disk per month |
 | Hub on `lite` with 15-minute sleep, used a few hours a day | inside the included allowance → **$0 extra** |
+| Each schedule run | wakes the container for the run plus 15 minutes. An hourly schedule all month is about 46 GiB-h, roughly $0.30 extra; a daily one is free |
 | Hub if it never sleeps (always awake, worst case) | memory 0.25 GiB × 730 h = 182 GiB-h, 157 over → ≈ $1.41; disk ≈ $0.30; CPU pennies → **≈ $1.75 extra** |
 | R2 for the installer | 10 GB storage, 1 M writes, 10 M reads per month free, **no egress fee** → $0 at this scale |
-| DNS, TLS, `hub.meldmind.ai` and `downloads.` | $0 (zones already on Cloudflare) |
+| DNS, TLS, `hub.everbornproductions.com` and `downloads.` | $0 (zone already on Cloudflare) |
 | **Expected total** | **$5/month; $7 at the very worst** |
 
 Overage rates if ever exceeded: $0.0000025 per GiB-second memory, $0.000020 per vCPU-second, $0.00000007 per GB-second disk, $0.025 per GB egress beyond 1 TB.
 
-### Steps (Chris runs these in PowerShell from `everborn-hq\command-center`; none were run by Claude)
+### The one command
 
 ```powershell
-# 0. One time: Docker Desktop (wrangler builds the image with it) and the Workers Paid plan
-winget install Docker.DockerDesktop        # then start Docker Desktop once and let it finish
-# Cloudflare dashboard → Workers & Pages → Plans → Workers Paid ($5/month)
-
-# 1. Sign in to Cloudflare from the terminal
-npx wrangler@latest login
-
-# 2. Generate the master key once; keep a copy in 1Password (it is not recoverable later)
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-
-# 3. Secrets (each command prompts for the value; paste it)
-npx wrangler@latest secret put CC_MASTER_KEY             # the base64 from step 2
-npx wrangler@latest secret put CC_SUPABASE_ANON_KEY      # from data/settings.json → cloud.anonKey (sb_publishable_…)
-npx wrangler@latest secret put CC_TICK_SECRET            # any long random string; the Worker sends it to the schedule tick
-# schedules need this so a freshly woken container can load users who are not in memory:
-npx wrangler@latest secret put CC_SUPABASE_SERVICE_KEY   # Supabase → Project Settings → API keys → secret
-
-# 4. Deploy: builds the Dockerfile with Docker, pushes the image, publishes the Worker, creates the DNS record
-npx wrangler@latest deploy
-
-# 5. Check
-curl https://hub.meldmind.ai/api/health   # → {"ok":true,"mode":"hosted",...}  (first call wakes the container, ~5-10 s)
-npx wrangler@latest tail                                   # live logs
+cd $HOME\Desktop\Everborn\everborn-hq\command-center
+powershell -ExecutionPolicy Bypass -File tools\deploy-hub.ps1 -WhatIf   # prints every step, runs nothing
+powershell -ExecutionPolicy Bypass -File tools\deploy-hub.ps1           # the real deploy
 ```
 
-Non-secret settings (`CC_SUPABASE_URL`, `CC_HUB_URL`, `CC_OWNER_EMAILS`) are already in `wrangler.jsonc` under `vars`; change them there and redeploy. `CC_OWNER_EMAILS` stays `everbornproductions@gmail.com`. The DNS record for `hub.meldmind.ai` is created by the `routes` entry (`custom_domain: true`); nothing to add by hand in DNS. The Worker name in that file is `meldmind-hub`. Secrets (`CC_MASTER_KEY`, `CC_SUPABASE_ANON_KEY`, `CC_SUPABASE_SERVICE_KEY`, `CC_TICK_SECRET`) are never written into `wrangler.jsonc`.
+`tools/deploy-hub.ps1` checks Docker Desktop is installed and running (starts it and waits up to 3 minutes), checks `npx wrangler@latest whoami` and runs `wrangler login` if you are not signed in, asks you to confirm Workers Paid is on (`-Yes` skips the question; nothing is bought), lists the secrets the Worker already has (names only), runs `wrangler deploy`, then sets only the missing secrets:
+
+| Secret | Where the value comes from |
+|---|---|
+| `CC_MASTER_KEY` | 32 random bytes (base64) generated in memory and written straight to `wrangler secret put` on stdin. Never printed, never on disk. An existing one is never replaced (a new key loses every stored API key; users would re-paste them). |
+| `CC_TICK_SECRET` | 32 random bytes (hex), the same way. |
+| `CC_SUPABASE_ANON_KEY` | `server/cloud-defaults.json` `anonKey` (empty in git), else the `CC_SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY` variable, else a hidden prompt. A pasted `sb_secret_` key is refused. |
+| `CC_SUPABASE_SERVICE_KEY` | You paste it at a hidden prompt (`Read-Host -AsSecureString`). Supabase > Project Settings > API keys > secret. |
+
+Last it calls `https://<hub>/api/health` (retries for up to 3 minutes while the container starts) and prints the answer. If the deploy fails it says whether it looks like the plan (Workers Paid off), Docker, or the hub address (route not in a zone). Any secret value in wrangler's reply is replaced with `***` before it is printed.
+
+Manual equivalent, if you ever need it (each `secret put` prompts for the value):
+
+```powershell
+npx wrangler@latest login
+npx wrangler@latest deploy
+npx wrangler@latest secret put CC_MASTER_KEY             # base64 of 32 random bytes
+npx wrangler@latest secret put CC_TICK_SECRET            # any long random string
+npx wrangler@latest secret put CC_SUPABASE_ANON_KEY      # sb_publishable_...
+npx wrangler@latest secret put CC_SUPABASE_SERVICE_KEY   # Supabase secret key
+curl https://hub.everbornproductions.com/api/health      # {"ok":true,"mode":"hosted",...}
+npx wrangler@latest tail                                 # live logs
+```
+
+Non-secret settings (`CC_SUPABASE_URL`, `CC_HUB_URL`, `CC_OWNER_EMAILS`) are already in `wrangler.jsonc` under `vars`; change them there and redeploy. `CC_OWNER_EMAILS` stays `everbornproductions@gmail.com`. The DNS record for the hub address is created by the `routes` entry (`custom_domain: true`); nothing to add by hand in DNS. The Worker name in that file is `meldmind-hub`. Secrets (`CC_MASTER_KEY`, `CC_SUPABASE_ANON_KEY`, `CC_SUPABASE_SERVICE_KEY`, `CC_TICK_SECRET`) are never written into `wrangler.jsonc`. `CC_METRICS_SECRET` (owner report) is optional and set by hand with `secret put` when wanted.
 
 Then, once, in the Supabase dashboard:
 
 1. **SQL editor → run `supabase/hosted.sql`** (creates the four tables and their RLS). Already loaded in the editor in the Claude browser pane on 2026-10-18; it only needs Run.
-2. **Authentication → URL configuration**: Site URL = `https://hub.meldmind.ai`; add `https://hub.meldmind.ai/**` to Redirect URLs. (The magic link only returns to listed addresses; anything else falls back to the Site URL, which today is the default `http://localhost:3000`.) Add `http://localhost:3000/**` too if you want to keep testing hosted mode on the PC.
+2. **Authentication → URL configuration**: Site URL = `https://hub.everbornproductions.com`; add `https://hub.everbornproductions.com/**` to Redirect URLs. (The magic link only returns to listed addresses; anything else falls back to the Site URL, which today is the default `http://localhost:3000`.) Add `http://localhost:3000/**` too if you want to keep testing hosted mode on the PC.
 3. Optional: Authentication → Email templates → Magic Link: put "Everborn Command" in the subject.
 
-Open `https://hub.meldmind.ai`, enter your email, open the link from the email on the same device, you are in. Settings → *Phone & other devices* shows the QR to scan with the phone.
+Open `https://hub.everbornproductions.com`, enter your email, open the link from the email on the same device, you are in. Settings → *Phone & other devices* shows the QR to scan with the phone.
 
 ### Installer download on R2 (downloads.everbornproductions.com)
 
@@ -142,23 +164,32 @@ Dashboard → R2 → `everborn-downloads` → Settings → **Custom Domains → 
 
 ### Operating notes
 
+- Check the Worker without Docker: `npx wrangler@latest deploy --dry-run --containers-rollout=none --outdir <temp folder>` bundles the Worker and prints the bindings and vars; nothing is uploaded. Plain `--dry-run` stops because it builds the image with Docker even in dry-run mode (checked 2026-10-30, wrangler 4.156).
 - `wrangler secret put` and `wrangler deploy` both roll the Worker; the container restarts on the next request. Logs: `npx wrangler tail`. Stop everything: delete the Worker in the dashboard (the plan stays until downgraded).
-- `sleepAfter` is 15 minutes in `worker/index.js`. The schedule cron runs every 5 minutes, which is more often than that, so the container stays awake. That is the always-on row in the cost table, about $1.75 extra. The Fly fallback does not run this cron.
+- `sleepAfter` is 15 minutes in `worker/index.js`. The 15-minute cron does not keep the container awake: it only reads one stored time in the Durable Object (see *Schedules on the hub*). Before 2026-10-30 the cron ran every 5 minutes and always woke the container, so it never slept (the always-on row in the cost table, about $1.75 extra). The Fly fallback does not run this cron.
 - Supabase free projects pause after 7 days without database activity; a hub with any sign-in keeps it awake, and Pro ($25/month) removes pausing. The hub does not need Supabase Pro for anything else.
 - Master-key rotation: decrypt with the old key, re-encrypt with the new, bump `key_version` (not automated; users can also just re-paste keys).
 - Memory: each loaded user holds their last 35 days of ledger plus docs in RAM. In hosted mode a user who has been idle for `CC_IDLE_EVICT_MIN` minutes (default 30) is dropped from memory after any waiting cloud writes are flushed. They are not dropped while they have a running mission, council, chat or media job, an open WebSocket, a queued off-peak mission, or a write that has not finished. The next request loads them again from Supabase. Local mode keeps its one context and never evicts.
 
 ### Schedules on the hub
 
-`wrangler.jsonc` has a cron trigger, `*/5 * * * *`. Cloudflare calls `scheduled()` in `worker/index.js`, which wakes the container and POSTs `https://hub.meldmind.ai/api/internal/schedules/tick` with the header `x-cc-tick-secret`. The value is `CC_TICK_SECRET`, passed into the container the same way as the other secrets. The route answers 401 when the header is missing or wrong, and 404 in local mode. Local mode keeps its own timer and does not call this route.
+The container sleeps 15 minutes after the last request and is woken only when a schedule is due. The logic is in `worker/hub-clock.js` (no Cloudflare imports, tested by `test/hub-clock.test.js`); the Durable Object `Hub` in `worker/index.js` wires it up:
 
-On each tick the hub runs `schedules.tick()` for every user who has a due cron schedule, whether that user is already in memory or only in Supabase. `CC_SUPABASE_SERVICE_KEY` is what loads a user who is not in memory. A slot is claimed before the run starts, so a second tick does not run it again. A slot older than the 5-minute lookback is not replayed. Spend caps and the Approve click are unchanged: a result that is sent out still waits until you click Approve. Webhooks work on the hub too. A watched folder stays on the desktop app. Desktop schedules still run only while the app is open.
+1. **The tick.** Starting the container and POSTing `<CC_HUB_URL>/api/internal/schedules/tick` with the header `x-cc-tick-secret` (value `CC_TICK_SECRET`, a wrangler secret) runs `schedules.tick()` for every user with a due cron slot, in memory or only in Supabase (`CC_SUPABASE_SERVICE_KEY` loads the latter). The reply also carries `nextDue`: the earliest slot still to come for anyone. The route answers 401 when the header is missing or wrong, and 404 in local mode.
+2. **The wake-up.** The Durable Object stores `nextDue` and sets one alarm for that minute (`Container.schedule`, which does not start the container by itself). When the alarm fires it runs the tick, which stores the next time and sets the next alarm.
+3. **Schedule changes.** When a request on the hub creates, edits, pauses, resumes or deletes a schedule, the server adds that user's earliest next slot as the response header `x-cc-next-due`. The Durable Object moves the alarm earlier if needed (never later) and removes the header before the response leaves Cloudflare, so the browser never sees it.
+4. **The cron (`*/15 * * * *`).** A safety net that reads storage only. It ticks (and so starts the container) only on the first run, once a day to re-read every schedule from Supabase, or when an alarm is more than 2 minutes late. Otherwise it makes sure the alarm is set and leaves the container asleep.
+5. **Failures.** If a tick fails (no `CC_TICK_SECRET`, a 401 or 404, or the container did not start), the next try is an hour later, never every 15 minutes, so a broken setup cannot keep the container awake.
+
+A slot is claimed before the run starts, so a second tick does not run it again. A slot older than the 5-minute lookback is not replayed (the alarm starts the container at the slot's minute, well inside it). Spend caps and the Approve click are unchanged: a result that is sent out still waits until you click Approve. Webhooks work on the hub too. A watched folder stays on the desktop app. Desktop schedules still run only while the app is open; local mode keeps its own timer and does not call the tick route.
+
+Trade-off: each run keeps the container awake for the run plus 15 minutes (the `sleepAfter` window), so many frequent schedules cost a little more (an hourly schedule is roughly $0.30/month extra). The worst case is still the always-on row in the cost table.
 
 ## Report-back relay
 
 An AI that was handed a job can POST the outcome to this server at `POST /api/handoff/:jobId/done`. The desktop does not open a port for that. It polls the hub with `CC_WORKER_URL` and `CC_WORKER_TOKEN` (outbound only).
 
-Operators point `CC_WORKER_URL` at the running hub. The live relay address is `https://meldmind-hub.fly.dev`. That variable is not given a default in the app, so a machine with it unset never calls out. `CC_HUB_URL` stays `https://hub.meldmind.ai` for pairing and OAuth. This relay does not change that address.
+Operators point `CC_WORKER_URL` at the running hub. The live relay address is `https://meldmind-hub.fly.dev`. That variable is not given a default in the app, so a machine with it unset never calls out. `CC_HUB_URL` stays `https://hub.everbornproductions.com` for pairing and OAuth. This relay does not change that address.
 
 The hub only relays. Each job and its one-time token are scoped to the worker token of the account that created the job, stored as a hash. Only that account's app can read the inbox. The per-job token can post a result and cannot read one. The result is deleted when that app acknowledges it, or after 7 days. The store is memory only: no disk, no database, and no admin view of the contents. The log line is `report-back <job id> <status>` and never includes the summary, the links, the files, or either token.
 
@@ -166,7 +197,7 @@ A self-hosted or local app with no hub does not advertise a callback address. Th
 
 ### Fallback: Fly.io (not chosen)
 
-Same `Dockerfile`; `fly.toml` is in the folder. Its public address is the same route, `https://hub.meldmind.ai` (`CC_HUB_URL` in `[env]`). The Fly app name stays `everborn-command` (that is the fallback app, not the Cloudflare Worker). Cost: one `shared-cpu-1x` 256 MB machine is $0.0027/hour ≈ $1.94/month always on, less with auto-stop, no free tier for new accounts ([Fly pricing](https://fly.io/docs/about/pricing/)). Commands: `fly launch --no-deploy --copy-config --name everborn-command --region sjc`, `fly secrets set …`, `fly deploy`. Cheaper than Cloudflare by about $3/month, but outside the Cloudflare account Chris already runs everything in. Point the `hub.meldmind.ai` DNS record at Fly only if you are using this fallback instead of Cloudflare.
+Same `Dockerfile`; `fly.toml` is in the folder. Its public address is the same route, `https://hub.everbornproductions.com` (`CC_HUB_URL` in `[env]`). The Fly app name stays `everborn-command` (that is the fallback app, not the Cloudflare Worker). Cost: one `shared-cpu-1x` 256 MB machine is $0.0027/hour ≈ $1.94/month always on, less with auto-stop, no free tier for new accounts ([Fly pricing](https://fly.io/docs/about/pricing/)). Commands: `fly launch --no-deploy --copy-config --name everborn-command --region sjc`, `fly secrets set …`, `fly deploy`. Cheaper than Cloudflare by about $3/month, but outside the Cloudflare account Chris already runs everything in. Point the hub DNS record at Fly only if you are using this fallback instead of Cloudflare.
 
 ## Teams and shared workspaces (Studio tier, Phase 8)
 

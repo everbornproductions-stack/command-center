@@ -128,6 +128,10 @@ test("one tick runs each due slot once, for two users, and a second tick does no
   assert.equal(first.status, 200);
   assert.equal(first.body.ok, true);
   assert.equal(first.body.runs, 2);
+  // the reply tells the Worker when to wake the container next: the same cron, a year from this slot at most
+  assert.equal(typeof first.body.nextDue, "number");
+  assert.ok(first.body.nextDue > slot, "the next wake-up is after the slot that just ran");
+  assert.ok(first.body.nextDue <= slot + 400 * 86400000);
   await S.idle();
   assert.deepEqual(calls.slice().sort(), ["sch-user-a", "sch-user-b"]);
   const users = new Set(first.body.items.map((r) => r.userId));
@@ -149,10 +153,39 @@ test("a watched folder is refused on the hub, and the desktop note is unchanged"
   assert.match(S.NOTE, /Desktop schedules only run while the app is running/);
 });
 
+test("a schedule change adds the user's next slot as a header once, and nothing without a change", async () => {
+  const c = store.getContext("user-a");
+  const fakeRes = () => {
+    const headers = {};
+    return { headers, headersSent: false, setHeader(k, v) { headers[k.toLowerCase()] = v; }, writeHead() { this.headersSent = true; return this; } };
+  };
+  c.schedHint = null;
+  const quiet = fakeRes();
+  tick.attachNextDueHint(quiet, c);
+  quiet.writeHead(200);
+  assert.equal(quiet.headers[tick.NEXT_DUE_HEADER], undefined, "no change, no header");
+
+  const made = store.runAs(c, () => S.createSchedule({ name: "Hourly", target: { kind: "chat", text: "hi" }, trigger: { type: "cron", cron: "0 * * * *" }, capUsd: 1 }));
+  const res = fakeRes();
+  tick.attachNextDueHint(res, c);
+  res.writeHead(200);
+  const at = Number(res.headers[tick.NEXT_DUE_HEADER]);
+  assert.ok(Number.isFinite(at) && at > Date.now() - 60000, "the header is a time in ms");
+  assert.equal(new Date(at).getMinutes(), 0);
+  assert.ok(at <= Date.now() + 3600000 + 60000, "the hourly schedule is due within the hour");
+  const again = fakeRes();
+  tick.attachNextDueHint(again, c);
+  again.writeHead(200);
+  assert.equal(again.headers[tick.NEXT_DUE_HEADER], undefined, "the hint is sent once");
+  store.runAs(c, () => S.deleteSchedule(made.schedule.id));
+  c.schedHint = null;
+  assert.equal(S.earliestDue([{ enabled: false, trigger: { type: "cron", cron: "* * * * *" } }, { enabled: true, trigger: { type: "webhook" } }]), null);
+});
+
 test("wrangler has the cron and no secrets, and the worker sends the secret from the environment", async () => {
   const wrangler = read("wrangler.jsonc");
-  const worker = read("worker/index.js");
-  assert.match(wrangler, /"crons": \["\*\/5 \* \* \* \*"\]/);
+  const worker = read("worker/index.js") + read("worker/hub-clock.js");
+  assert.match(wrangler, /"crons": \["\*\/15 \* \* \* \*"\]/);
   assert.doesNotMatch(wrangler, /CC_TICK_SECRET"\s*:|CC_MASTER_KEY|CC_SUPABASE_ANON_KEY|CC_SUPABASE_SERVICE_KEY/);
   assert.equal(wrangler.includes(SECRET), false);
   assert.match(worker, /async scheduled/);
@@ -161,7 +194,7 @@ test("wrangler has the cron and no secrets, and the worker sends the secret from
   assert.match(worker, /\/api\/internal\/schedules\/tick/);
   assert.equal(worker.includes(SECRET), false);
   assert.match(read("server/schedule-tick.js"), /if \(!HOSTED\) return send\(res, 404/);
-  for (const f of ["server/schedule-tick.js", "server/plugins/schedules.js", "worker/index.js", "wrangler.jsonc"]) {
+  for (const f of ["server/schedule-tick.js", "server/plugins/schedules.js", "worker/index.js", "worker/hub-clock.js", "wrangler.jsonc"]) {
     assert.equal(read(f).includes("—"), false, f);
   }
   store.dropContext("user-a");

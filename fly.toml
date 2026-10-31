@@ -1,5 +1,5 @@
 # Fly.io fallback for the Meldmind hosted hub. See docs/hosted-hub.md for the runbook.
-# Public route: https://hub.meldmind.ai (the same address as the Cloudflare Worker).
+# Public route: https://hub.everbornproductions.com (the same address as the Cloudflare Worker, see wrangler.jsonc "HUB ADDRESS").
 # Cheapest useful shape: one shared-cpu-1x / 256 MB machine (about $1.94/month if it never
 # stops; less with auto-stop), the free <app>.fly.dev subdomain, no volume (data is in Supabase).
 app = "everborn-command"
@@ -11,7 +11,7 @@ primary_region = "sjc"   # San Jose: closest to Sacramento and to Supabase West 
 [env]
   CC_MODE = "hosted"
   PORT = "8080"
-  CC_HUB_URL = "https://hub.meldmind.ai"
+  CC_HUB_URL = "https://hub.everbornproductions.com"
 
 [http_service]
   internal_port = 8080

@@ -2580,3 +2580,13 @@ No locked decision was changed. Square, Stripe and billing were not touched. dat
 ## 0.4.21 lead notes
 - Areas A-J were built in worktrees and merged into integration/0.4.21; layout is docs/layout-0421.md. Old tests changed on purpose are listed in the PR body. Expert-mode browser tests click #mode-expert because the sample project keeps its own mode.
 - PR #125 opened; final push carries no skip-ci tag so Windows CI runs.
+
+## 2026-10-30 Hosted hub: ready for a one-command Cloudflare deploy (branch prep/hub-cloudflare, from integration/0.4.28)
+
+No locked decision was changed. Nothing was deployed, paid for, signed in to, or set as a secret. data/ was not read. Stripe and billing were not touched.
+
+- Hub address is one setting: the HUB ADDRESS block in wrangler.jsonc (route pattern + CC_HUB_URL) now says hub.everbornproductions.com, a zone in Chris's Cloudflare account. meldmind.ai is not a zone there, so the old hub.meldmind.ai route would have failed. The comment shows the change for hub.meldmind.ai (keep the old host as a second route). fly.toml, README and the runbook follow. The desktop default (usage ping, privacy list) comes from server/hub-address.js. The Worker builds the tick URL from env.CC_HUB_URL.
+- Cost fix: the old */5 cron woke the container every 5 minutes against a 15-minute sleepAfter, so it never slept. Now the cron is */15 and only reads one stored time in the Durable Object (worker/hub-clock.js). The container starts only when a schedule is due (a Durable Object alarm at that minute), once a day for a refresh, or an hour after a failed tick. The tick reply carries nextDue; a schedule change on the hub adds the user's next slot as the x-cc-next-due response header, which the Durable Object reads and strips.
+- tools/deploy-hub.ps1: Docker check, wrangler sign-in, Workers Paid reminder, deploy, missing secrets only (master key and tick secret generated in memory and written to wrangler's stdin, service key pasted at a hidden prompt), health check, -WhatIf.
+- Checked: `npx wrangler@latest deploy --dry-run` needs Docker even in dry-run; with `--containers-rollout=none` the Worker bundles and the bindings and vars read correctly. 0.4.28 boots with CC_MODE=hosted (throwaway values): /api/health mode hosted, /api/state 401, tick 401 without the secret and 200 with nextDue, data dir not created.
+- Tests: new test/hub-clock.test.js; test/schedule-tick.test.js (cron */15, nextDue, hint header), test/hub-domain.test.js and test/reportback.test.js changed on purpose for the new address.

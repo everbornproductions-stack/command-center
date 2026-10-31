@@ -1,5 +1,5 @@
 // Cloudflare Workers + Containers config for the hosted hub. Runbook: docs/hosted-hub.md.
-// Requires the Workers Paid plan ($5/month). Deploy with: npx wrangler deploy
+// Requires the Workers Paid plan ($5/month) and Docker Desktop. Deploy with: tools/deploy-hub.ps1
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "meldmind-hub",
@@ -14,18 +14,27 @@
   "durable_objects": { "bindings": [{ "class_name": "Hub", "name": "HUB" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Hub"] }],
 
-  // Wake the hub every 5 minutes so a due schedule still falls inside the 5-minute lookback.
+  // Safety-net check every 15 minutes. It reads one stored time in the Durable Object and does NOT
+  // start the container unless a schedule is due (worker/hub-clock.js). The real wake for a schedule
+  // is a Durable Object alarm set for the exact minute it is due, so the container can sleep in between.
   // CC_TICK_SECRET is set with `npx wrangler secret put CC_TICK_SECRET` and is not stored here.
   // CC_METRICS_SECRET is set with `npx wrangler secret put CC_METRICS_SECRET` and is not stored here.
-  "triggers": { "crons": ["*/5 * * * *"] },
+  "triggers": { "crons": ["*/15 * * * *"] },
 
-  // the hub's address; Cloudflare creates the DNS record for hub.meldmind.ai on deploy
-  "routes": [{ "pattern": "hub.meldmind.ai", "custom_domain": true }],
+  // ---- HUB ADDRESS: the route "pattern" and "CC_HUB_URL" below must name the same host. ----
+  // Today: hub.everbornproductions.com (everbornproductions.com is a zone in the Cloudflare account,
+  // so Cloudflare creates the DNS record and certificate on deploy).
+  // Later, once meldmind.ai is added as a Cloudflare zone, change the two lines to:
+  //   "routes": [{ "pattern": "hub.meldmind.ai", "custom_domain": true }, { "pattern": "hub.everbornproductions.com", "custom_domain": true }],
+  //   "CC_HUB_URL": "https://hub.meldmind.ai",
+  // (keeping the old host as a second route so installed apps that use it keep working), then set
+  // DEFAULT_HUB_URL in server/hub-address.js and CC_HUB_URL in fly.toml to the same address.
+  "routes": [{ "pattern": "hub.everbornproductions.com", "custom_domain": true }],
 
   // non-secret settings (secrets go in with `wrangler secret put NAME`, never in this file)
   "vars": {
+    "CC_HUB_URL": "https://hub.everbornproductions.com",
     "CC_SUPABASE_URL": "https://ezbpstloczzdlcxwliwu.supabase.co",
-    "CC_HUB_URL": "https://hub.meldmind.ai",
     "CC_OWNER_EMAILS": "everbornproductions@gmail.com"
   }
 }

@@ -12,6 +12,7 @@
 //
 // SENDERS is the plain list behind Settings > Privacy and docs/help/privacy.md. Every place
 // that calls an address outside this computer is in one row.
+import { DEFAULT_HUB_HOST } from "./hub-address.js";
 
 export const SHARE_NOTE_DATE = "2026-10-24";
 
@@ -387,7 +388,7 @@ export const SENDERS = [
     id: "usage-counts",
     name: "Anonymous usage counts",
     what: "A random install id, the app version, the operating system, your plan, and how many times each feature was used. No prompts, answers, file names, emails, keys, or identifying ids.",
-    to: "Everborn's hub (hub.meldmind.ai).",
+    to: `Everborn's hub (${DEFAULT_HUB_HOST}).`,
     when: "Once a day, only while the switch is on.",
     off: "Welcome screen or Settings > Share anonymous usage counts to help improve Meldmind. On by default with an up-front notice, and off until you opt in in consent-first regions such as the EU and the UK.",
     state: "switch",
@@ -397,7 +398,7 @@ export const SENDERS = [
     id: "track-records",
     name: "Anonymous quality signals and track records",
     what: QUALITY_SIGNALS_DETAIL,
-    to: "Everborn's hub (hub.meldmind.ai). Show what would be shared lists exactly what goes.",
+    to: `Everborn's hub (${DEFAULT_HUB_HOST}). Show what would be shared lists exactly what goes.`,
     when: "Once a day, only while the switch is on and there is something to send. In this version the sending itself is still switched off until our receiving service is live, so these counts stay on this computer for now (the Privacy page says which). Your choice is saved.",
     off: "Welcome screen or Settings > Privacy > Helping Meldmind get smarter (or Settings > Who's best > I am willing to share anonymous track records). On by default with an up-front notice, and off until you opt in in consent-first regions such as the EU and the UK.",
     state: "switch",
