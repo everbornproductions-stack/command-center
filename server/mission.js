@@ -58,6 +58,7 @@ import { cleanPlan, stripPrivateRules } from "./private-rules.js";
 import { ownerRuleOpts } from "./private-rules-owner.js";
 import { safeMediaDir } from "./project-media.js";
 import { pickReviewers, qaExcerpt, parseVerdict, QA_MAX_TOKENS } from "./qa-pick.js";
+import { poolRank, workerUsable, helperFor, tryLine, noteLimit as poolLimit } from "./worker-pool.js";
 
 // ---- Never-say-no planner workaround chain (Slice A5, Item 9) ----
 // Order: 1. installed_app -> 2. browser_helper -> 3. smaller_steps -> 4. closest_option.
@@ -683,7 +684,9 @@ export async function runMission({ goal, mode = "balanced", projectId, qa = true
   // takes no new work while another AI can run, so the plan line and every step name the AIs that will really run.
   const canTakeWork = (m) => { try { return !isDeadNow(m.provider) && !heldByRealFailure(m.provider); } catch { return true; } };
   const keepAlive = (list) => { const live = (list || []).filter(canTakeWork); return live.length ? live : list; };
-  const openRank = (opts) => keepAlive(rank(opts).filter((m) => m && !skipSet.has(m.provider)));
+  // 0.4.29: Your AI helpers. A helper switched off or resting after a limit is left out; on Max savings a free app
+  // on this PC goes before a paid-plan app (server/worker-pool.js poolRank). API order is the router's (decision 16).
+  const openRank = (opts) => poolRank(keepAlive(rank(opts).filter((m) => m && !skipSet.has(m.provider))), { mode: opts?.mode || mode });
   const openPick = (opts) => openRank(opts)[0] || null;
   const planning = planMode(mode);
   const looking = reviewMode(mode);
@@ -957,7 +960,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       // An allowed app takes a step of its own task type. Writing stays with a text model.
       // Grok Bot and the browser helper already took their agent steps above.
       // 0.4.22: Freebuff (free coder) takes a code step first when it is set up. A private run never uses it.
-      if (t.capability === "code" && !isPrivate && freebuffReady()) {
+      if (t.capability === "code" && !isPrivate && freebuffReady() && workerUsable("freebuff")) {
         mission.tasks.push({ ...t, app: true, appId: "freebuff", status: "queued", provider: "app", model: "Freebuff", agentName: "Freebuff · code (free)", estCost: 0, output: null, review: null, cost: 0 });
         continue;
       }
@@ -1603,6 +1606,9 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           const fb = await freebuffStep(t, { missionId: id });
           if (fb.ok) { t.output = fb.text; outputs[t.id] = fb.text; t.status = "done"; t.free = true; t.finishedAt = Date.now(); done.add(t.id); emit("task.update", { missionId: id, task: pubTask(t) }); update(); return; }
           const alt = openRank({ capability: t.capability || "code", difficulty: Number(t.difficulty) || 2, mode, needWeb: needsWebModel(t) })[0];
+          // 0.4.29: a Freebuff limit rests it in Your AI helpers, and the try stays on the step
+          const fbLimit = poolLimit("freebuff", fb.reason);
+          t.attempts = [...(t.attempts || []), { provider: "freebuff", model: "Freebuff", kind: fbLimit ? "limit" : "error", reason: String(fb.reason || "").slice(0, 140), at: Date.now() }];
           if (!alt) { t.status = "failed"; t.error = fb.reason; return; }
           Object.assign(t, { app: false, appId: null, provider: alt.provider, model: alt.model, agentName: `${alt.providerName} · ${t.capability}`, freebuffSkipped: fb.reason });
           log(`Freebuff was skipped for "${t.title}": ${fb.reason}`);
@@ -1656,6 +1662,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           }, { missionId: id, taskId: t.id, tools, role: "work", mode, cls: { capability: t.capability, difficulty: t.difficulty, needWeb: needsWebModel(t) }, avoid: held, skipProviders: skipSet, onTrouble: runTrouble })) {
             if (ev.type === "delta") { text += ev.text; emit("agent.delta", { agent, missionId: id, taskId: t.id, text: ev.text }); }
             else if (ev.type === "fallback") {
+              // 0.4.29: the earlier try stays visible on the step ("Try 1 (Claude Code: out of usage)")
+              t.attempts = [...(t.attempts || []), { provider: ev.from.provider, model: ev.from.model, kind: ev.kind === "credits" || ev.kind === "rate" ? "limit" : "error", reason: String(ev.reason || "").slice(0, 140), output: text ? text.slice(0, 4000) : "", at: Date.now() }];
               text = ""; stoodIn(ev, agent, "work", t.id);
               t.provider = ev.to.provider; t.model = ev.to.model; t.agentName = `${ev.to.providerName} · ${t.capability} (for ${ev.from.providerName})`; t.retried = true; t.standIn = { for: ev.from.provider, forModel: ev.from.model, reason: ev.reason, via: ev.via || null };
               emit("task.update", { missionId: id, task: pubTask(t) }); update();
@@ -1692,6 +1700,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
           let lastErr = err;
           for (let hand = 0; alt && !ctl.signal.aborted && hand < 3; hand++) {
             reTried.add(alt.provider);
+            // 0.4.29: keep the try that did not finish visible on the step, with what it had written so far
+            t.attempts = [...(t.attempts || []), { provider: t.provider, model: t.model, kind: isLimitError(lastErr) ? "limit" : "error", reason: String(lastErr.message || "").slice(0, 140), output: hand === 0 && text ? text.slice(0, 4000) : "", at: Date.now() }];
             log(`${stepAgentName(t.provider) || "An AI"} ${isLimitError(lastErr) ? "is out of its plan or quota for now" : "failed"} "${t.title}" (${lastErr.message.slice(0, 80)}). Re-assigning to ${alt.providerName}.`);
             emit("agent.msg", { from: t.provider, to: alt.provider, missionId: id, text: `re-assign "${t.title}"` });
             t.provider = alt.provider; t.model = alt.model; t.agentName = `${alt.providerName} · ${t.capability}`; t.retried = true;
@@ -2023,7 +2033,7 @@ export function plannerLine(r = {}, standIn = null) {
 }
 
 function pubTask(t) {
-  return { notSaved: t.notSaved || null, savedLater: t.savedLater || null, notRun: t.notRun || null, toolRecords: t.toolRecords || [], wroteLine: t.wroteLine || null, run: !!t.run, notDone: stepIsNotDone(t) || !!t.practice, id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, save: !!t.save, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
+  return { notSaved: t.notSaved || null, savedLater: t.savedLater || null, notRun: t.notRun || null, toolRecords: t.toolRecords || [], wroteLine: t.wroteLine || null, run: !!t.run, notDone: stepIsNotDone(t) || !!t.practice, id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, save: !!t.save, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], helper: helperFor(t, PROVIDERS), tries: (t.attempts || []).map((a, i) => ({ n: i + 1, line: tryLine(i + 1, a, PROVIDERS), kind: a.kind || null, output: a.output ? String(a.output).slice(0, 4000) : "" })), qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
 }
 export function publicMission(m) {
   return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, retry: m.retry || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, savedFiles: Array.isArray(m.savedFiles) ? m.savedFiles.map((f) => ({ ...f })) : null, planNote: m.planNote || null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };

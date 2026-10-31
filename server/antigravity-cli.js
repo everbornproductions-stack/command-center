@@ -20,6 +20,7 @@ import { registerLocalRoute } from "./local-routes.js";
 import { addRouteSource } from "./route-extras.js";
 import { guard, isProFeature } from "./license.js";
 import { cliLimit, limitMessage, LIMIT_REST_MS } from "./cli-limit.js";
+import { noteRest as poolRest, workerUsable } from "./worker-pool.js";
 
 export const AGENT_ID = "antigravity";
 export const NAME = "Google Antigravity";
@@ -475,6 +476,7 @@ export function noteAgyLimit(until = null, now = Date.now()) {
   const u = Number(until) || 0;
   const restUntil = u > now ? u : now + LIMIT_REST_MS;
   writeState({ restUntil });
+  try { poolRest("antigravity", { until: restUntil, error: "out of usage", now }); } catch { /* best effort */ }
   return restUntil;
 }
 export function agyRestingUntil(now = Date.now()) {
@@ -517,6 +519,7 @@ export function routeModels() {
   const st = readState();
   if (!st.allowed || !cachedDetect?.found || st.signedIn !== true) return [];
   if (agyRestingUntil()) return []; // 0.4.28: out of quota, resting until its reset time
+  if (!workerUsable("antigravity")) return []; // 0.4.29: switched off or resting in Your AI helpers
   const caps = capsFor(["code", "reasoning"]);
   return [{
     provider: AGENT_ID,

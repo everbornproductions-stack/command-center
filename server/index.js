@@ -1177,7 +1177,7 @@ async function api(req, res, url) {
     return json(res, 200, { demo: demoActive(), providers: providerView() });
   }
   if (method === "POST" && p === "/settings") {
-    const { cloud, phonePair: _pair, ...rest } = body; // cloud and phone pairing have their own routes
+    const { cloud, phonePair: _pair, workerPool: _pool, ...rest } = body; // cloud, phone pairing and the helper list (/api/workers) have their own routes
     if (rest.defaultMode != null) {
       rest.defaultMode = normalizeMode(rest.defaultMode) || "balanced";
       try { guardMaxQuality(rest.defaultMode); }

@@ -78,6 +78,7 @@ export const FEATURES = [
   { id: "brain", views: ["brain"] },
   { id: "grokbot", home: true, deliverable: true, settings: true, listen: true },
   { id: "freebuff", settings: true },
+  { id: "workers", settings: true },
   { id: "browser", home: true, deliverable: true, settings: true, listen: true },
   { id: "bookmarks", settings: true, setup: true },
   { id: "compare", views: ["compare"] },
