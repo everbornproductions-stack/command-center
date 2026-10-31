@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.27
+lastUpdatedVersion: 0.4.29
 ---
 
 # Getting started
@@ -200,3 +200,11 @@ Expert mode has a cleaner, Chaos-style look. Each page has a title at the top, m
 ## Files, folders and faster jobs (0.4.27)
 
 Meldmind now makes real Excel spreadsheets with working formulas and real Word documents, not a script that would make them. When you name a folder, the file is saved there too, and the answer says exactly where it went. Every file you name is saved, including scripts like PowerShell, SQL and Google Apps Script, and Python scripts are really run. Simple jobs go to the fast free AIs first, long pages and documents are no longer cut off, and fewer jobs end with errors. Expert mode fits on a laptop screen and a phone: the task box and Send stay in view.
+
+## New things to make, and steadier jobs (0.4.28)
+
+Simple mode has new choices: Spreadsheet, Document, Slides, App or script, and List or data. Each one saves a real file. Meldmind now makes real PowerPoint decks, one slide per heading, with speaker notes. A plain chat answer that names a file now saves it too, on every plan, and says where it went. When an AI runs out of its usage allowance, its step goes to the next AI instead of stopping the job, and a stuck plan no longer waits forever. After Update and restart, the new version starts on its own. Expert's Command page scrolls on wide screens, and the chat box no longer covers an answer's buttons. The money you saved this month shows again in the title bar, next to the ready pill. Click it to open Credits. The Chat button in the bottom dock opens the chat with the cursor in the box. Prompts has a What's new category that changes every week, and each new prompt is also added to its own category.
+
+## Your AI helpers and Ask about Meldmind (0.4.29)
+
+Your AI helpers: Meldmind lists the AI apps on this PC, shows which are ready or resting until a set time, and gives each step to one that is free. Find it in Expert Settings under My AIs. When a step moves to another helper, the first try stays visible, for example Try 1 (Claude Code: out of usage). Ask about Meldmind: ask why a job cost what it did, which AI planned it, or why a helper is resting, and get an answer from Meldmind's own records. It is in Help, and in Expert it opens from the Live feed. It only reads; it never changes a setting, and it never shows your keys or private chats. Expert Settings fits beside the Live feed on a laptop screen.

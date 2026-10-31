@@ -7,8 +7,9 @@ import * as F from "/mac/data/flow.js";
 const SLOT = "mac-flow";
 const TICK_MS = 350;
 const START_GRACE_MS = 20000;
-const PATH_ART = { website: "g5", image: "g2", video: "g8", campaign: "g6", mod: "g1" };
-const PATH_BLURB = { website: "A page for your business.", image: "A picture from your words.", video: "A short clip.", campaign: "A week of posts.", mod: "A change for your game." };
+// 0.4.28: the file paths get simple drawn pictures (a grid, a page, a slide, code, rows) in flow.css
+const PATH_ART = { website: "g5", image: "g2", video: "g8", campaign: "g6", mod: "g1", spreadsheet: "mf-art-sheet", document: "mf-art-doc", slides: "mf-art-slides", script: "mf-art-code", data: "mf-art-data" };
+const PATH_BLURB = F.PATH_BLURB;
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -98,18 +99,16 @@ function wantCost(text) {
 const costHtml = () => `<span class="mf-cost" role="status" ${cost ? "" : "hidden"}>${esc(cost)}</span>`;
 
 // ---------- what the person typed on Home -> a path ----------
+// 0.4.28: file words (spreadsheet, slides, script, csv) come first, then picture and video, then the other words.
 async function guessPath(text) {
   const t = String(text || "").trim();
   if (!t) return "";
+  let kind = "";
   try {
     const { makeIntent } = await import("/make-intent.js");
-    const k = makeIntent(t)?.kind;
-    if (k === "image" || k === "video") return k;
-  } catch { /* words below */ }
-  if (/\b(mod|minecraft|skyrim|game mod)\b/i.test(t)) return "mod";
-  if (/\b(campaign|posts?|social|week of)\b/i.test(t)) return "campaign";
-  if (/\b(web ?site|web ?page|landing page|site)\b/i.test(t)) return "website";
-  return "";
+    kind = makeIntent(t)?.kind || "";
+  } catch { /* words only */ }
+  return F.pathFromWords(t, kind);
 }
 
 // ---------- rendering ----------
@@ -146,9 +145,9 @@ function render() {
 
 // ----- home -----
 function renderHome(body) {
-  const ideas = (CC.layout?.IDEAS || []).filter((i) => F.isPath(i.chip));
+  const ideas = CC.layout?.IDEAS ? [...CC.layout.IDEAS, ...F.EXTRA_IDEAS].filter((i) => F.isPath(i.chip)) : [];
   homeIdeas = !!CC.layout?.IDEAS;
-  body.innerHTML = `<p class="mf-sub">Pick what to make. Swipe, drag, or use the arrow keys.</p>
+  body.innerHTML = `<div class="mf-subrow"><p class="mf-sub">Pick what to make. Swipe, drag, or use the arrow keys.</p><span class="mf-scrollbtns"><button type="button" class="mf-scroll" id="mf-prev" aria-label="Earlier choices" aria-controls="mf-paths">&lsaquo;</button><button type="button" class="mf-scroll" id="mf-more-paths" aria-label="More choices" aria-controls="mf-paths">&rsaquo;</button></span></div>
     ${stepsHtml()}
     <div class="mf-paths" id="mf-paths" role="list" aria-label="What to make" tabindex="0">${F.PATHS.map((p) => `<button type="button" role="listitem" class="mf-path" data-path="${p}" aria-label="${esc(F.PATH_LABEL[p])}. ${esc(PATH_BLURB[p])}"><span class="mf-art ${PATH_ART[p]}" aria-hidden="true"></span><b>${esc(F.PATH_LABEL[p])}</b><small>${esc(PATH_BLURB[p])}</small></button>`).join("")}</div>
     <div class="mf-box"><input id="mf-ask" type="text" aria-label="What do you want to make?" placeholder="Or just say it: a website for my bakery" autocomplete="off">${costHtml()}<button type="button" class="mf-go" id="mf-next">Next</button></div>
@@ -160,18 +159,83 @@ function renderHome(body) {
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("#mf-next", body).click(); } });
   $("#mf-next", body).addEventListener("click", async () => {
     const path = await guessPath(input.value);
-    if (!path) { note = "Pick what to make above first, or say it with a word like picture, video, or website."; render(); return; }
+    if (!path) { note = F.SAY_IT_HINT; render(); return; }
     set(F.setText(F.start(state, path), input.value));
   });
+  const row = $("#mf-paths", body);
   body.addEventListener("click", (e) => {
     const p = e.target.closest(".mf-path");
-    if (p) { set(F.start(state, p.dataset.path)); return; }
+    if (p) { if (dragged) { dragged = false; e.preventDefault(); return; } set(F.start(state, p.dataset.path)); return; }
     const c = e.target.closest("[data-idea]");
     if (c) quickPick(c.dataset.idea, c.dataset.text);
   });
-  const row = $("#mf-paths", body);
-  row.addEventListener("keydown", (e) => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { row.scrollBy({ left: (e.key === "ArrowRight" ? 1 : -1) * 270, behavior: "smooth" }); e.preventDefault(); } });
+  wireRow(row, $("#mf-prev", body), $("#mf-more-paths", body));
 }
+
+// 0.4.28: ten choices do not fit one screen. Every card is a button (Tab reaches each one), the arrow keys move
+// between cards, Home and End jump to the ends, a touch swipe or a mouse drag scrolls the row, and the two small
+// arrow buttons page through it for a mouse with no side scroll.
+let dragged = false;
+const reduced = () => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
+function wireRow(row, prev, next) {
+  if (!row) return;
+  const cards = () => [...row.querySelectorAll(".mf-path")];
+  const page = (dir) => row.scrollBy({ left: dir * Math.max(240, row.clientWidth * 0.8), behavior: reduced() ? "auto" : "smooth" });
+  const paintEnds = () => {
+    if (!row.isConnected) return;
+    const list = cards();
+    if (!list.length) return;
+    const fits = row.scrollWidth - row.clientWidth <= 2;
+    const rr = row.getBoundingClientRect();
+    // on: some of the first (or last) card is still out of the row
+    if (prev) { prev.disabled = list[0].getBoundingClientRect().left >= rr.left - 1; prev.hidden = fits; }
+    if (next) { next.disabled = list[list.length - 1].getBoundingClientRect().right <= rr.right + 1; next.hidden = fits; }
+  };
+  row.addEventListener("keydown", (e) => {
+    const key = e.key;
+    if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"].includes(key)) return;
+    const list = cards();
+    const i = list.indexOf(document.activeElement);
+    if (i < 0) { if (key === "ArrowRight" || key === "ArrowLeft") { page(key === "ArrowRight" ? 1 : -1); e.preventDefault(); } return; }
+    let j = i;
+    if (key === "ArrowRight" || key === "ArrowDown") j = Math.min(list.length - 1, i + 1);
+    else if (key === "ArrowLeft" || key === "ArrowUp") j = Math.max(0, i - 1);
+    else if (key === "Home") j = 0;
+    else j = list.length - 1;
+    e.preventDefault();
+    list[j].focus({ preventScroll: true });
+    reveal(list, j);
+  });
+  // The row snaps to the start of a card, so a small "nearest" scroll snaps straight back. Scroll to the first
+  // snap point that shows the whole card instead.
+  const reveal = (list, j) => {
+    const rr = row.getBoundingClientRect(), r = list[j].getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(row).paddingLeft) || 0;
+    const pos = (k) => row.scrollLeft + list[k].getBoundingClientRect().left - rr.left - pad;
+    let left = null;
+    if (r.left < rr.left + pad) left = pos(j);
+    else if (r.right > rr.right - pad) {
+      const need = row.scrollLeft + (r.right - (rr.right - pad));
+      for (let k = 0; k <= j; k++) if (pos(k) >= need - 1) { left = pos(k); break; }
+      if (left === null) left = pos(j);
+    }
+    if (left !== null) row.scrollTo({ left: Math.max(0, left), behavior: reduced() ? "auto" : "smooth" });
+  };
+  prev?.addEventListener("click", () => page(-1));
+  next?.addEventListener("click", () => page(1));
+  row.addEventListener("scroll", paintEnds, { passive: true });
+  // a mouse drag scrolls the row (touch scrolls by itself); a real drag is not a click on the card under it
+  let x0 = null, s0 = 0;
+  row.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse" || e.button !== 0) return; x0 = e.clientX; s0 = row.scrollLeft; dragged = false; });
+  row.addEventListener("pointermove", (e) => { if (x0 === null) return; const dx = e.clientX - x0; if (Math.abs(dx) > 6) { dragged = true; row.scrollLeft = s0 - dx; } });
+  row.addEventListener("pointerup", () => { x0 = null; if (dragged) setTimeout(() => { dragged = false; }, 50); });
+  row.addEventListener("pointerleave", () => { x0 = null; });
+  requestAnimationFrame(paintEnds);
+  setTimeout(paintEnds, 300);
+  rowEnds = paintEnds;
+}
+let rowEnds = null;
+const onResize = () => rowEnds?.();
 
 async function styleList(path) {
   if (cardsList?.[path]) return cardsList[path];
@@ -221,7 +285,7 @@ async function renderStyle(body) {
 // ----- tell us (step 2) -----
 function renderTell(body) {
   body.innerHTML = `<p class="mf-sub">${esc(F.TELL_HINT[state.path] || "Tell us about it.")}</p>${stepsHtml()}
-    <div class="mf-box"><input id="mf-text" type="text" aria-label="Tell us about it" placeholder="${esc(F.TELL_HINT[state.path] || "")}" autocomplete="off">${costHtml()}<button type="button" class="mf-go" id="mf-make" disabled>Make it</button></div>
+    <div class="mf-box"><input id="mf-text" type="text" aria-label="Tell us about it" placeholder="${esc(F.tellPlaceholder(state.path))}" autocomplete="off">${costHtml()}<button type="button" class="mf-go" id="mf-make" disabled>Make it</button></div>
     <div class="mf-photos"><span class="mf-photos-h">Your photos (swipe, tap one for full screen)</span><button type="button" class="mf-link" id="mf-addphoto">Add photos</button><input type="file" id="mf-file" hidden multiple accept="image/*" aria-label="Add photos"><div class="mf-strip" id="mf-strip"></div></div>
     ${runBusy() ? '<p class="mf-note">Your last job is still running. You can make this one when it is done.</p>' : ""}`;
   const input = $("#mf-text", body), make = $("#mf-make", body);
@@ -235,6 +299,8 @@ function renderTell(body) {
   wirePhotos(body);
 }
 
+// Missions are on the plan (Pro, a trial, Extreme). The server still checks; this only picks how to send.
+const missionsOn = () => S().license?.limits?.missions === true;
 const runBusy = () => !!(S().awaitingRun || (S().live?.id && ["running", "planning", "assembling"].includes(S().live.status)));
 
 async function paintStrip() {
@@ -276,8 +342,24 @@ async function sendPrompt(prompt, path) {
   S().lastOrders = prompt;
   box.dispatchEvent(new Event("input", { bubbles: true }));
   S().skipProjectStart = F.skipsProjectStart(path);
+  oneRunAs(F.runMode(path, missionsOn()));
   go.click();
   return true;
+}
+
+// 0.4.28: a file path sends this one job as a Mission when the plan has Missions, else as a single answer that names
+// the file (saved on every plan). The choice under More options comes back as soon as the send has read it (that
+// choice is never saved anywhere).
+let modeBack = null;
+function oneRunAs(mode) {
+  if (!mode) return;
+  const st = S();
+  if (modeBack) { clearInterval(modeBack.timer); st.simpleRunMode = modeBack.was; modeBack = null; }
+  const was = st.simpleRunMode;
+  st.simpleRunMode = mode;
+  const t0 = Date.now();
+  const back = () => { clearInterval(modeBack?.timer); if (S().simpleRunMode === mode) S().simpleRunMode = was; modeBack = null; };
+  modeBack = { was, timer: setInterval(() => { if (S().awaitingRun || S().live?.status === "running" || Date.now() - t0 > 15000) back(); }, 100) };
 }
 
 function snapshot(prev) {
@@ -409,8 +491,9 @@ function renderResult(body) {
       <div class="mf-side">
         ${bad ? `<div class="mf-badge" role="alert"><b>Incomplete.</b> Part of this did not work, so it is not marked Done.</div>` : ""}
         <div class="mf-vers" id="mf-vers" role="group" aria-label="Versions"></div>
+        ${F.savesFile(state.path) ? `<div class="mf-file" id="mf-saved" role="status" hidden></div>` : ""}
         <p class="mf-meta" id="mf-meta"></p>
-        ${bad ? `<button type="button" class="mf-finish" id="mf-retry">Retry</button>` : `<button type="button" class="mf-finish" id="mf-finish">${esc(F.finishLabel(state.path))}</button>`}
+        ${bad ? `<button type="button" class="mf-finish" id="mf-retry">Retry</button>` : `<button type="button" class="mf-finish" id="mf-finish">${esc(finishText())}</button>`}
         ${bad ? "" : `<button type="button" class="mf-soft" id="mf-again">Try again</button>${isTile ? `<button type="button" class="mf-soft" id="mf-change">Change this part</button>` : ""}`}
         <button type="button" class="mf-soft" id="mf-more">More ways (PDF, Word, Copy)</button>
         <button type="button" class="mf-soft" id="mf-new">Make something else</button>
@@ -469,6 +552,7 @@ function syncResult(force) {
     if (vers.dataset.sig !== sig) { vers.dataset.sig = sig; vers.innerHTML = family.length > 1 ? family.map((t, i) => `<button type="button" class="mf-ver ${t.id === ver ? "on" : ""}" data-tile="${esc(t.id)}" aria-pressed="${t.id === ver}">Version ${i + 1}</button>`).join("") : ""; }
     host.querySelectorAll(".mk-tile").forEach((n) => { n.hidden = n.dataset.id !== ver; });
   }
+  paintFile();
   const meta = $("#mf-meta", slot);
   if (meta) {
     const t = lastTile();
@@ -479,7 +563,38 @@ function syncResult(force) {
   }
 }
 
+// ----- 0.4.28: the file a file path saved -----
+const fileNow = () => (F.savesFile(state.path) ? F.savedFileInfo(S().live?.mission) : null);
+function finishText() {
+  if (!F.savesFile(state.path)) return F.finishLabel(state.path);
+  return fileNow()?.ok ? F.finishLabel(state.path) : F.NO_FILE_FINISH;
+}
+// The name, where it is, and an Open file button that uses the result card's own route (/dogfood/file/open).
+function paintFile() {
+  const box = $("#mf-saved", slot);
+  if (!box) return;
+  const f = fileNow();
+  const sig = f ? `${f.ok}|${f.name}|${f.path}|${f.copy}|${f.line}` : "";
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  box.hidden = !f;
+  box.classList.toggle("bad", !!f && !f.ok);
+  box.innerHTML = !f ? "" : f.ok
+    ? `<b class="mf-file-name">${esc(f.line)}</b>${f.path ? `<span class="mf-file-path">${esc(f.path)}</span>` : ""}${f.copy ? `<span class="mf-file-path">A copy is in ${esc(f.copy)}</span>` : ""}<button type="button" class="mf-soft" id="mf-open">Open file</button>`
+    : `<b class="mf-file-name">${esc(f.line)}</b>`;
+  $("#mf-open", box)?.addEventListener("click", openFile);
+  const fin = $("#mf-finish", slot);
+  if (fin && fin.textContent !== finishText()) fin.textContent = finishText();
+}
+async function openFile() {
+  const id = S().live?.mission?.id || S().live?.id;
+  if (!id) return;
+  try { await CC.api("/dogfood/file/open", { method: "POST", body: { mission: id } }); }
+  catch (e) { CC.toast?.(e.message || "That file could not be opened.", true); }
+}
+
 function clickFinish() {
+  if (F.savesFile(state.path)) { if (fileNow()?.ok) openFile(); else openMore(); return; }
   const host = $("#mf-result", slot);
   const btn = host?.querySelector(".mk-tile:not([hidden]) .rh-main, .mk-tile:not([hidden]) .mk-dl") || host?.querySelector(".rh-card .rh-main, .rh-main, .mk-dl");
   if (btn) { btn.click(); return; }
@@ -575,6 +690,7 @@ export default {
     slot.addEventListener("click", onClick);
     returnBtn = ensureReturn();
     document.addEventListener("keydown", onKey);
+    addEventListener("resize", onResize, { passive: true });
     offBus = [
       bus.on("flow", (d) => {
         if (!d || d.from === "flow") return;
@@ -585,6 +701,8 @@ export default {
       }),
       bus.on("mode", () => sync()),
       bus.on("view", () => sync()),
+      // 0.4.28: the dock's Chat button (same as "Just chat instead")
+      bus.on("chat", () => { if (!simple()) return; chatOnly = true; releaseAnswer(); render(); sync(); }),
     ];
     CC.mac ||= {};
     CC.mac.flow = { get state() { return state; }, start: (p) => set(F.start(state, p), { force: true }), reset: resetAll, back: goBack };
@@ -595,6 +713,9 @@ export default {
   unmount() {
     clearInterval(timer); clearTimeout(costTimer);
     document.removeEventListener("keydown", onKey);
+    removeEventListener("resize", onResize);
+    rowEnds = null;
+    if (modeBack) { clearInterval(modeBack.timer); if (CC?.S && CC.S.simpleRunMode === "mission") CC.S.simpleRunMode = modeBack.was; modeBack = null; }
     offBus.forEach((f) => f?.()); offBus = [];
     releaseAnswer();
     slot?.removeEventListener("click", onClick);

@@ -1,0 +1,145 @@
+[
+  {
+    "id": "week-2026-w45-thumbnail-ideas",
+    "title": "Thumbnail ideas",
+    "category": "images and design",
+    "industry": "any",
+    "prompt": "Describe three thumbnail ideas for a video called [title]. For each, say the main picture, up to four words of text, and the colors.",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "Three thumbnail ideas to choose from.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-flyer-layout",
+    "title": "Flyer layout",
+    "category": "images and design",
+    "industry": "any",
+    "prompt": "Plan a one-page flyer for [event] on [date]. Say what goes at the top, the middle, and the bottom, and what to leave off. Use only these facts: [facts].",
+    "source_name": "OpenAI prompt guide",
+    "source_url": "https://platform.openai.com/docs/guides/prompt-engineering",
+    "popularity_note": "A flyer plan before you design it.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-product-clip-voiceover",
+    "title": "Product clip voiceover",
+    "category": "video",
+    "industry": "any",
+    "prompt": "Write a [length] voiceover for a clip showing [product]. Plain words, one idea per line, and no claims beyond these facts: [facts].",
+    "source_name": "Google prompting guide",
+    "source_url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+    "popularity_note": "A voiceover tied to your facts.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-turn-a-post-into-a-video",
+    "title": "Turn a post into a video",
+    "category": "video",
+    "industry": "any",
+    "prompt": "Turn this post into a 30 second video plan: [post]. List the scenes, the words on screen, and the voiceover for each scene.",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "A scene plan from a post you already wrote.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-three-headline-options",
+    "title": "Three headline options",
+    "category": "marketing and ads",
+    "industry": "any",
+    "prompt": "Write three headlines for [page or ad] aimed at [customer]. One plain, one curious, one direct. Use only these facts: [facts].",
+    "source_name": "OpenAI prompt guide",
+    "source_url": "https://platform.openai.com/docs/guides/prompt-engineering",
+    "popularity_note": "Three headlines in three tones.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-newsletter-outline",
+    "title": "Newsletter outline",
+    "category": "email",
+    "industry": "any",
+    "prompt": "Outline a short newsletter for [audience] this month with three parts: [news], one tip, and one question for readers. Draft only. Do not send.",
+    "source_name": "Google prompting guide",
+    "source_url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+    "popularity_note": "An outline. Nothing is sent.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-step-by-step-guide",
+    "title": "Step-by-step guide",
+    "category": "business planning",
+    "industry": "any",
+    "prompt": "Write a step-by-step guide for [task] that a new helper could follow. Number the steps and mark any step that needs a judgment call.",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "Steps a new helper can follow.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-monthly-budget-sheet",
+    "title": "Monthly budget sheet",
+    "category": "finance and accounting",
+    "industry": "any",
+    "prompt": "Set up a monthly budget sheet for [household or business]. Give the rows, the columns, and the formulas for the totals. Use these amounts: [amounts]. Leave a blank for any amount I did not give.",
+    "source_name": "OpenAI prompt guide",
+    "source_url": "https://platform.openai.com/docs/guides/prompt-engineering",
+    "popularity_note": "A budget layout with totals worked out.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-tidy-a-list-for-a-sheet",
+    "title": "Tidy a list for a sheet",
+    "category": "productivity",
+    "industry": "any",
+    "prompt": "Clean up this list so it fits a spreadsheet: [list]. One item per row, fix spelling, remove repeats, and tell me what you changed.",
+    "source_name": "Google prompting guide",
+    "source_url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+    "popularity_note": "A clean list, with the changes named.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-about-page-draft",
+    "title": "About page draft",
+    "category": "coding",
+    "industry": "any",
+    "prompt": "Draft an About page for [business] from these facts: [facts]. Warm, plain words, under [length]. Do not invent history or awards.",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "An About page from your own facts.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-small-script-explained",
+    "title": "Small script, explained",
+    "category": "coding",
+    "industry": "any",
+    "prompt": "Write a small [language] script that [task]. Explain each part in plain words and say what to check before you run it.",
+    "source_name": "OpenAI prompt guide",
+    "source_url": "https://platform.openai.com/docs/guides/prompt-engineering",
+    "popularity_note": "A script with each part explained.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-voicemail-script",
+    "title": "Voicemail script",
+    "category": "sales",
+    "industry": "any",
+    "prompt": "Write a voicemail under 30 seconds for [name] about [reason]. Say who I am, why I called, and how to reach me: [contact]. Draft only.",
+    "source_name": "Google prompting guide",
+    "source_url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+    "popularity_note": "A short voicemail draft.",
+    "added_week": "2026-W45"
+  },
+  {
+    "id": "week-2026-w45-faq-from-questions",
+    "title": "FAQ from questions",
+    "category": "customer support",
+    "industry": "any",
+    "prompt": "Turn these customer questions into a short FAQ: [questions]. Answer only from these facts: [facts]. Mark any answer you could not find.",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "Answers only from your facts.",
+    "added_week": "2026-W45"
+  }
+]

@@ -1,0 +1,145 @@
+[
+  {
+    "id": "week-2026-w44-product-photo-brief",
+    "title": "Product photo brief",
+    "category": "images and design",
+    "industry": "any",
+    "prompt": "Describe a clean product photo of [product] on [background] for [use]. Name the light, the angle, and what must stay out of the frame.",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "A brief you can hand to an image tool.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-logo-ideas-in-words",
+    "title": "Logo ideas in words",
+    "category": "images and design",
+    "industry": "any",
+    "prompt": "Give me five logo ideas for [business] in plain words. For each, name the shape, the colors, and one reason it fits [customer]. Words only, no images yet.",
+    "source_name": "OpenAI prompt guide",
+    "source_url": "https://platform.openai.com/docs/guides/prompt-engineering",
+    "popularity_note": "Ideas in words before any design work.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-shot-list-for-a-short-clip",
+    "title": "Shot list for a short clip",
+    "category": "video",
+    "industry": "any",
+    "prompt": "Make a shot list for a [length] clip about [topic]. Number each shot, say what the camera sees, and keep it to [number] shots.",
+    "source_name": "Google prompting guide",
+    "source_url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+    "popularity_note": "A numbered list you can film from.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-video-opening-lines",
+    "title": "Video opening lines",
+    "category": "video",
+    "industry": "any",
+    "prompt": "Write five opening lines for a video about [topic] for [audience]. Keep each one under 12 words. Draft only.",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "Five openers to pick from. Nothing is posted.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-offer-in-one-sentence",
+    "title": "Offer in one sentence",
+    "category": "marketing and ads",
+    "industry": "any",
+    "prompt": "Write one sentence that says what [offer] is, who it is for, and what it costs. Use only these facts: [facts].",
+    "source_name": "OpenAI prompt guide",
+    "source_url": "https://platform.openai.com/docs/guides/prompt-engineering",
+    "popularity_note": "One clear line about your offer.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-meeting-notes-to-actions",
+    "title": "Meeting notes to actions",
+    "category": "business planning",
+    "industry": "any",
+    "prompt": "Turn these meeting notes into a list of actions with an owner and a due date for each: [notes]. Leave a blank where the notes do not say.",
+    "source_name": "Google prompting guide",
+    "source_url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+    "popularity_note": "Actions with owners, gaps left blank.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-one-page-proposal",
+    "title": "One-page proposal",
+    "category": "business planning",
+    "industry": "any",
+    "prompt": "Draft a one-page proposal for [client] about [job]. Use only these facts: [facts]. Leave the price blank if I did not give one.",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "A proposal tied to the facts you give.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-spreadsheet-columns",
+    "title": "Spreadsheet columns",
+    "category": "finance and accounting",
+    "industry": "any",
+    "prompt": "Suggest the columns for a spreadsheet that tracks [what]. Give each column a name and an example value, and say which ones need a formula.",
+    "source_name": "OpenAI prompt guide",
+    "source_url": "https://platform.openai.com/docs/guides/prompt-engineering",
+    "popularity_note": "A sheet layout before you type anything.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-explain-a-formula",
+    "title": "Explain a formula",
+    "category": "finance and accounting",
+    "industry": "any",
+    "prompt": "Explain this spreadsheet formula in plain words, step by step: [formula]. Then show one small example with made-up numbers marked as examples.",
+    "source_name": "Google prompting guide",
+    "source_url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+    "popularity_note": "A formula in plain words.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-home-page-outline",
+    "title": "Home page outline",
+    "category": "coding",
+    "industry": "any",
+    "prompt": "Outline a home page for [business]. List the sections in order, a headline for each, and the one button people should click. Use only these facts: [facts].",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "A page plan with one clear button.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-why-the-page-breaks",
+    "title": "Why the page breaks",
+    "category": "coding",
+    "industry": "any",
+    "prompt": "Look at this web page code and tell me in plain words why [problem] happens: [code]. Suggest the smallest fix. Do not rewrite the whole page.",
+    "source_name": "OpenAI prompt guide",
+    "source_url": "https://platform.openai.com/docs/guides/prompt-engineering",
+    "popularity_note": "The smallest fix, explained.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-phone-call-script",
+    "title": "Phone call script",
+    "category": "sales",
+    "industry": "any",
+    "prompt": "Write a short phone script for calling [name] about [offer]. Start with who I am, ask one question, and end with a next step. Draft only.",
+    "source_name": "Google prompting guide",
+    "source_url": "https://ai.google.dev/gemini-api/docs/prompting-strategies",
+    "popularity_note": "A short script you can edit.",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "week-2026-w44-reply-to-a-comment",
+    "title": "Reply to a comment",
+    "category": "social media",
+    "industry": "any",
+    "prompt": "Draft a friendly reply to this comment on my [platform] post: [comment]. Keep it under [length]. Do not argue. Draft only.",
+    "source_name": "Anthropic prompt guide",
+    "source_url": "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview",
+    "popularity_note": "A calm reply. Nothing is posted.",
+    "added_week": "2026-W44"
+  }
+]

@@ -1,6 +1,6 @@
 {
   "name": "everborn-command-center",
-  "version": "0.4.27",
+  "version": "0.4.29",
   "description": "Meldmind, an Everborn product. Take command of all your AIs. Council, missions, credits, projects.",
   "type": "module",
   "main": "electron/main.cjs",

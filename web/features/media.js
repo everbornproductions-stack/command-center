@@ -46,7 +46,7 @@ function wireForm(root, after) {
     try {
       const r = await api("/media/estimate", { method: "POST", body: { provider: root.querySelector("#md-prov").value, kind, params: params() } });
       seen = r.usd;
-      root.querySelector("#md-est-out").innerHTML = `≈ <b>${money(r.usd, 3)}</b> <span class="dim">${esc(plainPriceLine(r.estimate, r.usd))}</span>${r.keyed ? "" : r.connected ? ' <span class="chip">MCP</span>' : ' <span class="chip amber">needs a key · practice only, nothing spent</span>'}${r.capped ? ' <span class="chip red">at its spend cap</span>' : r.wouldExceed ? ` <span class="chip red">over the cap ($${esc(String(r.capLeft))} left)</span>` : ""}`;
+      root.querySelector("#md-est-out").innerHTML = `<b data-md-price>${esc(plainPriceLine(r.estimate, r.usd))}</b>${r.keyed ? "" : r.connected ? ' <span class="chip">MCP</span>' : ' <span class="chip amber">needs a key · practice only, nothing spent</span>'}${r.capped ? ' <span class="chip red">at its spend cap</span>' : r.wouldExceed ? ` <span class="chip red">over the cap ($${esc(String(r.capLeft))} left)</span>` : ""}`;
       root.querySelector("#md-go").disabled = !!(r.capped || r.wouldExceed);
       root.querySelector("#md-go").textContent = r.capped || r.wouldExceed ? "Generate" : `Generate (about ${money(r.usd, 3)})`;
       return r;

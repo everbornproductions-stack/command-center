@@ -19,6 +19,8 @@ import { capsFor } from "./added-caps.js";
 import { registerLocalRoute } from "./local-routes.js";
 import { addRouteSource } from "./route-extras.js";
 import { guard, isProFeature } from "./license.js";
+import { cliLimit, limitMessage, LIMIT_REST_MS } from "./cli-limit.js";
+import { noteRest as poolRest, workerUsable } from "./worker-pool.js";
 
 export const AGENT_ID = "antigravity";
 export const NAME = "Google Antigravity";
@@ -169,6 +171,9 @@ export function plainAgyError(text, status = "") {
   if (/auth|sign[ -]?in|not logged|login required|authentication required|unauthenticated/i.test(s)) {
     return { code: "signin", message: "Antigravity needs you to sign in. Click Sign in, finish it in the browser, then click Check." };
   }
+  // 0.4.28 (dogfood loan-calc): a plan or session limit says when it ends; Antigravity rests until then
+  const lim = cliLimit(s);
+  if (lim) return { code: "quota", message: limitMessage("Antigravity", lim).replace("out of its own plan's quota", "out of quota"), resetAt: lim.resetAt, until: lim.until };
   if (/quota|rate limit|resource exhausted|out of credits|too many requests|\b429\b/i.test(s)) {
     return { code: "quota", message: "Antigravity is out of quota right now. Try again later, or send this task to another AI." };
   }
@@ -414,6 +419,7 @@ async function runStored(job, opts = {}) {
     job.text = stripSecrets(result?.response || text);
     if (plain.code === "signin") writeState({ signedIn: false, lastError: plain.message });
     else writeState({ lastError: plain.message });
+    if (plain.code === "quota") noteAgyLimit(plain.until);
   }
   job.updatedAt = Date.now();
   job.version = readState().seenVersion || "";
@@ -465,22 +471,43 @@ export async function dispatchJob({ task, source = {}, timeoutMs } = {}) {
   return publicJob(job);
 }
 
+// 0.4.28: Antigravity out of quota rests until the reset time it gave (else a few hours); the router leaves it out till then
+export function noteAgyLimit(until = null, now = Date.now()) {
+  const u = Number(until) || 0;
+  const restUntil = u > now ? u : now + LIMIT_REST_MS;
+  writeState({ restUntil });
+  try { poolRest("antigravity", { until: restUntil, error: "out of usage", now }); } catch { /* best effort */ }
+  return restUntil;
+}
+export function agyRestingUntil(now = Date.now()) {
+  const u = Number(readState().restUntil) || 0;
+  return u > now ? u : 0;
+}
+
 export async function* agyChatStream(opts = {}) {
   const task = stripSecrets((opts.messages || []).map((m) => m?.content || "").filter(Boolean).join("\n\n") || opts.prompt || "").trim();
   let result = null;
   let failed = null;
+  let said = "";
   for await (const ev of iterateJob({ task, timeoutMs: opts.timeoutMs, signal: opts.signal })) {
-    if (ev.kind === "delta" && ev.text) yield { type: "delta", text: ev.text };
+    if (ev.kind === "delta" && ev.text) { said += ev.text; yield { type: "delta", text: ev.text }; }
     else if (ev.kind === "result") result = ev;
     else if (ev.kind === "error") failed = ev.plain;
   }
-  const bad = (result && result.status && result.status !== "SUCCESS")
+  let bad = (result && result.status && result.status !== "SUCCESS")
     ? plainAgyError(result.error || result.response, result.status)
     : failed;
-  if (bad && result?.status !== "SUCCESS") {
+  // a "successful" answer that is only the limit line is a limit, not an answer
+  if (!bad || result?.status === "SUCCESS") {
+    const lim = cliLimit(String(result?.response || said || ""), { short: true });
+    if (lim) bad = { code: "quota", message: limitMessage("Antigravity", lim).replace("out of its own plan's quota", "out of quota"), resetAt: lim.resetAt, until: lim.until };
+    else if (result?.status === "SUCCESS") bad = null;
+  }
+  if (bad) {
     if (bad.code === "signin") writeState({ signedIn: false, lastError: bad.message });
     const err = new Error(bad.message);
     err.code = bad.code;
+    if (bad.code === "quota") { err.status = 429; err.limit = true; err.until = noteAgyLimit(bad.until); }
     throw err;
   }
   writeState({ signedIn: true, lastError: "" });
@@ -491,6 +518,8 @@ export function routeModels() {
   if (!isProFeature("desktop")) return [];
   const st = readState();
   if (!st.allowed || !cachedDetect?.found || st.signedIn !== true) return [];
+  if (agyRestingUntil()) return []; // 0.4.28: out of quota, resting until its reset time
+  if (!workerUsable("antigravity")) return []; // 0.4.29: switched off or resting in Your AI helpers
   const caps = capsFor(["code", "reasoning"]);
   return [{
     provider: AGENT_ID,

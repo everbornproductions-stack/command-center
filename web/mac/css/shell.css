@@ -641,6 +641,9 @@ body[data-style="mac"]:has(#mac-side.mx-side.mx-collapsed:not([hidden])) #mac-ma
   body[data-style="mac"][data-ui="expert"] #vt-bar[data-talk="off"] #vt-help-btn { display: none; }
   /* the chat dock keeps its box and Send; its run choices show once the person is typing in it */
   body[data-style="mac"][data-ui="expert"] .cc-dock:not(:focus-within) .dock-row { display: none; }
+  /* 0.4.28 (panel item 6): on Projects and History the dock was 178 px (its heading line and a suggestion card above the
+     box). Until the person taps into it, it is just the box and Send. */
+  body[data-style="mac"][data-ui="expert"] .cc-dock:not(:focus-within) :is(.dock-head, .dock-suggest, #cc-dock-undo) { display: none; }
   body[data-style="mac"] #mobile-nav {
     overflow-x: auto;
     gap: 2px;
@@ -655,4 +658,55 @@ body[data-style="mac"]:has(#mac-side.mx-side.mx-collapsed:not([hidden])) #mac-ma
     letter-spacing: 0;
     white-space: nowrap;
   }
+}
+/* ---------- 0.4.28 (panel item 3b): Simple chat at phone width ----------
+   At 390 x 844 Send sat under the bottom tabs: the Talk bar was three rows (112 px), the Next and Project tools rows
+   wrapped to 130 px each, and Send was the last thing in a wrapped row. Now the Talk bar is one row while Talk is off
+   (as Expert has had since 0.4.27), the two rows are one line each that swipes sideways, and Send is on the first line
+   of its row, right of Mic. "Stop" hides while Talk is off (the chat box has its own Stop for a running answer). */
+body[data-style="mac"] #vt-bar[data-talk="off"] #vt-stop { display: none; }
+@media (max-width: 760px) {
+  body[data-style="mac"][data-ui="simple"] #vt-bar[data-talk="off"] {
+    flex-wrap: nowrap;
+    padding-top: 3px;
+    padding-bottom: 3px;
+  }
+  body[data-style="mac"][data-ui="simple"] #vt-bar[data-talk="off"] :is(.vt-strip, label, #vt-help-btn) { display: none; }
+  body[data-style="mac"][data-ui="simple"] #vt-bar[data-talk="off"] .vt-line {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  body[data-style="mac"][data-ui="simple"] #vt-bar[data-talk="off"] .vt-state { white-space: nowrap; }
+  body[data-style="mac"][data-ui="simple"] #app .view-col > :is(.mm-bar, .projbar):not([hidden]) {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    touch-action: pan-x pan-y;
+    flex: none;
+  }
+  body[data-style="mac"][data-ui="simple"] #app .view-col > :is(.mm-bar, .projbar) > *,
+  body[data-style="mac"][data-ui="simple"] #app .view-col > .projbar .pb-tools > * { flex-shrink: 0; white-space: nowrap; }
+  body[data-style="mac"][data-ui="simple"] #app .view-col > .projbar .pb-tools { display: flex; flex-wrap: nowrap; }
+  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row { flex-wrap: wrap; }
+  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row > #go { order: 1; margin-left: auto; }
+  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row > :not(#go):not(#vo-mic) { order: 2; }
+  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row > #sc-team { flex: 1 1 100%; }
+  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row > span { margin-left: 0 !important; flex: 1 1 100%; }
+  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="empty"] .sc-box #orders { min-height: 88px; }
+}
+/* 0.4.28 (panel item 6): Expert's bottom tabs scrolled sideways and hid Help, More and Settings. Five tabs now; Subs,
+   Feed and Help are under More (app.js ensureMobileMore adds them there). */
+@media (max-width: 760px) {
+  body[data-style="mac"][data-ui="expert"] #mobile-nav:has([data-more]:not([hidden])) :is([data-view="subscriptions"], [data-feed], [data-view="help"]) { display: none; }
+  body[data-style="mac"][data-ui="expert"] #mobile-nav button { min-width: 0; flex: 1 1 0; }
+}
+/* 0.4.28 (panel item 7): "Answer done · Free" sat on the Talk bar's Hands-free box. Toasts rise above the Talk bar
+   (and, on a phone, above the Talk bar, the bottom tabs and the dock). */
+body[data-style="mac"] .toasts { bottom: 168px; }
+@media (max-width: 760px) {
+  body[data-style="mac"] .toasts { bottom: 280px; }
 }

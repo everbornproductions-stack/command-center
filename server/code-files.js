@@ -8,6 +8,8 @@ const EXT = {
   php: "php", swift: "swift", kt: "kt", kotlin: "kt", xml: "xml", toml: "toml", ini: "ini", env: "env", txt: "txt", text: "txt", csv: "csv", vue: "vue", svelte: "svelte",
 };
 const NAME_RE = /^[\w][\w./-]{0,80}\.[A-Za-z0-9]{1,8}$/;
+/** The file type a fence language stands for ("javascript" is js, "powershell" is ps1), or "". */
+export const langExt = (lang) => EXT[String(lang || "").toLowerCase().replace(/\.$/, "")] || "";
 
 export function safeFileName(n) {
   const parts = String(n || "").replace(/\\/g, "/").split("/").filter((p) => p && p !== "." && p !== "..").slice(-3);
@@ -25,7 +27,8 @@ function nameFromInfo(info) {
 function nameFromAbove(line) {
   // 0.4.27 (dogfood batch 2): "## invoice_totals.py" was read as "totals.py" because every "_" was dropped.
   // Only an "_" used for emphasis (at the start or end of a word) is markdown.
-  const t = String(line || "").trim().replace(/[*`#>]/g, " ").replace(/(^|\s)_+|_+(?=\s|$)/g, "$1 ");
+  // 0.4.28 (dogfood task-schedule): "**File:** `C:\Users\me\desktop-cleanup.ps1`" names desktop-cleanup.ps1 (a full Windows path)
+  const t = String(line || "").trim().replace(/[*`#>]/g, " ").replace(/(^|\s)_+|_+(?=\s|$)/g, "$1 ").replace(/(?:^|\s)[A-Za-z]:\\(?:[^\\\s]+\\)*(?=[^\\\s]+\.[A-Za-z0-9]{1,8}\b)/g, " ");
   if (!t || t.length > 140) return "";
   const m = /(?:^|[\s(:])([\w][\w./-]{0,80}\.[A-Za-z0-9]{1,8})(?=[\s):,.]*$)/.exec(t);
   return m && safeFileName(m[1]) ? safeFileName(m[1]) : "";
@@ -36,9 +39,39 @@ function nameFromFirstLine(code) {
   return m && safeFileName(m[1]) ? safeFileName(m[1]) : "";
 }
 
+// ---- 0.4.28 (dogfood catalog-json): a closing fence with words glued onto it ----
+// A carry-on reply was joined right after a closing fence: "]\n```The JSON was not cut off ...". The fence line was
+// no longer a bare ``` so the block ran on through the sentence and into the next block, and catalog.json was saved
+// with the sentence inside it. Inside an open block, a fence line followed by words (not a language or a file name)
+// is the closing fence plus the start of the next paragraph: it is split onto two lines.
+const isInfoString = (rest) => {
+  const s = String(rest || "").trim();
+  if (!s) return true;
+  if (/(?:title|file(?:name)?)\s*=/i.test(s)) return true;
+  const toks = s.split(/[\s:]+/).filter(Boolean);
+  return toks.length <= 2 && toks.every((t) => /^[\w+#./\\-]+$/.test(t)) && !/[.!?]$/.test(s);
+};
+/** Put a closing fence that has text glued onto it on its own line, with a blank line before the text. */
+export function unglueFences(text) {
+  const lines = String(text ?? "").replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let open = null;
+  for (const line of lines) {
+    const m = /^(\s*)(`{3,}|~{3,})(.*)$/.exec(line);
+    if (!m) { out.push(line); continue; }
+    if (!open) { open = m[2]; out.push(line); continue; }
+    if (m[2][0] === open[0] && m[2].length >= open.length) {
+      if (!m[3].trim()) { open = null; out.push(line); continue; }
+      if (!isInfoString(m[3])) { out.push(`${m[1]}${m[2]}`, "", m[3].trimStart()); open = null; continue; }
+    }
+    out.push(line);
+  }
+  return out.join("\n");
+}
+
 // -> [{ name, lang, text }]
 export function extractCodeFiles(markdown) {
-  const lines = String(markdown || "").replace(/\r\n/g, "\n").split("\n");
+  const lines = unglueFences(markdown).split("\n");
   const found = [];
   const used = new Set();
   let n = 0;
@@ -90,6 +123,52 @@ export function markdownTableToCsv(text) {
   }
   return "";
 }
+// ---- 0.4.28 (dogfood task-schedule): the main block when several are in the file's language ----
+// "Save it as desktop-cleanup.ps1": the AI named its script Register-And-Run-DesktopCleanup.ps1 in a sentence and
+// added three one-line usage snippets in ```powershell too. The script is the main block: the biggest one, when it is
+// clearly bigger (3 times the lines of any other), or the only one that is a real program (param(, def main, a
+// function, a class) and still the biggest. Two blocks of about the same size stay a question, never a guess.
+const MAIN_MARK = /\bparam\s*\(|\[CmdletBinding|^\s*def\s+main\b|^\s*(?:async\s+)?function\b|^\s*def\s+\w+\s*\(|^\s*class\s+\w+|if\s+__name__\s*==|module\.exports|^\s*export\s+(?:default|function|const|class)\b/m;
+const lineCount = (b) => String(b?.text || "").split("\n").filter((l) => l.trim()).length;
+/** The one main block of several, or null when it is not clear which is the file. */
+export function mainBlock(blocks = []) {
+  const list = (blocks || []).filter((b) => b && String(b.text || "").trim());
+  if (!list.length) return null;
+  if (list.length === 1) return list[0];
+  const sorted = [...list].sort((a, b) => lineCount(b) - lineCount(a));
+  const [big, next] = sorted;
+  if (lineCount(big) >= 3 * Math.max(1, lineCount(next))) return big;
+  if (MAIN_MARK.test(big.text) && !sorted.slice(1).some((b) => MAIN_MARK.test(b.text)) && lineCount(big) >= 1.5 * lineCount(next)) return big;
+  return null;
+}
+
+// ---- 0.4.28 (dogfood tip-split): a block of plain sentences is not code ----
+// tipsplit.test.js was replaced by an 18-byte block "All tests passed." taken from the run step's answer.
+const STRICT_CODE_EXT = new Set(["js", "mjs", "cjs", "jsx", "ts", "tsx", "py", "ps1", "sh", "bat", "cmd", "json", "css", "sql", "gs", "java", "go", "rb", "php", "c", "cpp", "cs", "rs", "swift", "kt", "html", "htm", "xml", "svg", "yml", "yaml"]);
+const CODE_LINE = /[{}();=[\]$<>|]|^(?:#!|\/\/|--|\/\*|\*\/|@echo)|^(?:import|from|export|const|let|var|function|def|class|return|if|elif|else|for|foreach|while|param|require|use|package|public|private|echo|set|print|async|await|try|catch|select|insert|create|update|delete)\b|^[A-Z][a-z]+-[A-Z]\w+/i;
+/** Does this body look like code of that file type? Text files (md, txt, csv ...) always pass. */
+export function looksLikeCode(text, ext = "") {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  const e = String(ext || "").toLowerCase();
+  if (!STRICT_CODE_EXT.has(e)) return true;
+  if (e === "json") { try { JSON.parse(t); return true; } catch { return /^[{[]/.test(t); } }
+  if (["html", "htm", "xml", "svg"].includes(e)) return /<[a-z!?][^>]*>/i.test(t);
+  if (e === "yml" || e === "yaml") return /^\s*(?:[\w"'-][^:\n]*:(?:\s|$)|-\s)/m.test(t);
+  return t.split("\n").map((l) => l.trim()).filter(Boolean).some((l) => CODE_LINE.test(l) && !/^[A-Z][^{}();=[\]$<>|]*[.!?]$/.test(l));
+}
+
+// Blocks with the same content (JSON compared by value, other files by their words) count once.
+function sameOnce(blocks, ext) {
+  const key = (b) => {
+    const t = String(b.text || "").trim();
+    if (ext === "json") { try { return `json:${JSON.stringify(JSON.parse(t))}`; } catch { /* compare the words */ } }
+    return t.replace(/\s+/g, " ");
+  };
+  const seen = new Set();
+  return blocks.filter((b) => { const k = key(b); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
 /** { body, from, how } for the file `name`, or null when no answer holds it clearly. */
 export function bodyForFile(name, texts = []) {
   const want = baseOf(name), ext = extOf(name);
@@ -111,8 +190,12 @@ export function bodyForFile(name, texts = []) {
   const langs = langsFor(ext);
   if (ext === "txt") return null; // a ```text block is usually sample output, not the file
   for (const s of parsed) {
-    const same = s.blocks.filter((b) => langs.includes(b.lang) || (/^code-\d+\./.test(b.name) && extOf(b.name) === ext));
+    // 0.4.28 (dogfood catalog-json): the same file given twice (the AI repeated it in full) is one file, not a question
+    const same = sameOnce(s.blocks.filter((b) => langs.includes(b.lang) || (/^code-\d+\./.test(b.name) && extOf(b.name) === ext)), ext);
     if (same.length === 1) return { body: same[0].text, from: s.from ?? null, how: "language" };
+    // 0.4.28: several blocks in the language and none named for the file: the clear main block, saved under the asked name
+    const main = same.length > 1 ? mainBlock(same.filter((b) => /^code-\d+\./.test(b.name) || extOf(b.name) === ext)) : null;
+    if (main) return { body: main.text, from: s.from ?? null, how: "main" };
   }
   // a table only when no answer has a CSV block at all (a "expected totals" table is not the data file)
   if (ext === "csv" && !parsed.some((s) => s.blocks.some((b) => langs.includes(b.lang)))) {
