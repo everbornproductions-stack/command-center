@@ -172,6 +172,7 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .tour-quiet { margin: 14px auto 0; max-width: 720px; text-align: center; }
 .feed { grid-area: feed; border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; background: var(--card-bg, #0a0f18); }
 .feed-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 0.6875rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+#feed-ask { margin-left: auto; margin-right: 8px; letter-spacing: normal; text-transform: none; }
 .feed-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 0.7813rem; }
 .ev { display: grid; grid-template-columns: 8px 1fr; gap: 10px; padding: 7px 10px; border-radius: 10px; background: var(--card-bg, #0f1623); border: 1px solid #16202f; animation: fadein .25s ease; }
 .ev .bar { width: 3px; border-radius: 3px; background: var(--grey); margin-top: 2px; }

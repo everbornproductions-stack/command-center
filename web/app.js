@@ -2991,7 +2991,7 @@ function renderSettings(v) {
   v.innerHTML = `
   ${moreBar}
   ${groupsNav}
-  <div class="grid" style="grid-template-columns: 1fr 1fr">
+  <div class="grid settings-cols" id="settings-cols" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr))">
     <div class="grid" style="align-content:start">
       <div class="panel" id="settings-keys"><div id="settings-group-my-ais" class="cat-h" style="margin-bottom:4px">My AIs</div><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
         <div class="dim small">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server.</div>

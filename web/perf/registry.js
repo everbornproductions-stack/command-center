@@ -31,6 +31,7 @@ export const FEATURES = [
   { id: "brand", shell: true },
   { id: "tour", shell: true },
   { id: "help", shell: true },
+  { id: "self-talk", shell: true },
   { id: "keysetup", shell: true },
   { id: "connect-setup", shell: true },
   { id: "updates", shell: true },
