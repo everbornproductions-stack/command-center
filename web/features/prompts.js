@@ -332,12 +332,36 @@ function openPack(item) {
   box.querySelector("#pp-pack-open")?.addEventListener("click", () => go("marketplace"));
 }
 
+// Long prompts (the photo effects pack) are cut short in the list. Use this still takes the whole prompt.
+function shortText(text, max = 240) {
+  const t = String(text || "");
+  return t.length > max ? `${t.slice(0, max).replace(/\s+\S*$/, "")}...` : t;
+}
+
+const NEWS_KEY = "cc.prompts.whatsnew.open";
+// { week, open }. A week the person has not seen yet opens What's new.
+function whatsNewOpen(week) {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(NEWS_KEY) || "null"); } catch { saved = null; }
+  if (!saved || typeof saved !== "object" || saved.week !== week) {
+    saveWhatsNewOpen(week, true);
+    return { open: true };
+  }
+  return { open: saved.open !== false };
+}
+function saveWhatsNewOpen(week, open) {
+  try { localStorage.setItem(NEWS_KEY, JSON.stringify({ week: String(week || ""), open: open !== false })); } catch { /* private mode */ }
+}
+
 async function renderTab(view) {
   let data = { templates: [], categories: [], note: NOTE, schedules: [], integrations: {}, custom: [] };
   try { data = await api("/prompts"); } catch (e) { view.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const market = await api("/marketplace").catch(() => null);
+  // 0.4.28: weekly pack rows also live in their categories, and stay there after their week.
+  const filed = (data.filed || []).map((row) => ({ ...row, name: row.title, description: row.prompt, packRow: true }));
+  const filedById = new Map(filed.map((row) => [row.id, row]));
   const model = {
-    templates: data.templates || [],
+    templates: [...(data.templates || []), ...filed],
     custom: data.custom || [],
     marketplace: marketplacePacks(market),
   };
@@ -350,7 +374,7 @@ async function renderTab(view) {
       <input id="pp-q" placeholder="Search prompts" style="width:100%;margin-top:10px" aria-label="Search prompts">
       <div id="pp-tools" class="row" style="gap:8px;flex-wrap:wrap;margin-top:10px" hidden></div>
     </div>
-    <div id="pp-weekly"></div>
+    <div id="pp-whatsnew"></div>
     <div id="pp-list"></div>
     <div id="industry-packs"></div>
     <div class="row" style="gap:8px;flex-wrap:wrap">
@@ -362,35 +386,46 @@ async function renderTab(view) {
     <div id="pp-interview"></div>
   </div>`;
   window.CC.mountIndustryPacks?.(view.querySelector("#industry-packs"));
-  const paintWeekly = () => {
-    const host = view.querySelector("#pp-weekly");
+  // 0.4.28: What's new is a category like the others, first in the list. It holds this week's pack only
+  // (or the newest pack, with its week named), opens by itself the first time a new week arrives, and
+  // then remembers open or closed like the other categories.
+  const news = data.whatsNew || { rows: [], label: "", week: "" };
+  const newsOpen = whatsNewOpen(news.week);
+  const paintWhatsNew = () => {
+    const host = view.querySelector("#pp-whatsnew");
     if (!host) return;
-    const cats = data.packCategories || [];
-    const picked = host.querySelector("#pp-pack-cat")?.value || "all";
-    const rows = (data.weekly || []).filter((row) => picked === "all" || row.category === picked);
-    host.innerHTML = `<div class="panel"><h3>Weekly prompts</h3>
-      <p class="small dim" style="margin:6px 0 0">New packs show up here, including Builders. Thumbs up or thumbs down. Use this opens the builder when it is installed, or puts the words in the chat. Nothing is sent.</p>
-      <label class="small" style="display:block;margin-top:8px">Show weekly prompts from <select id="pp-pack-cat" aria-label="Weekly prompt category"><option value="all">All categories</option>${cats.map((c) => `<option value="${esc(c)}"${c === picked ? " selected" : ""}>${esc(c)}</option>`).join("")}</select></label>
-      <div style="margin-top:8px">${rows.map((row) => `<div style="margin-top:10px"><b>${esc(row.title)}</b> ${row.fresh ? `<span class="chip">New this week</span>` : ""}
+    const query = String(view.querySelector("#pp-q")?.value || "").trim().toLowerCase();
+    const rows = (news.rows || []).filter((row) => !query || [row.title, row.prompt, row.category].join(" ").toLowerCase().includes(query));
+    if (query && !rows.length) { host.innerHTML = ""; return; }
+    const shown = !!query || newsOpen.open;
+    host.innerHTML = `<details class="panel" data-shelf="whatsnew"${shown ? " open" : ""}><summary><b>What's new</b> <span class="dim small">${rows.length}</span></summary>
+      <div class="small dim">${esc(news.label || "New prompts show up here each week.")}</div>
+      ${rows.map((row) => `<div style="margin-top:10px"><b>${esc(row.title)}</b>
         <div class="small dim">${esc(row.category)}</div>
-        <div class="small" style="margin-top:4px">${esc(row.prompt)}</div>
+        <div class="small" style="margin-top:4px" title="${esc(row.prompt)}">${esc(shortText(row.prompt))}</div>
         ${voteBar(row, esc)}
         <div class="small" style="margin-top:4px">${creditHtml(row)}</div>
         <button class="btn sm" type="button" data-use="${esc(row.id)}" style="margin-top:6px">Use this</button>
-      </div>`).join("") || `<div class="small dim">No prompts in this category yet.</div>`}</div>
-    </div>`;
-    host.querySelector("#pp-pack-cat").addEventListener("change", paintWeekly);
+      </div>`).join("") || `<div class="small dim" style="margin-top:8px">New prompts show up here each week.</div>`}
+    </details>`;
+    host.querySelector("details > summary").addEventListener("click", () => {
+      if (query) return;
+      const d = host.querySelector("details");
+      newsOpen.open = !d.open;
+      saveWhatsNewOpen(news.week, newsOpen.open);
+    });
     host.querySelectorAll("[data-vote]").forEach((btn) => btn.addEventListener("click", () => onVote(btn.dataset.id, btn.dataset.vote)));
     host.querySelectorAll("[data-use]").forEach((btn) => btn.addEventListener("click", () => {
-      const row = (data.weekly || []).find((item) => item.id === btn.dataset.use);
+      const row = (news.rows || []).find((item) => item.id === btn.dataset.use);
       useListed(row);
     }));
   };
+  view.querySelector("#pp-q")?.addEventListener("input", paintWhatsNew);
   const redraw = mountPromptBoard(view, model, {
     esc,
     toast,
     onVote: (id, dir) => onVote(id, dir),
-    onOpen: (id) => openTemplate(data, id),
+    onOpen: (id) => (filedById.has(id) ? useListed(filedById.get(id)) : openTemplate(data, id)),
     onCustom: openCustom,
     onPack: openPack,
     onMove: async (id, shelf) => {
@@ -400,7 +435,7 @@ async function renderTab(view) {
     },
   });
   async function onVote(id, dir) {
-    const pools = [data.templates, data.custom, data.weekly, model.templates, model.custom];
+    const pools = [data.templates, data.custom, data.weekly, news.rows, filed, model.templates, model.custom];
     const item = pools.flat().find((row) => row && row.id === id);
     try {
       const saved = await sendVote(id, dir, item?.mine);
@@ -409,11 +444,11 @@ async function renderTab(view) {
         const row = (list || []).find((entry) => entry && entry.id === id);
         if (row) Object.assign(row, patch);
       }
-      paintWeekly();
+      paintWhatsNew();
       redraw?.();
     } catch (e) { toast(e.message, true); }
   }
-  paintWeekly();
+  paintWhatsNew();
   view.querySelector("#pp-sched").addEventListener("click", async () => {
     try { const r = await api("/prompts/schedules", { method: "POST", body: {} }); toast(r.note || "Schedules added, paused."); } catch (e) { toast(e.message, true); }
   });
