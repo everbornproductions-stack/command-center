@@ -1,4 +1,13 @@
 {
+  "0.4.29": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Your AI helpers: Meldmind lists the AI apps on this PC, shows which are ready or resting until a set time, and gives each step to one that is free.",
+      "When a step moves to another helper, the first try stays visible, for example Try 1 (Claude Code: out of usage).",
+      "Ask about Meldmind: ask why a job cost what it did, which AI planned it, or why a helper is resting, and get an answer from Meldmind's own records.",
+      "Expert Settings fits beside the Live feed on a laptop screen."
+    ]
+  },
   "0.4.28": {
     "title": "What's new in Meldmind",
     "bullets": [

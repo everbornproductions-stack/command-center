@@ -1,0 +1,11 @@
+{
+  "bullets": [
+    "Your AI helpers: Meldmind lists the AI apps on this PC, shows which are ready or resting until a set time, and gives each step to one that is free.",
+    "When a step moves to another helper, the first try stays visible, for example Try 1 (Claude Code: out of usage).",
+    "Ask about Meldmind: ask why a job cost what it did, which AI planned it, or why a helper is resting, and get an answer from Meldmind's own records.",
+    "Expert Settings fits beside the Live feed on a laptop screen."
+  ],
+  "article": "docs/help/getting-started.md",
+  "heading": "Your AI helpers and Ask about Meldmind",
+  "body": "Your AI helpers: Meldmind lists the AI apps on this PC, shows which are ready or resting until a set time, and gives each step to one that is free. Find it in Expert Settings under My AIs. When a step moves to another helper, the first try stays visible, for example Try 1 (Claude Code: out of usage). Ask about Meldmind: ask why a job cost what it did, which AI planned it, or why a helper is resting, and get an answer from Meldmind's own records. It is in Help, and in Expert it opens from the Live feed. It only reads; it never changes a setting, and it never shows your keys or private chats. Expert Settings fits beside the Live feed on a laptop screen."
+}
