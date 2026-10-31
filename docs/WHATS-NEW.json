@@ -7,7 +7,10 @@
       "A plain chat answer that names a file now saves it too, on every plan, and says where it went.",
       "When an AI runs out of its usage allowance, its step goes to the next AI instead of stopping the job, and a stuck plan no longer waits forever.",
       "After Update and restart, the new version starts on its own.",
-      "Expert's Command page scrolls on wide screens, and the chat box no longer covers an answer's buttons."
+      "Expert's Command page scrolls on wide screens, and the chat box no longer covers an answer's buttons.",
+      "The money you saved this month shows again in the title bar, next to the ready pill. Click it to open Credits.",
+      "The Chat button in the bottom dock opens the chat with the cursor in the box.",
+      "Prompts has a What's new category that changes every week, and each new prompt is also added to its own category."
     ]
   },
   "0.4.27": {
