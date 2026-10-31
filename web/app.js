@@ -1618,7 +1618,10 @@ function revealAnswer(id) {
     const boxTop = box && getComputedStyle(box).position === "sticky" ? Math.min(box.getBoundingClientRect().top, sr.bottom) : sr.bottom;
     const bottom = Math.max(...acts.map((e) => e.getBoundingClientRect().bottom)) + 12;
     const top = card.getBoundingClientRect().top;
-    if (bottom <= boxTop || bottom - top > sr.height) return;
+    // buttons already clear, or still far below the screen (a long answer stays at its start): nothing to do. Buttons that
+    // are on screen but under the chat box are lifted just enough (CI 0.4.28: Copy sat under the box's Mic at 1366 x 800).
+    const actsTop = Math.min(...acts.map((e) => e.getBoundingClientRect().top));
+    if (bottom <= boxTop || (actsTop > sr.bottom && bottom - top > sr.height)) return;
     scroller.scrollBy({ top: bottom - boxTop, behavior: "auto" });
   };
   const started = Date.now();
