@@ -133,6 +133,16 @@ test("item 3a: Simple chat at 1366 x 800, after Send the chat box folds and the 
     await t.page.waitForSelector("#cc-copy-main", { timeout: WAIT });
     await t.page.waitForSelector("#cc-v-again", { timeout: WAIT });
     await t.page.waitForTimeout(1500);
+    // A slow runner folds the box and moves the answer up over a few seconds (CI 0.4.28 caught Copy under the box's Mic
+    // at 1500 ms). Wait, with a real deadline, for the fold and for Copy to be the top element; the asserts below still decide.
+    await t.page.waitForFunction(() => {
+      const c = document.querySelector(".cmd.simple-chat"), el = document.getElementById("cc-copy-main");
+      if (c?.dataset.fold !== "1" || !el) return false;
+      const r = el.getBoundingClientRect();
+      if (!(r.height > 0 && r.top >= 0 && r.bottom <= innerHeight)) return false;
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!hit && (hit === el || el.contains(hit));
+    }, null, { timeout: WAIT, polling: 250 }).catch(() => {});
     assert.equal(await t.page.evaluate(() => document.body.dataset.ui), "simple");
     const fold = await t.page.evaluate(() => ({ fold: document.querySelector(".cmd.simple-chat")?.dataset.fold || "", box: Math.round(document.getElementById("orders").getBoundingClientRect().height) }));
     assert.equal(fold.fold, "1", "the chat box is folded after Send");

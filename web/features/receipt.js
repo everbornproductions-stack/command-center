@@ -108,6 +108,8 @@ function mountBar() {
 
 // 0.4.28 (Chris): the Mac look hides the classic top bar, so "You saved" vanished from view. A compact copy sits in
 // the Mac title bar next to the "ready" pill: this month's savings, all time in the tip, a click opens Credits.
+// Under 1280 px it drops "this month" (the tip and label keep it); on a phone it hides like the ready pill, so the title
+// bar keeps room for "3 steps" and the mode switch (CI 0.4.28: the bar overflowed at 390). Credits still shows it.
 function mountMacSaved() {
   const bar = document.getElementById("mac-titlebar");
   if (!bar || document.getElementById("cc-money-saved-mac")) return;
@@ -117,13 +119,15 @@ function mountMacSaved() {
     st.textContent = `#cc-money-saved-mac{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:4px 10px;min-height:26px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;background:rgba(22,163,74,.14);color:#15803d}
 body[data-theme="dark"] #cc-money-saved-mac{background:rgba(74,222,128,.14);color:#86efac}
 #cc-money-saved-mac:focus-visible{outline:2px solid var(--mac-acc,#0a84ff);outline-offset:2px}
-@media (max-width:760px){#cc-money-saved-mac .cc-msm-when{display:none}}`;
+@media (max-width:1280px){#cc-money-saved-mac .cc-msm-when{display:none}}
+@media (max-width:1100px){#cc-money-saved-mac .cc-msm-ic{display:none}}
+@media (max-width:760px){#cc-money-saved-mac{display:none}}`;
     document.head.appendChild(st);
   }
   const b = document.createElement("button");
   b.type = "button";
   b.id = "cc-money-saved-mac";
-  b.innerHTML = `<span aria-hidden="true">$</span><span>Saved <b data-cc-ms="month">$0.00</b></span><span class="cc-msm-when">this month</span>`;
+  b.innerHTML = `<span class="cc-msm-ic" aria-hidden="true">$</span><span>Saved <b data-cc-ms="month">$0.00</b></span><span class="cc-msm-when">this month</span>`;
   b.title = `All time $0.00. ${SAVED_TIP}`;
   b.setAttribute("aria-label", "You saved $0.00 this month. All time $0.00. Estimate. Opens Credits.");
   b.addEventListener("click", () => { try { window.CC.go?.("credits"); } catch {} });

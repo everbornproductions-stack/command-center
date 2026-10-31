@@ -109,7 +109,6 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 #cc-upgrade .cc-up-head { position: sticky; top: -18px; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: -18px -20px 0; padding: 18px 20px 4px; background: inherit; border-radius: 14px 14px 0 0; }
 #cc-upgrade .cc-up-head h4 { margin-bottom: 4px; }
 #cc-upgrade .cc-up-head .btn { flex: none; }
-@media (max-width: 760px) { #cc-upgrade { padding: 12px; align-items: flex-start; } #cc-upgrade .card { max-height: calc(100dvh - 120px); padding: 14px 14px; } #cc-upgrade .cc-up-head { top: -14px; margin: -14px -14px 0; padding: 14px 14px 4px; } }
 #cc-mode-ask p, #cc-upgrade p { margin: 0; color: var(--muted); }
 #cc-starters[hidden] { display: none; }
 #simple-create { display: none; position: fixed; left: 8px; right: 8px; bottom: calc(56px + var(--strip-h) + 8px); z-index: 40; background: var(--card-bg, #0d1420); border: 1px solid var(--line-2); border-radius: 14px; padding: 8px; box-shadow: 0 16px 40px #000a; }
@@ -413,6 +412,8 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 .sig.low, .sig.attention { background: #3a1a1a; color: var(--red); }
 .sig.renewing { background: #3b2d10; color: var(--amber); }
 @media (max-width: 1250px) { .app { grid-template-columns: 1fr 0; } .feed { display: none; } .toasts { right: 20px; } .view:has(> .cmd) { overflow: auto; } .cmd { grid-template-columns: 1fr; height: auto; max-height: none; grid-template-rows: auto auto; } .cmd .orders { grid-row: auto; overflow: visible; max-height: none; } .cmd-side { overflow: visible; } .cmd-side .output { min-height: 0; } .cmd .ops, .cmd .output, .cmd.simple-chat .orders { overflow: visible; max-height: none; } }
+/* 0.4.28 (panel item 7): the Pro box at phone width. Kept below the 1250 px block so the stacked-layout rules read in order. */
+@media (max-width: 760px) { #cc-upgrade { padding: 12px; align-items: flex-start; } #cc-upgrade .card { max-height: calc(100dvh - 120px); padding: 14px 14px; } #cc-upgrade .cc-up-head { top: -14px; margin: -14px -14px 0; padding: 14px 14px 4px; } }
 
 /* ---- phone layout ---- */
 @media (max-width: 760px) {

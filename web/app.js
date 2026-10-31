@@ -1596,13 +1596,17 @@ function foldSimpleBox(on) {
 }
 // 0.4.28 (panel item 3a): when an answer finishes, bring its action buttons into view above the docked chat box. Only
 // when the answer, from its top to those buttons, fits on one screen; a long answer stays at its start for reading.
-// It only ever scrolls down, once per answer.
+// It only ever scrolls down, once per answer. A slow PC draws the buttons, the answer line and the folded box over a
+// few seconds, so it checks again every quarter second for 6 seconds and stops as soon as the person scrolls or clicks.
 function revealAnswer(id) {
   if (!id || !S.answerAsked || S.revealedAnswer === id) return;
   S.revealedAnswer = id;
   S.answerAsked = false;
+  let stopped = false;
+  const events = ["wheel", "touchstart", "pointerdown", "keydown"];
+  const stop = () => { stopped = true; for (const ev of events) window.removeEventListener(ev, stop, true); };
+  for (const ev of events) window.addEventListener(ev, stop, { capture: true, passive: true });
   const run = () => {
-    if (S.live?.id !== id) return;
     const card = document.getElementById("simple-answer");
     if (!card || card.hidden) return;
     const scroller = card.closest(".cmd.simple-chat");
@@ -1617,10 +1621,15 @@ function revealAnswer(id) {
     if (bottom <= boxTop || bottom - top > sr.height) return;
     scroller.scrollBy({ top: bottom - boxTop, behavior: "auto" });
   };
-  setTimeout(run, 300);
-  setTimeout(run, 1200);
+  const started = Date.now();
+  const tick = () => {
+    if (stopped || S.live?.id !== id) return stop();
+    run();
+    if (Date.now() - started < 6000) setTimeout(tick, 250); else stop();
+  };
+  setTimeout(tick, 300);
 }
-// 0.4.28 (panel item 4): at 1024 x 768 (no Live feed rail) the Deliverable card sits under the whole order column, about
+// 0.4.28 (panel item 4): at 1024 x 768 (no Live feed rail) the answer card (#deliv-panel) sits under the whole order column, about
 // 2,700 px below the task box, and nothing moved when the answer came. Bring it into view once per answer, only when
 // it is out of sight (at 1366 it shows beside the task box and nothing moves).
 function showExpertAnswer(id, panel) {
