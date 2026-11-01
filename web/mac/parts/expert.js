@@ -4,7 +4,7 @@
 import { LABELS, VIEW_LOCKS, helpItems, CONNECT_LINKS } from "/nav.js";
 import { isDesktopOnly, DESKTOP_ONLY } from "/desktop-only.js";
 import { FEATURES } from "/perf/registry.js";
-import { buildRegistry, groupsOf, pages, search, lockOf, PER_PAGE } from "/mac/data/expert.js";
+import { buildRegistry, groupsOf, pages, search, lockOf, PER_PAGE, modeFromQuery } from "/mac/data/expert.js";
 
 const LS_GROUPS = "cc.mac.groups";
 const LS_SIDE = "cc.mac.side";
@@ -76,6 +76,14 @@ export function openItem(ctx, item) {
   return false;
 }
 
+// 0.4.36 (panel 0432 item 5): "Councils" in the search opens Chat with Council picked. The page's own How to run it
+// button is clicked once Chat is drawn, so the heading, the sidebar and the run bar all follow the same click.
+function pickRunMode(mode, tries = 30) {
+  const b = document.querySelector(`#run-mode button[data-m="${mode}"]`);
+  if (b) { if (!b.classList.contains("on")) b.click(); return; }
+  if (tries > 0) requestAnimationFrame(() => pickRunMode(mode, tries - 1));
+}
+
 // The old menu handlers listen for a click on a data-action button. Click a short lived one so the same code runs.
 function runAction(CC, action) {
   if (action === "tour") return CC.tour?.start?.();
@@ -95,8 +103,9 @@ function isSelected(CC, item) {
   const o = item.open || {};
   if (!o.view || o.view !== CC.S?.view) return false;
   if (o.view === "command") {
+    // 0.4.36 (panel 0432 item 5): the run modes have no rows of their own (0.4.32), so Chat stays lit in every mode
     const mode = CC.S.cmdShortcut || "";
-    return o.runMode ? mode === o.runMode : (!mode && !o.focus);
+    return o.runMode ? mode === o.runMode : !o.focus;
   }
   return !o.focus;
 }
@@ -177,7 +186,12 @@ function renderSide() {
     for (const it of g.items) {
       const b = itemButton(it, limits, "si");
       if (isSelected(CC, it)) { b.classList.add("on"); b.setAttribute("aria-current", "page"); }
-      b.addEventListener("click", () => { openItem(st.ctx, it); if (isPhone() && st && !st.collapsed) setCollapsed(true); });
+      b.addEventListener("click", () => {
+        const mode = it.open?.view === "command" && st.q ? modeFromQuery(st.q) : "";
+        openItem(st.ctx, it);
+        if (mode) pickRunMode(mode);
+        if (isPhone() && st && !st.collapsed) setCollapsed(true);
+      });
       list.append(b);
     }
     inner.append(list);
