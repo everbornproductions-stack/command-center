@@ -78,7 +78,7 @@ test("detection with fakes: ready, needs sign-in, not installed, and API AIs wit
   assert.equal(by.codex.status, "signin");
   assert.equal(by.codex.statusLabel, "Needs sign-in");
   assert.ok(by.codex.needs, "says what it needs");
-  assert.equal(by["gemini-cli"].status, "missing");
+  assert.equal(by["gemini-cli"].status, "retired");
   assert.equal(by["gemini-cli"].light, "grey");
   assert.equal(by.opencode.status, "missing");
   assert.equal(by.grokbot.status, "signin");
@@ -95,7 +95,7 @@ test("detection with fakes: ready, needs sign-in, not installed, and API AIs wit
   // the real detectors (no program on PATH in tests) give a full list too
   const real = await WP.workersView({ apiSource: () => [] });
   assert.ok(real.workers.length >= WP.DEFAULT_WORKERS.length);
-  for (const w of real.workers) assert.ok(["ready", "resting", "signin", "off", "missing"].includes(w.status), `${w.id} ${w.status}`);
+  for (const w of real.workers) assert.ok(["ready", "resting", "signin", "off", "missing", "retired"].includes(w.status), `${w.id} ${w.status}`);
 });
 
 // ---------- 2. the picker ----------
@@ -111,17 +111,17 @@ test("the picker skips resting and switched-off helpers and prefers free ones on
   rows = await view();
   assert.equal(rows.find((w) => w.id === "claude-code").status, "resting");
   assert.equal(rows.find((w) => w.id === "antigravity").status, "off");
-  assert.equal(WP.pickWorker(rows, { kinds: ["cli"] }).id, "gemini-cli", "resting and off are skipped");
-  assert.equal(WP.pickWorker(rows, { kinds: ["cli"], exclude: ["gemini-cli"] }).id, "codex");
+  assert.equal(WP.pickWorker(rows, { kinds: ["cli"] }).id, "codex", "resting, off and retired helpers are skipped");
+  assert.equal(WP.pickWorker(rows, { kinds: ["cli"], exclude: ["codex"] }), null, "the retired helper never takes a step");
   assert.equal(SR.routeSettings().routes.antigravity, false, "the off switch is the official-app switch");
 
   // the router's ranked list for a mission step goes through the same rules
   const ranked = [{ provider: "plan-claude-code" }, { provider: "xai" }, { provider: "plan-codex" }, { provider: "antigravity" }, { provider: "plan-gemini-cli" }, { provider: "anthropic" }];
-  assert.deepEqual(WP.poolRank(ranked).map((m) => m.provider), ["xai", "plan-codex", "plan-gemini-cli", "anthropic"], "resting and off apps are left out, API order kept");
+  assert.deepEqual(WP.poolRank(ranked).map((m) => m.provider), ["xai", "plan-codex", "anthropic"], "resting, off and retired apps are left out, API order kept");
   WP.clearRest("claude-code");
   WP.setEnabled("antigravity", true);
-  assert.deepEqual(WP.poolRank(ranked, { mode: "savings" }).map((m) => m.provider), ["plan-codex", "xai", "antigravity", "plan-gemini-cli", "plan-claude-code", "anthropic"], "on Max savings free apps take the app places first; API rows stay put");
-  assert.deepEqual(WP.poolRank(ranked).map((m) => m.provider), ranked.map((m) => m.provider), "Balanced: unchanged");
+  assert.deepEqual(WP.poolRank(ranked, { mode: "savings" }).map((m) => m.provider), ["plan-codex", "xai", "antigravity", "plan-claude-code", "anthropic"], "on Max savings free apps take the app places first; API rows stay put");
+  assert.deepEqual(WP.poolRank(ranked).map((m) => m.provider), ranked.map((m) => m.provider).filter((p) => p !== "plan-gemini-cli"), "Balanced: unchanged, except the retired Gemini CLI (0.4.35 catalog)");
   // never strands a run: if every row is out, the router's own list is used
   WP.setEnabled("claude-code", false);
   assert.deepEqual(WP.poolRank([{ provider: "plan-claude-code" }]).map((m) => m.provider), ["plan-claude-code"]);

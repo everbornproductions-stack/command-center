@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 import { spawnSpec } from "./mcp-client.js";
 import { findBin, clearStatusCache } from "./sub-routes.js";
 import { HOSTED } from "./store.js";
+import { loadCatalog } from "./free-catalog.js";
 
 export const INSTALL_MS = 5 * 60 * 1000;
 export const NODE_PAGE = "https://nodejs.org/en/download";
@@ -46,6 +47,8 @@ const tail = (s, n = 400) => String(s || "").replace(/\s+/g, " ").trim().slice(-
  */
 export async function installHelper(id, deps = {}) {
   const h = HELPERS[id];
+  const entry = loadCatalog().entries.find((e) => e.id === id);
+  if (entry?.status === "retired") return { ok: false, id, code: "retired", message: entry.retiredNote };
   if (HOSTED) return { ok: false, id, code: "hosted", message: "Installing helpers works in the desktop app on your own PC." };
   if (!h) return { ok: false, id, code: "unknown", message: "Meldmind does not know how to install that helper." };
   if (!h.pkg) return { ok: false, id, code: "page", page: h.page, message: h.words };
@@ -82,6 +85,8 @@ function runOnce(file, args, { timeoutMs = INSTALL_MS } = {}) {
  */
 export async function signInHelper(id, deps = {}) {
   const h = HELPERS[id];
+  const entry = loadCatalog().entries.find((e) => e.id === id);
+  if (entry?.status === "retired") return { ok: false, id, code: "retired", message: entry.retiredNote };
   if (HOSTED) return { ok: false, id, code: "hosted", message: "Signing in to helpers works in the desktop app on your own PC." };
   if (!canSignIn(id)) return { ok: false, id, code: "none", message: "This helper has no sign-in step." };
   const bin = await (deps.findHelper || (() => findBin({ bin: h.bin, envBin: `CC_${h.bin.toUpperCase()}_BIN` })))();

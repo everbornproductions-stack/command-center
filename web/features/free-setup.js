@@ -24,8 +24,9 @@ export const SIGNIN_WAIT_MS = 10 * 60 * 1000;
 /** What the row's button does for this helper, or null when it is ready. Pure, so tests import it. */
 export function appAction(w) {
   if (!w) return null;
+  if (w.status === "retired") return null;
   if (w.status === "missing" && CAN_INSTALL.has(w.id)) return { kind: "install", label: "Install" };
-  if (w.status === "missing" && PAGE[w.id]) return { kind: "page", label: "Get it", url: PAGE[w.id] };
+  if (w.status === "missing" && (w.page || PAGE[w.id])) return { kind: "page", label: "Get it", url: w.page || PAGE[w.id] };
   if (w.status === "signin" && CAN_SIGNIN.has(w.id)) return { kind: "signin", label: "Sign in" };
   return null;
 }
@@ -38,6 +39,10 @@ function openPage(url) {
 }
 
 function appRow(w) {
+  if (w.status === "retired") {
+    const next = w.replacedBy && w.page ? `<button type="button" class="btn sm" data-fs-page="${esc(w.page)}">Get ${esc(w.replacedBy)}</button>` : "";
+    return `<div class="row cc-fs-row" data-fs-app="${esc(w.id)}" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px"><b style="min-width:120px">${esc(w.label)}</b><span class="chip">Retired</span><span class="dim small" style="flex:1">${esc(w.statusLabel || w.retiredNote || "")}</span>${next}</div>`;
+  }
   const a = appAction(w);
   return `<div class="row cc-fs-row" data-fs-app="${esc(w.id)}" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
     <b style="min-width:120px">${esc(w.label)}</b>${chip(w)}<span class="dim small" style="flex:1;min-width:10rem">${esc(PLAN_NOTE[w.id] || w.good || "")}</span>
@@ -45,11 +50,12 @@ function appRow(w) {
   </div>`;
 }
 function keyRow(p) {
+  if (p.catalogStatus === "retired") return `<div class="row cc-fs-row"><b style="min-width:120px">${esc(p.name)}</b><span class="chip">Retired</span><span class="dim small" style="flex:1">${esc(p.retiredNote || "")}</span>${p.replacedBy && p.replacementPage ? `<button type="button" class="btn sm" data-fs-page="${esc(p.replacementPage)}">Get ${esc(p.replacedBy)}</button>` : ""}</div>`;
   return `<div class="row cc-fs-row" data-fs-key="${esc(p.provider)}" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
     <b style="min-width:120px">${esc(p.name)}</b>${p.connected ? `<span class="chip green">Connected</span>` : `<span class="chip">No key yet</span>`}<span class="dim small" style="flex:1;min-width:10rem">${esc(p.what || "")}</span>
-    ${p.connected ? "" : `<button type="button" class="btn sm" data-fs-page="${esc(p.url)}">Get key</button>
+    ${p.connected ? "" : `<button type="button" class="btn sm" data-fs-page="${esc(p.url)}">Get key</button>${p.connectable === false ? "" : `
     <input type="password" autocomplete="off" spellcheck="false" class="cc-fs-key" data-provider="${esc(p.provider)}" placeholder="Paste key" aria-label="Paste the ${esc(p.name)} key" style="width:12rem">
-    <button type="button" class="btn sm primary" data-fs-save="${esc(p.provider)}">Save</button>`}
+    <button type="button" class="btn sm primary" data-fs-save="${esc(p.provider)}">Save</button>`}`}
   </div>`;
 }
 
@@ -61,8 +67,13 @@ export function mountFreeSetup(box, { title = "Save money with free AIs", keys: 
     let workers = [], pages = [];
     try { workers = (await api(`/workers${refresh ? "?refresh=1" : ""}`)).workers || []; } catch {}
     try { pages = (await api("/free-ais")).pages || []; } catch {}
-    const apps = APPS.map((id) => workers.find((w) => w.id === id)).filter(Boolean);
-    const keys = KEYS.map((id) => pages.find((p) => p.provider === id && !p.later)).filter(Boolean);
+    let catalog = { apps: [], keys: [] };
+    try { catalog = await api("/free-catalog"); } catch {}
+    const appIds = catalog.apps?.map((e) => e.id) || APPS;
+    const apps = appIds.map((id) => { const w = workers.find((row) => row.id === id); const e = catalog.apps?.find((row) => row.id === id); return w ? { ...w, retiredNote: e?.retiredNote || w.retiredNote, replacedBy: e?.replacedBy || w.replacedBy, page: e?.page } : e?.page ? { id, label: e.label, good: e.good, status: e.status === "retired" ? "retired" : "missing", statusLabel: e.retiredNote, retiredNote: e.retiredNote, replacedBy: e.replacedBy, page: e.page, enabled: false } : null; }).filter(Boolean)
+      // a retired helper (Gemini CLI) is not offered to someone setting up; Settings still shows it with its note
+      .filter((w) => w.status !== "retired" && !(catalog.apps || []).some((e) => e.id === w.id && e.status === "retired"));
+    const keys = (catalog.keys?.length ? catalog.keys : pages).map((e) => { const p = pages.find((row) => row.provider === (e.provider || e.id) || row.id === e.id); const replacement = [...(catalog.keys || []), ...(catalog.apps || [])].find((row) => row.id === e.replacedBy); return p ? { ...p, name: e.label || p.name, what: e.good || p.what, url: e.page || p.url, catalogStatus: e.status, retiredNote: e.retiredNote, replacedBy: e.replacedBy, replacementPage: replacement?.page, connectable: e.connectable } : { id: e.id, provider: e.provider || e.id, name: e.label, what: e.good, url: e.page, catalogStatus: e.status, retiredNote: e.retiredNote, replacedBy: e.replacedBy, replacementPage: replacement?.page, connectable: e.connectable }; }).filter((e) => e.url);
     const todo = apps.filter((w) => appAction(w) && appAction(w).kind !== "page").length;
     box.innerHTML = `<div class="welcome-block" id="cc-free-setup"><h3>${esc(title)}</h3>
       <div class="dim small">Free AIs do the work first, so a job keeps going when a paid AI runs out. Each button opens the right window: an install, the app's own sign-in, or the page for a free key.</div>
