@@ -149,6 +149,7 @@ function renderHome(body) {
   homeIdeas = !!CC.layout?.IDEAS;
   body.innerHTML = `<div class="mf-subrow"><p class="mf-sub">Pick what to make.<span class="mf-swipe"> Swipe, drag, or use the arrow keys.</span></p><span class="mf-scrollbtns"><button type="button" class="mf-scroll" id="mf-prev" aria-label="Earlier choices" aria-controls="mf-paths">&lsaquo;</button><button type="button" class="mf-scroll" id="mf-more-paths" aria-label="More choices" aria-controls="mf-paths">&rsaquo;</button></span></div>
     ${stepsHtml()}
+    <button type="button" class="mf-chat-wide" id="mf-chat-card" aria-label="Just chat. Ask anything and get an answer."><span class="mf-chat-ico" aria-hidden="true">&#128172;</span><b>Just chat</b><small>Ask anything and get an answer.</small></button>
     <div class="mf-paths" id="mf-paths" role="list" aria-label="What to make" tabindex="0">${F.PATHS.map((p) => `<button type="button" role="listitem" class="mf-path" data-path="${p}" aria-label="${esc(F.PATH_LABEL[p])}. ${esc(PATH_BLURB[p])}"><span class="mf-art ${PATH_ART[p]}" aria-hidden="true"></span><b>${esc(F.PATH_LABEL[p])}</b><small>${esc(PATH_BLURB[p])}</small></button>`).join("")}</div>
     <div class="mf-box"><input id="mf-ask" type="text" aria-label="What do you want to make?" placeholder="Or just say it: a website for my bakery" autocomplete="off">${costHtml()}<button type="button" class="mf-go" id="mf-next">Next</button></div>
     ${ideas.length ? `<div class="mf-chips" role="group" aria-label="Quick picks"><span class="mf-chips-h">Quick picks</span>${ideas.map((i) => `<button type="button" class="mf-chip" data-idea="${esc(i.chip)}" data-text="${esc(i.text)}">${esc(i.text)}</button>`).join("")}</div>` : ""}`;
@@ -678,7 +679,8 @@ function onKey(e) {
 
 function onClick(e) {
   if (e.target.closest("#mf-back")) goBack();
-  else if (e.target.closest("#mf-chat")) { chatOnly = true; releaseAnswer(); render(); sync(); }
+  else if (e.target.closest("#mf-chat, #mf-chat-card")) { // 0.4.35 (Chris: "where can we just chat to the AIs?"): the wide Just chat bar too
+    chatOnly = true; releaseAnswer(); render(); sync(); }
   else if (e.target.closest("#mf-return")) { chatOnly = false; render(); sync(); }
 }
 

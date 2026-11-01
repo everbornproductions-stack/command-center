@@ -617,7 +617,7 @@ body[data-style="mac"][data-ui="expert"] #app #view .pcards {
 }
 body[data-style="mac"][data-ui="expert"] #app #view .pcard {
   position: relative;
-  padding: 16px 48px 16px 68px;
+  padding: 10px 44px 10px 64px; /* 0.4.35: tighter rows (Chris) */
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-r-card);
   background: var(--cx-card);

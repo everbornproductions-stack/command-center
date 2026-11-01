@@ -167,3 +167,10 @@ body[data-style="mac"] #mac-flow .mf-path > .mf-art, body[data-style="mac"] #mac
   body[data-style="mac"] #mac-flow .mf-paths .mf-path b { font-size: 16px; padding-top: 8px; }
   body[data-style="mac"] #mac-flow .mf-swipe { display: none; }
 }
+
+/* 0.4.35: the wide "Just chat" bar above the choices (Chris: "where can we just chat to the AIs?") */
+body[data-style="mac"] #mac-flow .mf-chat-wide { display: flex; align-items: center; gap: 10px; width: 100%; margin: 4px 0 10px; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--mac-line, rgba(127,127,127,.3)); background: var(--mac-card, rgba(255,255,255,.7)); color: inherit; text-align: left; cursor: pointer; font: inherit; }
+body[data-style="mac"] #mac-flow .mf-chat-wide:hover, body[data-style="mac"] #mac-flow .mf-chat-wide:focus-visible { border-color: var(--mac-acc-btn, #0062d6); }
+body[data-style="mac"] #mac-flow .mf-chat-wide b { font-size: 1rem; }
+body[data-style="mac"] #mac-flow .mf-chat-wide small { color: var(--mac-dim, #4b5563); font-size: 0.875rem; }
+body[data-style="mac"] #mac-flow .mf-chat-ico { font-size: 1.25rem; }
