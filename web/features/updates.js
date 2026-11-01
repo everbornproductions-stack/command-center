@@ -5,6 +5,8 @@
 function labelFor(state) {
   if (!state) return null;
   if (state.phase === "downloading") {
+    // 0.4.36 (panel 0434 item 1): the release list can lag a minute behind a new version; the updater waits for it
+    if (state.waiting) return "Waiting for the new version";
     const n = state.percent != null ? state.percent : state.progress;
     return `Downloading ${n ?? 0}%`;
   }
@@ -27,7 +29,7 @@ let failHidden = false;
 function merged() {
   const server = window.CC?.S?.update;
   if (desktop && (desktop.version || desktop.phase === "downloading" || desktop.phase === "downloaded" || desktop.phase === "available" || desktop.phase === "failed")) {
-    return { phase: desktop.phase, version: desktop.version, percent: desktop.percent, progress: desktop.percent, available: desktop.phase === "available" || desktop.phase === "downloading" || desktop.phase === "downloaded", current: desktop.current, error: desktop.error, downloadUrl: desktop.downloadUrl, detail: desktop.detail };
+    return { phase: desktop.phase, version: desktop.version, percent: desktop.percent, progress: desktop.percent, available: desktop.phase === "available" || desktop.phase === "downloading" || desktop.phase === "downloaded", current: desktop.current, error: desktop.error, downloadUrl: desktop.downloadUrl, detail: desktop.detail, waiting: !!desktop.waiting };
   }
   if (server?.available || server?.error) return server;
   return server || desktop;

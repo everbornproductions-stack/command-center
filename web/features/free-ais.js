@@ -57,7 +57,7 @@ export async function open() {
   wrap.style.cssText = "position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
   const gb = d.grokbot || {};
   wrap.innerHTML = `<div class="card" style="max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:16px">
-    <h3 id="cc-free-ais-title" style="margin-top:0">Get free AIs</h3>
+    <h3 id="cc-free-ais-title" tabindex="-1" style="margin-top:0">Get free AIs</h3>
     <p class="small" style="margin:0 0 6px">Free AIs go first, so a job never stops just because one account ran out. Each key page opens in your browser. Paste the key here and it goes straight to your private vault. Nothing is charged.</p>
     <p class="small dim" id="cc-fa-summary" style="margin:0 0 6px">${esc(d.summary || "")}</p>
     ${freeOnlySwitchHtml(!!d.freeOnly?.on).replace('id="cc-freeonly"', 'class="cc-freeonly-box"')}
@@ -94,7 +94,9 @@ export async function open() {
   }));
   wrap.querySelector("#cc-fa-grokbtn").addEventListener("click", () => { end(); S.focusProvider = "grokbot"; window.CC.go("settings"); });
   wrap.querySelector("#cc-fa-recheck").addEventListener("click", async () => { await open(); });
-  wrap.querySelector("#cc-fa-close").focus();
+  // 0.4.36 (panel 0434 item 3): focus the title, not Done at the bottom, so the card opens at its top
+  wrap.querySelector("#cc-free-ais-title").focus({ preventScroll: true });
+  wrap.querySelector(".card").scrollTop = 0;
   fillLimits(wrap.querySelector("#cc-fa-limits"));
 }
 // 0.4.22: "Free AI limits today", used and left for each free AI

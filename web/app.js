@@ -1287,9 +1287,12 @@ $("#tabs")?.addEventListener("click", (e) => { if (e.target.closest("button[data
 function renderExtras(kind, sel, ...args) {
   const box = $(sel); if (!box) return;
   box.innerHTML = "";
-  if (S.settings?.lightMode && (kind === "command" || kind === "deliverable")) return;
+  // 0.4.36 (panel 0434 item 2): Light mode skips the answer's extra panels, but not the answer check
+  const light = !!S.settings?.lightMode && (kind === "command" || kind === "deliverable");
+  if (light && kind === "command") return;
   const simple = S.uiMode === "simple";
   for (const f of window.CC?.byKind?.(kind) || []) {
+    if (light && f.id !== "answer-check") continue;
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
     if (simple && kind === "command" && !SIMPLE_COMMAND.has(f.id)) continue;
     if (simple && kind === "settings" && EXPERT_SETTINGS.has(f.id)) continue;

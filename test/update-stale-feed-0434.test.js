@@ -47,3 +47,28 @@ test("a list that never catches up still ends with the updater's own plain error
   await assert.rejects(() => c.bridge.download(), /Please check update first/);
   assert.equal(au.looks, 3);
 });
+
+// 0.4.36 (panel 0434 item 1): "Update and restart" on the card, the tray item and the engine dialog go through install()
+test("install() waits for a stale list too, then downloads and restarts", async () => {
+  const au = staleFeed(2);
+  let quit = 0; au.quitAndInstall = () => { quit++; };
+  const c = createUpdateController({ autoUpdater: au, currentVersion: "0.3.2", readLatest: async () => ({ version: "0.3.3" }), retryMs: 10 });
+  await c.check();
+  await c.install();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(au.downloads, 1, "downloaded once the list caught up");
+  assert.ok(au.looks >= 3, `looked ${au.looks} times`);
+  assert.equal(quit, 1, "restarted into the installer");
+  assert.equal(c.state.waiting, false, "the waiting note is cleared");
+});
+
+test("install() on a list that never catches up ends with the plain error and stays open", async () => {
+  const au = staleFeed(99);
+  let quit = 0; au.quitAndInstall = () => { quit++; };
+  const c = createUpdateController({ autoUpdater: au, currentVersion: "0.3.2", readLatest: async () => ({ version: "0.3.3" }), retryMs: 10 });
+  await c.check();
+  await assert.rejects(() => c.install(), /Please check update first/);
+  assert.equal(quit, 0);
+  assert.equal(c.state.phase, "available");
+  assert.equal(c.state.waiting, false);
+});
