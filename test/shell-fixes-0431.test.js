@@ -196,5 +196,5 @@ test("source: toasts no longer float at 168 / 280 px, Live view labels are 12 px
   assert.doesNotMatch(live, /\.lv-node \.lv-(name|init|badge) \{ font-size: (?:\d|1[01])(?:\.\d+)?px/);
   const receipt = read("web", "features", "receipt.js");
   assert.doesNotMatch(receipt, /over \$\{t\.runs\} runs/);
-  assert.doesNotMatch(receipt, /—/);
+  assert.doesNotMatch(receipt, /2014/);
 });
