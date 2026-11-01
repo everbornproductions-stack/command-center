@@ -6,8 +6,9 @@ const { api, toast, esc } = window.CC;
 
 const KIND_WORD = { cli: "App on this PC", agent: "Helper", api: "API" };
 // 0.4.33: which helpers Meldmind can install with npm, sign in, or send to a download page (server/helper-install.js)
-const CAN_INSTALL = new Set(["codex", "gemini-cli", "claude-code", "opencode", "freebuff"]);
-const CAN_SIGNIN = new Set(["codex", "gemini-cli", "claude-code", "freebuff"]);
+// 0.4.34: Gemini CLI is no longer offered (Google retired it for individuals on 2026-11-01; Antigravity replaces it)
+const CAN_INSTALL = new Set(["codex", "claude-code", "opencode", "freebuff"]);
+const CAN_SIGNIN = new Set(["codex", "claude-code", "freebuff"]);
 const GET_PAGE = { antigravity: "https://antigravity.google/download" };
 export function helperAction(w) {
   if (w.status === "missing" && CAN_INSTALL.has(w.id)) return { kind: "install", label: "Install" };

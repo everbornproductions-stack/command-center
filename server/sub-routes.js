@@ -209,6 +209,8 @@ export async function readyRoutesFor(provider, opts = {}) {
 // ---------- asking one question ----------
 export function plainCliError(text, name = "The app") {
   const s = String(text || "");
+  // 0.4.34: Google retired Gemini CLI for personal accounts (2026-11-01). It sits out like a signed-out app and says why.
+  if (/IneligibleTierError|no longer supported for Gemini Code Assist|migrate to the Antigravity/i.test(s)) return { code: "signin", retired: true, message: `${name} was retired by Google for personal accounts. Meldmind uses Antigravity and your Gemini key instead.` };
   if (/not (?:logged|signed) in|login required|please (?:log|sign) ?in|run .*login|authenticat|unauthori[sz]ed|\b401\b|sign[ -]?in required|no credentials/i.test(s)) return { code: "signin", message: `${name} is not signed in.` };
   // 0.4.28 (dogfood loan-calc): "You've hit your session limit · resets 2:30pm" is a limit too, and says when it ends
   const lim = cliLimit(s);

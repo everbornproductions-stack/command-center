@@ -40,6 +40,7 @@ export const FEATURES = [
   { id: "personas", shell: true },
   { id: "answer-wait", shell: true },
   { id: "free-ais", shell: true },
+  { id: "free-setup", shell: true }, // 0.4.34: Save money with free AIs on the welcome screen and in the Get free AIs card
   { id: "free-bids-ui", shell: true },
   { id: "app-signin", shell: true },
   { id: "privacy", shell: true },
