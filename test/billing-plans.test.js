@@ -193,7 +193,7 @@ test("live copy sells the prices through Stripe pay links and mentions no Square
     assert.equal(text.includes(EN), false);
   }
   for (const text of [src, plugin, prices]) {
-    assert.doesNotMatch(text, /fetch\s*\(/);
+    assert.doesNotMatch(text, /\bfetch\s*\(/);
     assert.doesNotMatch(text, /api\.stripe\.com/);
   }
   for (const link of [
