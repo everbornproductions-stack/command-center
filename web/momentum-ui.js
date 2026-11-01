@@ -251,7 +251,12 @@ export function syncBar() {
   const { S, $, esc } = CC();
   let bar = document.getElementById("mmbar");
   const show = momentumOn() && BAR_VIEWS.includes(S.view) && S.view !== "publish" && !S.openProject && !mem.exitedKeys.has(keyNow());
-  if (!show) { bar?.remove(); return; }
+  // 0.4.37 (Chris: Simple chat layout): on the Simple Chat page nothing stacks above the chat. The Next bar sits behind
+  // the answer's Make changes (#sc-mm-slot), and only once there is an answer; the resume offer is one quiet line.
+  const chatPage = !expert() && S.view === "command" && document.querySelector("#view .sc-chat");
+  const slot = chatPage ? document.getElementById("sc-mm-slot") : null;
+  const answered = !!(slot && S.live?.id && !document.getElementById("simple-answer")?.hidden);
+  if (!show || (chatPage && !answered)) { bar?.remove(); if (show && chatPage) paintResumeLine(); return; }
   wireOnce();
   if (mem.server?.key !== keyNow()) { loadServer().then(() => syncBar()); return; }
   ensureStyle();
@@ -262,9 +267,13 @@ export function syncBar() {
     bar.setAttribute("role", "region");
     bar.setAttribute("aria-label", "Next step suggestions");
     bar.addEventListener("click", onClick);
+  }
+  if (slot) { if (bar.parentElement !== slot) slot.appendChild(bar); }
+  else if (!bar.isConnected || bar.closest("#sc-mm-slot")) {
     const anchor = $("#fpbar") || $("#projbar");
     if (anchor) anchor.after(bar); else $("#view").before(bar);
   }
+  if (chatPage) paintResumeLine();
   if (drawing) return;
   drawing = true;
   try {
@@ -274,7 +283,7 @@ export function syncBar() {
     const open = bar.querySelector(".mm-owner");
     const resume = mem.server.resume;
     bar.innerHTML = barHtml(out, esc);
-    if (resume) {
+    if (resume && !chatPage) {
       const r = document.createElement("div");
       r.className = "mm-resume";
       r.innerHTML = `<span>Pick up where you left off? You stopped${resume.checkpoint?.title ? ` on ${esc(resume.checkpoint.title)}` : " part way"}.</span><button type="button" class="btn sm primary" data-mm-resume>Pick up where I left off</button><button type="button" class="btn sm" data-mm-fresh>Start fresh</button>`;
@@ -283,6 +292,21 @@ export function syncBar() {
     if (open) bar.appendChild(open);
     bar._out = out;
   } finally { drawing = false; }
+}
+
+// 0.4.37 (Chris: Simple chat layout): the "Pick up where you left off" offer as one quiet line in the chat, not a banner.
+function paintResumeLine() {
+  const box = document.getElementById("sc-resume");
+  if (!box) return;
+  if (mem.server?.key !== keyNow()) { loadServer().then(() => { if (mem.server?.key === keyNow()) paintResumeLine(); }); return; }
+  const resume = mem.server?.resume;
+  const sig = resume ? `${resume.checkpoint?.title || ""}|${resume.at || ""}` : "";
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  if (!resume) { box.innerHTML = ""; return; }
+  const { esc } = CC();
+  box.innerHTML = `<p class="sc-resume-line" role="note"><span>You stopped part way${resume.checkpoint?.title ? ` on ${esc(resume.checkpoint.title)}` : ""}.</span> <button type="button" class="linkish" data-mm-resume>Pick up where I left off</button> <button type="button" class="linkish" data-mm-fresh>Start fresh</button></p>`;
+  if (!box.dataset.wired) { box.dataset.wired = "1"; box.addEventListener("click", onClick); }
 }
 
 function onClick(e) {

@@ -711,12 +711,6 @@ body[data-style="mac"] #vt-bar[data-talk="off"] #vt-stop { display: none; }
   body[data-style="mac"][data-ui="simple"] #app .view-col > :is(.mm-bar, .projbar) > *,
   body[data-style="mac"][data-ui="simple"] #app .view-col > .projbar .pb-tools > * { flex-shrink: 0; white-space: nowrap; }
   body[data-style="mac"][data-ui="simple"] #app .view-col > .projbar .pb-tools { display: flex; flex-wrap: nowrap; }
-  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row { flex-wrap: wrap; }
-  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row > #go { order: 1; margin-left: auto; }
-  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row > :not(#go):not(#vo-mic) { order: 2; }
-  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row > #sc-team { flex: 1 1 100%; }
-  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .simple-send-row > span { margin-left: 0 !important; flex: 1 1 100%; }
-  body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="empty"] .sc-box #orders { min-height: 88px; }
 }
 /* 0.4.28 (panel item 6): Expert's bottom tabs scrolled sideways and hid Help, More and Settings. Five tabs now; Subs,
    Feed and Help are under More (app.js ensureMobileMore adds them there). */

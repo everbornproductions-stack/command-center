@@ -1,5 +1,7 @@
 # Simple layout (0.4.21, area H)
 
+> **0.4.37 (Chris, 2026-11-01): the Chat page changed.** It is now one centred column (about 780 px) on a flat background like Expert: the question as a bubble, each answer a card (`#simple-answer .sc-card`, replies in `#sc-turns`) with exactly Copy, Try again, Make changes and Save as file, follow-ups in the same run's thread, and the short box pinned at the bottom (`.sc-chat .orders`). The Next bar, Finish, versions, More actions and the rest are behind Make changes (`#sc-changes`). The answer check is inside the card (`#sc-check`). The Build panel opens only from Preview on the Chat page. The sidebar is Chat, Make something, Projects, MindMedia, History and Settings and more (AI News and Create are in Settings and more). The old first screen below lives on as Make something (the Mac look's steps; in the classic look `S.scPage = "make"`). Styles: web/chat.css. Test: test/simple-chat-0437.test.js. The rest of this page is the 0.4.21 history.
+
 The Simple window uses the whole screen. It follows design-ref/LAYOUT-STUDY.md section 3 and Chris's "Use the space" note (Oct 26, 1:11 PM PT): lean toward Claude's layout, chat plus a Build panel that fill the window, results big, no narrow centered column.
 
 ```

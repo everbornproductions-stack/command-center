@@ -99,12 +99,13 @@ test("the choice is saved and does not close first-run setup", async () => {
   } finally { await s.stop(); }
 });
 
-test("the Simple chat page is Chat on top, then the answer, then My day and recent chats", async () => {
+test("the Simple chat page is the thread over the chat box; My day and recent chats are on Make something", async () => {
   const { SIMPLE_COMMAND, SIMPLE_STARTER_COUNT } = await import("../web/mode.js");
   const app = read("web", "app.js");
-  const simple = app.slice(app.indexOf("function renderSimpleChat"), app.indexOf("function paintStarters"));
-  // 0.4.17: chat box first, then the newest answer right under it, then My day and recent chats.
-  const order = ['<h3>Chat</h3>', 'id="cc-starters"', 'class="panel output" id="simple-answer"', 'id="cc-answer-line"', 'id="simple-home"', "simpleDayHtml()", 'id="simple-recent"'];
+  const simple = app.slice(app.indexOf("function scMakePage"), app.indexOf("function paintStarters"));
+  // 0.4.37 (Chris: Simple chat layout; was 0.4.17 box first): the classic Make something page keeps My day and recent
+  // chats; the Chat page is the examples, then the question, the answer and its Make changes fold, then the box.
+  const order = ['id="simple-home"', "simpleDayHtml()", 'id="simple-recent"', 'id="cc-starters"', 'id="sc-q"', 'id="simple-answer"', 'id="cc-answer-line"', 'id="sc-turns"', '<h3>Chat</h3>', 'id="orders"'];
   let at = -1;
   for (const bit of order) {
     const next = simple.indexOf(bit);

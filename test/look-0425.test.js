@@ -158,6 +158,16 @@ test("item 8: \"Use the 3 steps\" has its own place in the title bar, clear of \
     const t = await bootNew({ theme: "dark", width, height });
     try {
       await t.page.click("#mf-chat");
+      // 0.4.37 (Simple chat layout): where the Simple sidebar shows (1366), its Make something is the way back and the chip
+      // steps aside; on a phone (no sidebar) the chip stays in the title bar as before.
+      if (width > 760) {
+        await t.page.waitForFunction(() => document.body.dataset.macFlow === "off" && document.body.classList.contains("mm-side-on"), null, { timeout: WAIT });
+        assert.equal(await t.page.evaluate(() => document.getElementById("mf-return").getBoundingClientRect().width), 0, "the chip is hidden beside the sidebar");
+        assert.deepEqual(covered(await hitTest(t.page, ["#mac-titlebar button", "#side-profile", "#side-make"])), [], `${width}px title bar and sidebar`);
+        await t.page.click("#side-make");
+        await t.page.waitForFunction(() => document.body.dataset.macFlow === "on", null, { timeout: WAIT });
+        continue;
+      }
       await t.page.waitForFunction(() => document.body.dataset.macFlow === "off" && !document.getElementById("mf-return").hidden, null, { timeout: WAIT });
       const g = await t.page.evaluate(() => {
         const ret = document.getElementById("mf-return"), r = ret.getBoundingClientRect();

@@ -5,9 +5,11 @@ const { api, esc } = window.CC;
 
 function textOf(run) { return String(run?.deliverable || run?.verdict?.text || "").trim(); }
 
+// 0.4.37 (Chris: Simple chat layout): on the Simple Chat page the check sits inside the answer card, under the answer
+// text (#sc-check). Expert has no such slot, so it stays in the answer's extras as in 0.4.36.
 window.CC.register({
   id: "answer-check",
-  deliverable: { order: 4, async render(el, run) {
+  deliverable: { order: 4, slot: "#sc-check", async render(el, run) {
     const text = textOf(run);
     el.innerHTML = "";
     if (!text) return;

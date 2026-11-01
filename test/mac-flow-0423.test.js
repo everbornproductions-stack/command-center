@@ -312,7 +312,9 @@ test("browser: back, Escape, quick picks, Just chat instead, the way back in", {
     await t.page.waitForFunction(() => document.body.dataset.macFlow === "off", null, { timeout: WAIT });
     assert.equal(await visible(t.page, "#orders"), 1, "the chat box is reachable");
     assert.equal(await visible(t.page, ".mf"), 0);
-    await t.page.click("#mf-return");
+    // 0.4.37 (Simple chat layout): beside the Simple sidebar the way back is its Make something (the title bar chip is
+    // the way back where there is no sidebar)
+    await t.page.click(await t.page.evaluate(() => (document.getElementById("mf-return").getBoundingClientRect().width > 0 ? "#mf-return" : "#side-make")));
     await t.page.waitForFunction(() => document.body.dataset.macFlow === "on", null, { timeout: WAIT });
     assert.equal(await visible(t.page, ".mf"), 1);
     assert.equal(t.errors.length, 0, t.errors.join("\n"));

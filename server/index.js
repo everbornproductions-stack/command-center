@@ -70,6 +70,7 @@ import { sourcesFromCitations, recordNative, previewSearch } from "./search.js";
 import { prepareWeb, beginDeep } from "./research.js";
 import { isDrawingOrPageJob, wantsSearch } from "./step-guard.js";
 import { saveFilesFromAnswer } from "./save-named-files.js";
+import { saveNamedFile } from "./named-file.js";
 import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { sendCheck } from "./send-check.js";
@@ -1008,6 +1009,21 @@ async function api(req, res, url) {
   if (method === "POST" && p === "/followup") {
     try { return json(res, 202, await beginFollowup(body)); }
     catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+  }
+  // 0.4.37 (Chris: Simple chat "Save as file"): one answer, or one reply in the chat, saved as a file with the same saver
+  // missions and named-file chats use (named-file.js saveNamedFile: never overwrites, read back, kept in MindMedia).
+  if (method === "POST" && p === "/chat/save-file") {
+    const text = String(body.text || "");
+    const name = String(body.name || "").slice(0, 80);
+    if (!text.trim()) return json(res, 400, { error: "There is nothing to save yet." });
+    if (!name) return json(res, 400, { error: "Say what to call the file." });
+    let projectId = "";
+    const runId = String(body.runId || "").replace(/[^a-z0-9-]/gi, "").slice(0, 80);
+    if (runId) { try { projectId = (await ctx().store.getMission(runId))?.projectId || ""; } catch { /* unfiled */ } }
+    const r = saveNamedFile({ name, text, projectId, missionId: runId ? `${runId}-chat` : "", source: "Chat", status: "Draft" });
+    if (!r) return json(res, 400, { error: "That is not a file name Meldmind can use." });
+    if (!r.ok) return json(res, 400, { error: r.error || "Not saved." });
+    return json(res, 200, { ok: true, name: r.name, path: r.path, where: r.where || "", bytes: r.bytes });
   }
 
   if (method === "POST" && p === "/projects") {

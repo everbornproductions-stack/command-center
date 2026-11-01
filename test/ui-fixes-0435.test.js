@@ -65,7 +65,8 @@ async function simpleAnswer(t, text = "Plan a bake sale for Saturday with a full
   await p.click("#go");
   await p.waitForFunction(() => !!window.CC.S.live?.id, null, { timeout: WAIT });
   await p.waitForFunction(() => ["done", "done-with-errors"].includes(window.CC.S.live?.status), null, { timeout: RUN });
-  await p.waitForSelector("#cc-copy-main", { timeout: WAIT });
+  // 0.4.37 (Simple chat layout): Copy is the first of the four buttons under the answer (the old row is behind Make changes)
+  await p.waitForSelector("#simple-answer > .sc-acts [data-sc-act='copy']", { timeout: WAIT });
 }
 
 // ---------- item 2: Mission "Who will read this" ----------
@@ -130,10 +131,12 @@ test("item 3: Simple at 1366 x 800, after Send the toast does not cover the Next
     await simpleAnswer(t);
     await p.evaluate(() => window.CC.toast("Answer done · Free"));
     await p.waitForFunction(() => [...document.querySelectorAll("#toasts .toast")].some((e) => e.getBoundingClientRect().height > 0), null, { timeout: WAIT });
-    const r = await p.evaluate(OVERLAPS, ["#toasts .toast", "#mmbar button, #fpbar button, #projbar button, [data-feature='next-actions'] button, [data-feature='finishpath'] button"]);
+    const r = await p.evaluate(OVERLAPS, ["#toasts .toast", "#mmbar button, #fpbar button, #projbar button, [data-feature='next-actions'] button, [data-feature='finishpath'] button, .sc-acts button, #view .sc-box"]);
     assert.ok(r.count >= 1, "a toast shows");
     assert.deepEqual(r.out, [], "no toast covers a Next bar or answer button");
-    assert.equal(await p.evaluate(() => document.body.dataset.toastAt), "top");
+    // 0.4.37 (Simple chat layout): no bars stack over the Chat page, so the toast keeps its place under the title bar
+    const top = await p.evaluate(() => document.querySelector("#toasts .toast").getBoundingClientRect().top);
+    assert.ok(top < 160, `toast near the top (${top})`);
   } finally { await t.close(); }
 });
 
@@ -215,18 +218,20 @@ test("item 6: Simple at 390 x 844 after a demo answer, Copy is on screen and on 
   try {
     const p = t.page;
     await simpleAnswer(t);
-    await waitOnScreen(p, "#cc-copy-main");
-    const copy = await onScreen(p, "#cc-copy-main");
-    assert.ok(copy.inside && copy.top, `#cc-copy-main is on screen and on top ${JSON.stringify(copy)}`);
-    await p.waitForFunction(() => !!document.querySelector(".sx-swipe #mmbar") || !document.getElementById("mmbar"), null, { timeout: WAIT });
+    // 0.4.37 (Simple chat layout): Copy is the first of the four buttons under the answer
+    const COPY = "#simple-answer > .sc-acts [data-sc-act='copy']";
+    await waitOnScreen(p, COPY);
+    const copy = await onScreen(p, COPY);
+    assert.ok(copy.inside && copy.top, `Copy is on screen and on top ${JSON.stringify(copy)}`);
     const g = await p.evaluate(() => {
       const row = document.querySelector(".sx-swipe");
       const tray = document.getElementById("cc-asset-tray");
-      return { row: !!row, kids: row ? [...row.children].map((c) => c.id) : [], oneRow: row ? row.getBoundingClientRect().height < 70 : false, tray: !!tray && tray.getBoundingClientRect().height > 0 };
+      const mm = document.getElementById("mmbar");
+      return { rowShown: !!row && row.getBoundingClientRect().height > 0, mmInFold: !mm || !!mm.closest("#sc-changes"), tray: !!tray && tray.getBoundingClientRect().height > 0 };
     });
-    assert.equal(g.row, true, "the Next bar and Project tools share one row");
-    assert.ok(g.kids.every((id) => ["mmbar", "projbar"].includes(id)) && g.kids.length >= 1, `the row holds only the two bars (${g.kids})`);
-    assert.equal(g.oneRow, true, "the row is one line");
+    // 0.4.37: the 0.4.35 swipe row (Next bar and Project tools) no longer stacks over the chat; the Next bar is behind Make changes
+    assert.equal(g.rowShown, false, "no bar row above the Chat page");
+    assert.equal(g.mmInFold, true, "the Next bar waits behind Make changes");
     assert.equal(g.tray, false, "the Asset Tray pill is hidden while the bottom tabs show");
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }

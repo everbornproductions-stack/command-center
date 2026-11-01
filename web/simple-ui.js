@@ -67,6 +67,49 @@ export const STARTERS = [
   { id: "explain", label: "Explain this", text: "Explain this in plain words. I will paste it." },
 ];
 
+// 0.4.37 (Chris: "Why does simple mode not look like expert mode when you click on chat?"): the Chat page is one quiet
+// column. The empty page says this and offers three small examples; a click only fills the box.
+export const CHAT_EMPTY = {
+  title: "Ask anything",
+  line: "Questions, ideas, a quick draft. Your answer shows up right here.",
+  chips: [
+    { id: "insurance", label: "Explain my insurance options", text: "Explain my insurance options in plain words. I will say what I have now." },
+    { id: "thanks", label: "Write a thank-you text", text: "Write a short thank-you text to a customer. I will say who it is for." },
+    { id: "slow", label: "Ideas for a slow Tuesday", text: "Give me 5 ideas to bring customers in on a slow Tuesday." },
+  ],
+};
+
+// 0.4.37: exactly four buttons under every answer. Everything else waits behind Make changes.
+export const ANSWER_BUTTONS = [
+  { id: "copy", label: "Copy" },
+  { id: "again", label: "Try again" },
+  { id: "change", label: "Make changes" },
+  { id: "save", label: "Save as file" },
+];
+
+// 0.4.37: quick changes for a reply further down the chat. Each one is sent as the next message in the same chat.
+export const REPLY_CHANGES = [
+  { id: "shorter", label: "Make it shorter", text: "Make that shorter." },
+  { id: "simpler", label: "Use simpler words", text: "Say that again in simpler words." },
+  { id: "formal", label: "Make it more formal", text: "Make that more formal." },
+  { id: "detail", label: "Add more detail", text: "Add more detail to that." },
+];
+
+// 0.4.37: a file name for Save as file, from the question's words. Pure, so the server and the tests share it.
+export function answerFileName(prompt, text) {
+  const t = String(text || "");
+  let ext = "md";
+  if (/<!doctype html|<html[\s>]/i.test(t)) ext = "html";
+  else {
+    // one fenced code block in a known language: the file is that code (the server takes the block out of the answer)
+    const fences = [...t.matchAll(/^\s*```\s*([A-Za-z0-9+#-]*)/gm)].map((m) => m[1].toLowerCase());
+    const map = { js: "js", javascript: "js", py: "py", python: "py", css: "css", json: "json", csv: "csv", sql: "sql", sh: "sh", bash: "sh", ps1: "ps1", powershell: "ps1", html: "html", svg: "svg", yaml: "yml", yml: "yml", xml: "xml" };
+    if (fences.length >= 1 && fences.length <= 2 && map[fences[0]]) ext = map[fences[0]];
+  }
+  const words = String(prompt || "").toLowerCase().replace(/[^a-z0-9\s-]+/g, " ").split(/\s+/).filter(Boolean).slice(0, 6).join("-").slice(0, 48).replace(/-+$/g, "");
+  return `${words || "answer"}.${ext}`;
+}
+
 export const FAILURE = {
   title: "That AI is busy. Nothing was charged.",
   retry: "Try again",

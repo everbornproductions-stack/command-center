@@ -1,0 +1,182 @@
+/* The Simple Chat page (0.4.37). Chris, 2026-11-01: "Why does simple mode not look like expert mode when you click on
+   chat? Expert mode's interface is a lot cleaner." Approved mockup: meldmind-dogfood/mockups/simple-chat-0437.html.
+   One centred conversation column (about 780 px) on a flat background like Expert's: the question as a bubble on the
+   right, each answer in a card with four buttons under it, follow-ups below in the same chat, and the short chat box
+   pinned at the bottom with the Talk line under it. Everything here keys on .sc-chat (drawn by app.js renderSimpleChat),
+   so Expert and every other page are untouched. Light and dark come from the theme; sizes use rem so Large text works. */
+
+/* ---------- tokens: the theme's own colours, with the mockup's in light ---------- */
+body[data-ui="simple"] {
+  --sc-canvas: var(--bg, #0b0f17);
+  --sc-card: var(--panel-solid, #111827);
+  --sc-line: var(--line, #1f2937);
+  --sc-line-2: var(--line-2, #273449);
+  --sc-text: var(--text, #f3f4f6);
+  --sc-muted: var(--muted, #9ca3af);
+  --sc-me: #12313a;
+  --sc-me-line: #1d4b55;
+  --sc-acc: #147a80;
+  --sc-on-acc: #ffffff;
+  --sc-soft: rgba(120, 120, 128, .16);
+  --sc-warn-bg: #332c23;
+  --sc-warn-line: #6b5420;
+  --sc-warn-tx: #fde68a;
+  --sc-side: #0f141d;
+}
+html[data-theme="light"] body[data-ui="simple"], body[data-ui="simple"][data-theme="light"] {
+  --sc-canvas: #f6f7f9;
+  --sc-card: #ffffff;
+  --sc-line: #e3e6ea;
+  --sc-line-2: #d7dbe0;
+  --sc-text: #1d2330;
+  --sc-muted: #545c69;
+  --sc-me: #e7f2f2;
+  --sc-me-line: #cfe5e5;
+  --sc-soft: rgba(120, 120, 128, .12);
+  --sc-warn-bg: #fff7e6;
+  --sc-warn-line: #f1d9a6;
+  --sc-warn-tx: #5c3d00;
+  --sc-side: #f1efec;
+}
+/* the Mac look's light / dark button sets body[data-theme]; it wins over the classic theme */
+html body[data-ui="simple"][data-style="mac"][data-theme="dark"] {
+  --sc-canvas: #0b0f17;
+  --sc-card: #111827;
+  --sc-line: #1f2937;
+  --sc-line-2: #2b3648;
+  --sc-text: #f3f4f6;
+  --sc-muted: #a3acb9;
+  --sc-me: #12313a;
+  --sc-me-line: #1d4b55;
+  --sc-soft: rgba(255, 255, 255, .08);
+  --sc-warn-bg: #332c23;
+  --sc-warn-line: #6b5420;
+  --sc-warn-tx: #fde68a;
+  --sc-side: #0f141d;
+}
+
+/* ---------- the page: a flat background, no wallpaper or glass behind the chat ---------- */
+body[data-ui="simple"] .view-col:has(> #view > .sc-chat) { background: var(--sc-canvas); -webkit-backdrop-filter: none; backdrop-filter: none; }
+body[data-ui="simple"] #view.view:has(> .sc-chat) { padding: 0; overflow: hidden; display: flex; flex-direction: column; min-height: 0; background: var(--sc-canvas); }
+/* nothing stacks on top of the chat: the Next bar sits behind Make changes, Finish is in the answer, the project row
+   shows only while More options is open */
+body[data-ui="simple"][data-view="command"] .view-col:has(> #view > .sc-chat) > :is(#fpbar, #mmbar) { display: none; }
+body[data-ui="simple"][data-view="command"]:not(.mm-more) .view-col:has(> #view > .sc-chat) > :is(#projbar, .sx-swipe) { display: none; }
+/* the sidebar is flat too while the chat page shows */
+body[data-ui="simple"][data-view="command"].mm-side-on:has(#view > .sc-chat) #cc-side:not([hidden]) { background: var(--sc-side); -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* the classic look keeps its toasts low on the right, which is on the chat box here: they go to the top instead */
+body[data-ui="simple"]:not([data-style="mac"]):has(#view > .sc-chat) .toasts { top: 70px; bottom: auto; }
+/* the Mac title bar's "Use the 3 steps" is the sidebar's Make something when the sidebar shows */
+body.mm-side-on[data-ui="simple"] #mf-return { display: none; }
+
+.sc-chat { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; height: 100%; width: 100%; color: var(--sc-text); background: var(--sc-canvas); }
+.sc-chat [hidden] { display: none !important; }
+.sc-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 28px 24px 8px; overscroll-behavior: contain; }
+.sc-col { max-width: 780px; margin: 0 auto; min-width: 0; }
+.sc-chat .md { overflow-wrap: anywhere; }
+.sc-chat .md pre { overflow-x: auto; max-width: 100%; }
+
+/* ---------- empty: "Ask anything", one line, three small chips ---------- */
+.sc-chat[data-state="run"] .sc-empty, .sc-chat[data-state="empty"] .sc-thread { display: none; }
+.sc-empty { text-align: center; margin-top: 16vh; }
+.sc-empty .sc-hello { margin: 0 0 6px; font-size: 1.75rem; font-weight: 700; letter-spacing: -.01em; color: var(--sc-text); }
+.sc-empty .sc-sub { margin: 0 0 18px; color: var(--sc-muted); font-size: .9375rem; }
+.sc-starters { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.sc-try { padding: 7px 14px; border: 1px solid var(--sc-line); background: var(--sc-card); color: var(--sc-text); border-radius: 999px; font: inherit; font-size: .84375rem; cursor: pointer; }
+.sc-try:hover { border-color: var(--sc-acc); }
+.sc-try:focus-visible, .sc-new:focus-visible, .sc-acts .btn:focus-visible { outline: 2px solid var(--sc-acc); outline-offset: 2px; }
+/* the classic look's Make something page keeps its chips, ideas and Made recently cards */
+.sc-empty.sc-make { margin-top: 6vh; text-align: left; }
+.sc-empty.sc-make .sc-hello { text-align: center; margin-bottom: 14px; }
+.sc-empty.sc-make .sc-chips { justify-content: center; margin-bottom: 18px; }
+.sc-col:has(.sc-make) { max-width: 1100px; }
+.sc-chat[data-page="make"] .sc-panel { max-width: 1100px; }
+body[data-ui="simple"] .sc-chat[data-page="make"] .sc-box #orders { min-height: 96px; }
+/* a picture, video or voice made in chat is big: up to 70vh in the column */
+.sc-chat #mk-root .mk-media img, .sc-chat #mk-root .mk-media video { max-height: 70vh; width: auto; max-width: 100%; }
+
+/* ---------- the thread ---------- */
+.sc-head { display: flex; justify-content: flex-end; margin: -12px 0 6px; }
+.sc-new { border: 0; background: transparent; color: var(--sc-muted); font: inherit; font-size: .8125rem; padding: 4px 8px; border-radius: 8px; cursor: pointer; }
+.sc-new:hover { background: var(--sc-soft); color: var(--sc-text); }
+.sc-resume:empty { display: none; }
+.sc-resume-line { margin: 0 0 14px; font-size: .8125rem; color: var(--sc-muted); text-align: center; }
+.sc-resume-line .linkish { border: 0; background: transparent; color: var(--sc-acc); font: inherit; padding: 0 4px; cursor: pointer; text-decoration: underline; }
+.sc-me { margin: 0 0 18px auto; max-width: 72%; width: fit-content; background: var(--sc-me); border: 1px solid var(--sc-me-line); color: var(--sc-text); padding: 10px 14px; border-radius: 14px 14px 4px 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9375rem; }
+.sc-chat .sc-ai { display: block; margin: 0 0 22px; padding: 0; border: 0; background: transparent; box-shadow: none; max-width: none; }
+.sc-card { background: var(--sc-card); border: 1px solid var(--sc-line); border-radius: 14px; padding: 16px 18px; color: var(--sc-text); min-width: 0; }
+.sc-card .md { font-size: .9375rem; line-height: 1.55; }
+.sc-card .md > :first-child { margin-top: 0; }
+.sc-card .md > :last-child { margin-bottom: 0; }
+.sc-card .md h2, .sc-card .md h3 { font-size: 1rem; margin: 12px 0 4px; }
+.sc-who { display: flex; align-items: baseline; gap: 6px; margin: 0 0 8px; font-size: .78125rem; font-weight: 400; color: var(--sc-muted); text-transform: none; letter-spacing: 0; }
+.sc-who b { color: var(--sc-text); font-weight: 600; }
+.sc-who span:not(:empty)::before { content: "\00b7"; margin-right: 6px; }
+.sc-chat #out-follow:empty, .sc-chat #cc-fail-slot:empty, .sc-check:empty { display: none; }
+/* the answer check inside the card, under the answer text */
+.sc-check .cc-answer-check { margin: 12px 0 0 !important; padding: 9px 12px !important; border: 1px solid var(--sc-warn-line) !important; border-left-width: 1px !important; border-radius: 10px; background: var(--sc-warn-bg); color: var(--sc-warn-tx); font-size: .84375rem; }
+.sc-check .cc-answer-check .dim { color: inherit; opacity: .85; }
+/* a long code block folds; it opens under the answer when clicked */
+.sc-code { margin: 10px 0; border: 1px solid var(--sc-line); border-radius: 10px; background: var(--sc-soft); }
+.sc-code > summary { cursor: pointer; padding: 8px 12px; font-size: .84375rem; font-weight: 600; }
+.sc-code[open] > summary { border-bottom: 1px solid var(--sc-line); }
+.sc-code > pre { margin: 0; padding: 10px 12px; max-height: 60vh; overflow: auto; }
+
+/* ---------- the four buttons and the Make changes fold ---------- */
+.sc-acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
+.sc-chat .sc-acts .btn { padding: 6px 13px; min-height: 34px; border-radius: 9px; border: 1px solid var(--sc-line); background: var(--sc-card); color: var(--sc-text); font: inherit; font-weight: 600; font-size: .84375rem; cursor: pointer; box-shadow: none; }
+.sc-chat .sc-acts .btn:hover:not(:disabled) { border-color: var(--sc-acc); }
+.sc-chat .sc-acts .btn.primary { background: var(--sc-acc); border-color: var(--sc-acc); color: var(--sc-on-acc); }
+.sc-chat .sc-acts .btn[aria-expanded="true"] { background: var(--sc-soft); }
+.sc-changes { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-card); display: grid; gap: 8px; min-width: 0; }
+.sc-changes > :empty { display: none; }
+.sc-changes .answer-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sc-changes .mm-bar { margin: 0; border: 0; padding: 0; background: transparent; }
+/* Copy and Try again are already the first two buttons */
+.sc-changes #cc-copy-main, .sc-changes #cc-v-again { display: none; }
+.sc-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.sc-pending .reply-live { color: var(--sc-text); }
+
+/* ---------- the chat box, pinned under the column ---------- */
+.sc-chat .orders { flex: none; position: relative; display: block; padding: 10px 24px 12px; margin: 0; overflow: visible; max-height: none; background: var(--sc-canvas); }
+.sc-chat .sc-panel { max-width: 780px; margin: 0 auto; padding: 0; border: 0; background: transparent; box-shadow: none; display: flex; flex-direction: column; gap: 8px; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sc-chat .sc-panel > h3 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
+body[data-ui="simple"] .sc-chat .sc-box { display: grid; gap: 4px; background: var(--sc-card); border: 1px solid var(--sc-line-2); border-radius: 16px; padding: 10px 12px 8px 14px; box-shadow: 0 4px 18px rgba(0, 0, 0, .06); -webkit-backdrop-filter: none; backdrop-filter: none; }
+body[data-ui="simple"] .sc-chat .sc-box:focus-within { border-color: var(--sc-acc); }
+body[data-ui="simple"] .sc-chat .sc-box #orders { min-height: 2.6em; height: auto; max-height: calc(6 * 1.5em + 12px); overflow-y: auto; resize: none; border: 0; background: transparent; box-shadow: none; outline: none; color: var(--sc-text); font: inherit; font-size: .9375rem; line-height: 1.5; padding: 2px 0; width: 100%; }
+body[data-ui="simple"] .sc-chat .sc-box #orders::placeholder { color: var(--sc-muted); }
+.sc-chat .simple-send-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-width: 0; }
+.sc-chat .simple-send-row #vo-mic { border: 1px solid var(--sc-line); background: var(--sc-card); color: var(--sc-text); border-radius: 9px; padding: 6px 12px; font-weight: 600; }
+.sc-chat .sc-team { color: var(--sc-muted); background: transparent; border: 0; font: inherit; font-size: .84375rem; padding: 4px 6px; border-radius: 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sc-chat .sc-team:hover, .sc-chat .sc-team[aria-expanded="true"] { color: var(--sc-text); background: var(--sc-soft); }
+.sc-chat .cc-freeonly { color: var(--sc-muted); font-size: .84375rem; }
+body[data-ui="simple"] .sc-chat .sc-box #go { min-width: 84px; background: var(--sc-acc); border-color: var(--sc-acc); color: var(--sc-on-acc); border-radius: 10px; font-weight: 700; padding: 8px 18px; }
+body[data-ui="simple"] .sc-chat .sc-box #go:disabled { opacity: .6; }
+.sc-chat #cc-auto-line:empty, .sc-chat #cc-emp-hint:empty, .sc-chat #cc-precost:empty { display: none; }
+.sc-chat #cc-auto-line, .sc-chat #cc-precost { color: var(--sc-muted); font-size: .78125rem; }
+/* quick picks and the composer AI row wait behind Auto team (More options), like the rest of the extras */
+.sc-chat .sc-box #hh-picks, .sc-chat #cc-composer-ais { display: none; }
+.sc-chat .sc-panel.more-open .sc-box #hh-picks, .sc-chat .sc-panel.more-open #cc-composer-ais, .sc-chat[data-busy="1"] #cc-composer-ais { display: flex; }
+.sc-chat .sc-more { display: none; gap: 8px; border: 1px solid var(--sc-line); border-radius: 12px; padding: 10px 12px; background: var(--sc-card); max-height: 40vh; overflow-y: auto; }
+.sc-chat .sc-panel.more-open .sc-more { display: grid; }
+.sc-chat .sc-live { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-card); font-size: .8125rem; }
+
+/* ---------- the Talk bar: one quiet line under the box ---------- */
+body[data-ui="simple"][data-view="command"] .view-col:has(> #view > .sc-chat) > #vt-bar { background: var(--sc-canvas); border-top: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* ---------- phones: the same column, the box above the Talk bar ---------- */
+@media (max-width: 760px) {
+  .sc-scroll { padding: 16px 16px 6px; }
+  .sc-chat .orders { padding: 6px 16px 8px; }
+  .sc-empty { margin-top: 8vh; }
+  .sc-empty .sc-hello { font-size: 1.5rem; }
+  .sc-me { max-width: 86%; }
+  .sc-card { padding: 14px; }
+  .sc-acts { gap: 6px; }
+  .sc-chat .sc-acts .btn { padding: 5px 9px; font-size: .8125rem; }
+  .sc-chat .simple-send-row { flex-wrap: wrap; gap: 6px 8px; }
+  .sc-chat .simple-send-row > span { margin-left: auto !important; }
+  body[data-ui="simple"] .sc-chat .sc-box #go { margin-left: auto; }
+  .sc-chat .cc-freeonly { font-size: .78125rem; }
+}
+@media (prefers-reduced-motion: reduce) { .sc-chat * { scroll-behavior: auto !important; } }

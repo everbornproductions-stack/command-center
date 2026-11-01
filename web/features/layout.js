@@ -1,5 +1,6 @@
 // Layout (0.4.21, area H): the Simple window the way the chat apps do it, but using the whole screen.
-//   - a slim left sidebar (New, Projects, MindMedia, Recent chats, and the profile menu at the bottom) that is
+//   - a slim left sidebar (0.4.37: Chat, Make something, Projects, MindMedia, History, and Settings and more, which now
+//     also holds AI News and Create) that is
 //     collapsible and shows icons only on narrow windows. It reuses the hidden top menu: every item is a click on
 //     the original button, so nothing is removed and nothing is out of date.
 //   - the chat column: a greeting and one big box on the empty first screen, the box docked at the bottom once
@@ -58,14 +59,10 @@ function buildSide() {
   side.innerHTML = `
     <div class="side-top"><button type="button" id="side-collapse" class="side-collapse" aria-label="Collapse the sidebar" aria-expanded="true" title="Collapse or open the sidebar"><span aria-hidden="true">&laquo;</span></button></div>
     <nav class="side-nav" aria-label="Sidebar">
-      <button type="button" class="side-item" id="side-new" data-side="new" title="Start something new"><i aria-hidden="true">+</i><span>New</span></button>
+      <button type="button" class="side-item" id="side-chat" data-side="chat" title="Chat: ask anything"><i aria-hidden="true">&#128172;</i><span>Chat</span></button>
+      <button type="button" class="side-item" id="side-make" data-side="make" title="Make something: a website, an image, a video, a campaign and more"><i aria-hidden="true">&#10022;</i><span>Make something</span></button>
       <button type="button" class="side-item" id="side-projects" data-side="projects" title="Projects"><i aria-hidden="true">&#9638;</i><span>Projects</span></button>
       <button type="button" class="side-item" id="side-mindmedia" data-side="mindmedia" title="MindMedia: everything you made"><i aria-hidden="true">&#9635;</i><span>MindMedia</span></button>
-      <button type="button" class="side-item" id="side-news" data-side="news" title="AI News: what is new in AI this week"><i aria-hidden="true">&#9783;</i><span>AI News</span></button>
-      <div class="side-group">
-        <button type="button" class="side-item" id="side-create" data-side="create" aria-expanded="false" aria-controls="side-create-list" title="Create"><i aria-hidden="true">&#10022;</i><span>Create</span></button>
-        <div class="side-sub" id="side-create-list" hidden></div>
-      </div>
     </nav>
     <div class="side-h" id="side-recent-h">History</div>
     <input type="search" class="side-search" id="side-search" placeholder="Search your history" aria-label="Search your history" autocomplete="off">
@@ -100,12 +97,17 @@ function applySide() {
   b.setAttribute("aria-expanded", String(!col));
   b.setAttribute("aria-label", col ? "Open the sidebar" : "Collapse the sidebar");
   b.firstElementChild.innerHTML = col ? "&raquo;" : "&laquo;";
-  const s = S();
-  const cur = s.view === "command" && !s.openProject ? "new" : s.view === "projects" ? "projects" : s.view === "mindmedia" ? "mindmedia" : s.view === "ai-news" ? "news" : "";
-  const newsOn = (() => { try { return localStorage.getItem("cc.newsOn") !== "0"; } catch { return true; } })();
-  const ni = side.querySelector("#side-news"); if (ni) ni.hidden = !newsOn;
-  side.querySelectorAll("[data-side]").forEach((el) => { if (el.dataset.side === "create") return; const on = el.dataset.side === cur; el.classList.toggle("active", on); if (on) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current"); });
+  paintSideActive(side);
   paintRecent();
+}
+// 0.4.37: Chat is lit on the chat page, Make something on the Simple home (the Mac look's steps, or the classic make
+// page). The Mac steps open and close without a redraw, so syncChat paints this again each second too.
+function paintSideActive(side = document.getElementById("cc-side")) {
+  if (!side) return;
+  const s = S();
+  const making = document.body.dataset.macFlow === "on" || (s.scPage === "make" && !s.live?.id && !s.make?.active);
+  const cur = s.view === "command" && !s.openProject ? (making ? "make" : "chat") : s.view === "projects" ? "projects" : s.view === "mindmedia" ? "mindmedia" : "";
+  side.querySelectorAll("[data-side]").forEach((el) => { const on = el.dataset.side === cur; if (el.classList.contains("active") !== on) el.classList.toggle("active", on); if (on) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current"); });
 }
 
 function onSideClick(e) {
@@ -114,12 +116,36 @@ function onSideClick(e) {
   if (b.id === "side-profile") { st.menuOpen ? closeMenu() : openMenu(); return; }
   if (b.dataset.chat) { openChat(b.dataset.chat); return; }
   if (b.dataset.sideAct === "orig") { runOriginal(b); return; }
-  const places = { "side-new": newChat, "side-projects": () => CC.go("projects"), "side-mindmedia": () => CC.go("mindmedia"), "side-news": () => CC.go("ai-news"), "side-create": () => toggleCreate() };
+  const places = { "side-chat": openChatPage, "side-make": makeSomething, "side-projects": () => CC.go("projects"), "side-mindmedia": () => CC.go("mindmedia") };
   places[b.id]?.();
 }
 
+// 0.4.37 (Chris: Simple chat layout): Chat opens the chat page and keeps the chat that is on it.
+function macOn() { return document.body.dataset.style === "mac" && !!CC.mac?.bus; }
+export function openChatPage() {
+  const s = S();
+  s.scPage = "chat";
+  CC.go("command");
+  if (macOn()) CC.mac.bus.emit("chat");
+  setTimeout(() => document.getElementById("orders")?.focus(), 50);
+}
+// Make something opens the Simple home: the Mac look's Website, Image, Video, Campaign steps, or in the classic look the
+// make page (the same chips, ideas and Made recently cards the chat page had before 0.4.37).
+export function makeSomething() {
+  const s = S();
+  if (macOn()) {
+    s.scPage = "chat";
+    CC.go("command");
+    setTimeout(() => { try { CC.mac.bus.emit("flow", { step: "home" }); } catch { /* the steps part is not mounted */ } }, 0);
+    return;
+  }
+  if (s.live?.id || s.make?.active) { newChat({ page: "make" }); return; }
+  s.scPage = "make";
+  CC.go("command");
+}
+
 // "New": a fresh first screen. A run that is still going keeps going; the box just gets the focus.
-export function newChat() {
+export function newChat({ page = "chat" } = {}) {
   const s = S();
   if (s.awaitingRun || (s.live?.id && BUSY.has(s.live.status))) {
     CC.go("command");
@@ -131,6 +157,8 @@ export function newChat() {
   s.live = { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null };
   s.lastOrders = "";
   s.openProject = null;
+  // 0.4.37: a new chat starts on the empty chat page with every Make changes fold shut
+  s.scPage = page; s.scOpen = {}; s.scAsk = "";
   st.dismissed = ""; st.userOpen = false;
   st.feed = null; st.feedDismissed = "";
   CC.canvas?.feed?.(null);
@@ -169,28 +197,20 @@ function runOriginal(b) {
   toast("That item is not available right now.", true);
 }
 
-function toggleCreate(force) {
-  const list = document.getElementById("side-create-list");
-  const btn = document.getElementById("side-create");
-  if (!list || !btn) return;
-  st.createOpen = typeof force === "boolean" ? force : !st.createOpen;
-  if (st.createOpen) {
-    const items = origItems("create").filter((i) => i.section || !["mindmedia"].includes(i.view));
-    list.innerHTML = itemsHtml(items);
-  }
-  list.hidden = !st.createOpen;
-  btn.setAttribute("aria-expanded", String(st.createOpen));
-}
-
 // ---------- the profile menu ----------
 function menuHtml() {
   const help = origItems("guides");
-  const more = origItems("more").filter((i) => i.section || !["settings", "setup", "subscriptions", "credits"].includes(i.view) || i.view === "setup");
+  const more = origItems("more").filter((i) => i.view !== "ai-news" && (i.section || !["settings", "setup", "subscriptions", "credits"].includes(i.view) || i.view === "setup")); // 0.4.37: AI News has its own line
   const first = [
     ["settings", "Settings"], ["keys", "Keys and connections"], ["look", "Look and theme"], ["expert", "Expert mode"],
   ].map(([k, l]) => `<button type="button" role="menuitem" class="side-sub-item" data-menu-act="${k}">${esc(l)}</button>`).join("");
   const second = [["community", "Community"]].map(([k, l]) => `<button type="button" role="menuitem" class="side-sub-item" data-menu-act="${k}">${esc(l)}</button>`).join("");
-  return `${first}<div class="side-sec" role="presentation">Community</div>${second}
+  // 0.4.37 (Chris: Simple chat layout): AI News and Create moved here from the sidebar, so nothing is lost
+  const newsOn = (() => { try { return localStorage.getItem("cc.newsOn") !== "0"; } catch { return true; } })();
+  const create = origItems("create").filter((i) => i.section || !["mindmedia", "ai-news"].includes(i.view)); // AI News has its own line just above
+  const extra = `<div class="side-sec" role="presentation">News and tools</div>${newsOn ? `<button type="button" role="menuitem" class="side-sub-item" id="side-news" data-menu-act="news">AI News</button>` : ""}
+    <details class="side-det" id="side-create"><summary>Create</summary>${itemsHtml(create)}</details>`;
+  return `${first}${extra}<div class="side-sec" role="presentation">Community</div>${second}
     <details class="side-det"><summary>Help</summary>${itemsHtml(help)}</details>
     <details class="side-det"><summary>More pages</summary>${itemsHtml(more)}</details>`;
 }
@@ -211,6 +231,7 @@ function openMenu() {
     else if (k === "look") CC.openSettings?.("[data-feature='look']");
     else if (k === "expert") document.getElementById("mode-expert")?.click();
     else if (k === "community") CC.go("community");
+    else if (k === "news") CC.go("ai-news");
   };
   menu.querySelector("button")?.focus();
 }
@@ -252,12 +273,14 @@ async function openChat(id) {
     if (m.kind === "council") { s.live.council = m; s.live.deliverable = m.verdict?.text || ""; }
     else { s.live.mission = m; s.live.deliverable = m.deliverable || ""; if (m.kind !== "mission") s.live.agents = { x: { provider: m.provider, model: m.model, text: m.deliverable, done: true, role: "answer" } }; s.live.primary = "x"; }
     s.view = "command"; s.openProject = null;
+    s.scPage = "chat"; s.scOpen = {}; // 0.4.37: History reopens the whole chat on the chat page
     CC.render();
+    if (macOn()) CC.mac.bus.emit("chat");
   } catch (e) { toast(e.message, true); }
 }
 
 // ---------- the Simple chat page ----------
-function chatEl() { return document.querySelector("#view .cmd.simple-chat"); }
+function chatEl() { return document.querySelector("#view .sc-chat"); }
 
 function syncChat() {
   const cmd = chatEl();
@@ -280,6 +303,7 @@ function syncChat() {
   }
   const go = document.getElementById("go");
   if (go) go.title = "Send (Ctrl+Enter)";
+  paintSideActive();
   syncBuilt();
   paintEstimate();
 }
@@ -299,8 +323,8 @@ function syncBuilt() {
     (document.getElementById("out-md") || ans).before(card);
   }
   const busyNow = busy();
-  const want = `<b>${busyNow ? "Building your page..." : "Your page is ready."}</b> <span>${open ? "It is open in the Build panel, where you can look at it, step through versions, download it and publish it." : "Open it to look at it, step through versions, download it and publish it."}</span>
-    <span class="sc-built-row">${open ? "" : `<button type="button" class="btn sm primary" id="sc-built-open">Open it</button>`}<button type="button" class="btn sm" id="sc-code" aria-pressed="${ans.classList.contains("show-code")}">${ans.classList.contains("show-code") ? "Hide the code" : "Show the code"}</button></span>`;
+  const want = `<b>${busyNow ? "Building your page..." : "Your page is ready."}</b> <span>${open ? "It is open in the Build panel, where you can look at it, step through versions, download it and publish it." : "Preview it to look at it, step through versions, download it and publish it."}</span>
+    <span class="sc-built-row">${open ? "" : `<button type="button" class="btn sm primary" id="sc-built-open">Preview</button>`}<button type="button" class="btn sm" id="sc-code" aria-pressed="${ans.classList.contains("show-code")}">${ans.classList.contains("show-code") ? "Hide the code" : "Show the code"}</button></span>`;
   if (card.dataset.sig !== want) { card.dataset.sig = want; card.innerHTML = want; }
 }
 
@@ -470,7 +494,10 @@ async function syncPanel() {
       return;
     }
     const sig = resultSig();
-    const want = hasResult() && (isBigBuild() || window.innerWidth >= WIDE) && st.dismissed !== sig;
+    // 0.4.37 (Chris: "the answer opening as a big code panel on the right"): on the Simple Chat page the Build panel only
+    // opens from Preview. A code or file answer folds open inside its card instead.
+    const onChat = S().view === "command" && !!chatEl();
+    const want = !onChat && hasResult() && (isBigBuild() || window.innerWidth >= WIDE) && st.dismissed !== sig;
     if (!panelOpen() && (want || st.userOpen)) {
       const key = newestKey();
       await CC.canvas.open({ docked: true, select: key || undefined });
@@ -564,9 +591,11 @@ function onRender(view) {
 }
 
 document.addEventListener("click", onDocClick);
+// 0.4.37: the Mac steps (Make something) open and close by themselves; the sidebar follows at once
+if (typeof MutationObserver === "function") new MutationObserver(() => paintSideActive()).observe(document.body, { attributes: true, attributeFilter: ["data-mac-flow"] });
 window.addEventListener("resize", () => { clearTimeout(onRender.t); onRender.t = setTimeout(() => { applySide(); queuePanel(); }, 120); });
 
-CC.layout = { refresh: () => applySide(), onRender, newChat, openInPanel, closePanel, seeLive, buildFeed, syncChat, sync: () => { syncChat(); queuePanel(); }, CHIPS, IDEAS, state: st };
+CC.layout = { refresh: () => applySide(), onRender, newChat, openChatPage, makeSomething, openInPanel, closePanel, seeLive, buildFeed, syncChat, sync: () => { syncChat(); queuePanel(); }, CHIPS, IDEAS, state: st };
 // The first page is drawn before this module loads (and is not drawn again when no AI is connected yet), so catch up now.
 setTimeout(() => { try { onRender(S().view); } catch { /* the next render does it */ } }, 0);
 CC.register({
