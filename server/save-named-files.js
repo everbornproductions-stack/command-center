@@ -11,6 +11,7 @@ import { saveNamedFile, wantedFile } from "./named-file.js";
 import { bodyForFile, looksLikeCode } from "./code-files.js";
 import { fileExt, onDisk, OFFICE_EXT, namedFiles, isSavableName, stripSaveClaims, checkTruncation } from "./step-guard.js";
 import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
+import { tablesFromAnswer } from "./office-files.js";
 
 const PROSE_EXT = new Set(["md", "txt", "html", "htm"]);
 // Word, Excel and PowerPoint files are only made when the office writer is part of this build
@@ -18,7 +19,9 @@ export function officeSupported() {
   try { return fs.existsSync(new URL("./office-files.js", import.meta.url)); } catch { return false; }
 }
 const same = (a, b) => path.basename(String(a || "")).toLowerCase() === path.basename(String(b || "")).toLowerCase();
-const hasTable = (t) => /^\s*\|.*\|\s*\n\s*\|?\s*:?-{3,}/m.test(String(t || ""));
+// 0.4.37 (dogfood 0435 release-plan): the same reader the spreadsheet writer uses, so a ```csv answer counts as a table
+// (a pipe-only test skipped the final answer's csv with formulas and built the file from the step's ten schema tables)
+const hasTable = (t) => { try { return tablesFromAnswer(String(t || "")).length > 0; } catch { return false; } };
 // one fenced block named for the file, so saveNamedFile writes exactly this body
 export function fenced(name, body) {
   const runs = String(body || "").match(/^\s*`{3,}/gm) || [];
