@@ -60,8 +60,10 @@ test("completeness: every help action and every Settings connection link has an 
   }
   for (const l of CONNECT_LINKS) assert.ok(items.some((i) => i.open.view === l.view && i.open.focus === l.focus), l.id);
   assert.ok(items.some((i) => i.open.focus === "[data-feature='zapier']"));
-  for (const run of ["mission", "council", "research", "opinion"]) assert.ok(items.some((i) => i.open.view === "command" && i.open.runMode === run), run);
-  for (const p of ["live", "history", "settings"]) assert.ok(items.some((i) => i.open.panel === p), p);
+  // 0.4.32 (Chris): the How to run it choices live on Chat, so no row opens Command in a run mode
+  assert.ok(!items.some((i) => i.open.runMode), "no duplicate rows for Missions, Councils, Research or Second opinion");
+  for (const p of ["live", "settings"]) assert.ok(items.some((i) => i.open.panel === p), p);
+  assert.ok(!items.some((i) => i.id === "recent-chats"), "Recent chats is not a second History row");
 });
 
 test("completeness: new views and unknown views still show up and are covered", () => {
@@ -87,7 +89,7 @@ test("groups: order and membership follow FEATURE-MAP.md", () => {
   const by = (g) => groupsOf(items).find((x) => x.id === g).items.map((i) => i.id);
   assert.deepEqual(groupsOf(items).map((g) => g.id), GROUPS_MAC.map((g) => g.id));
   assert.deepEqual(by("work").slice(0, 3), ["command", "start", "projects"]);
-  for (const id of ["liveops", "liveview", "mission", "council", "research", "opinion", "compare", "refocus"]) assert.ok(by("work").includes(id), id);
+  for (const id of ["liveops", "liveview", "compare", "refocus"]) assert.ok(by("work").includes(id), id);
   assert.deepEqual(by("agents").filter((i) => i !== "outside-agents"), ["agents", "pipelines", "schedules"]);
   assert.deepEqual(by("myday"), ["everyday-inbox", "everyday-plan", "everyday-work"]);
   assert.deepEqual(by("business"), ["workspaces", "credits", "subscriptions", "reports"]);
@@ -147,7 +149,9 @@ test("search: finds by name, plain words and keywords; every word must match", (
   assert.equal(search(items, "   ").length, items.length);
   assert.deepEqual(search(items, "qqqzzz"), []);
   assert.ok(search(items, "grok").some((i) => i.id === "outside-agents"));
-  assert.ok(search(items, "second opinion").some((i) => i.id === "opinion"));
+  // their words still lead to the page that has them
+  for (const w of ["second opinion", "council", "missions", "research"]) assert.ok(search(items, w).some((i) => i.id === "command"), w);
+  assert.ok(search(items, "recent chats").some((i) => i.id === "history"));
   assert.ok(search(items, "update").some((i) => i.open.action === "updates"));
   assert.equal(search(items, "pipelines banana").length, 0);
   assert.ok(search(items, "memory").length >= 2);
@@ -230,9 +234,10 @@ test("browser: sidebar items open runs modes, settings spots, help actions and p
     await goExpert(page);
     await until(page, () => document.querySelectorAll("#mac-side .grp").length >= 9, null, "groups");
     await page.evaluate(() => { window.__opens = []; window.CC.mac.bus.on("open", (e) => window.__opens.push(e)); window.CC.tour = { ...(window.CC.tour || {}), start() { window.__tour = (window.__tour || 0) + 1; } }; });
+    // 0.4.32: searching Councils finds Chat, where the choice is
     await page.fill("#mac-side .mx-srch", "Councils");
-    await page.click('#mac-side .si[data-id="council"]');
-    await until(page, () => window.CC.S.view === "command" && window.CC.S.cmdShortcut === "council" && window.CC.S.cmdMode === "council", null, "council mode");
+    await page.click('#mac-side .si[data-id="command"]');
+    await until(page, () => window.CC.S.view === "command", null, "chat opens");
     await page.fill("#mac-side .mx-srch", "Live Ops");
     await page.click('#mac-side .si[data-id="liveops"]');
     await page.fill("#mac-side .mx-srch", "Cost and speed");
@@ -268,7 +273,7 @@ test("browser: launchpad opens from the bus, pages, dots, arrow keys, search, Es
     const ids = await page.$$eval("#mac-launchpad .app", (n) => n.map((x) => x.dataset.id));
     const known = await page.evaluate(() => [...new Set(window.CC.features.filter((f) => f.tab).map((f) => f.id))]);
     assert.equal(new Set(ids).size, ids.length);
-    for (const must of ["command", "pipelines", "workspaces", "credits", "settings", "liveops", "tour", "about", "panel-voice", "history", "recent-chats"]) assert.ok(ids.includes(must), must);
+    for (const must of ["command", "pipelines", "workspaces", "credits", "settings", "liveops", "tour", "about", "panel-voice", "history"]) assert.ok(ids.includes(must), must);
     assert.ok(known.length >= 0);
     // dots move the pages
     await page.click('#mac-launchpad .mx-dots i[data-p="1"]');

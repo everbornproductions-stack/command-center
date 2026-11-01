@@ -284,7 +284,8 @@ test("item 6: Expert at 390, Settings and Credits have nothing wider than the wi
       await t.page.waitForSelector("#mobile-more.open", { timeout: WAIT });
       const extra = await t.page.evaluate(() => [...document.querySelectorAll('#mobile-more [data-mgroup="pages"] button')].map((b) => b.textContent.replace(/^\W+/, "").trim()));
       assert.deepEqual(extra, ["Subscriptions", "Live feed", "Help"]);
-      await t.page.click('#mobile-more [data-proxy="[data-view=\\"help\\"]"]');
+      // 0.4.32 (CI): the click goes to the Help row in the pages group just checked; a hidden copy elsewhere in the sheet is skipped
+      await t.page.click('#mobile-more [data-mgroup="pages"] [data-proxy="[data-view=\\"help\\"]"]');
       await t.page.waitForFunction(() => window.CC.S.view === "help", null, { timeout: WAIT });
       // The chat dock on Projects is just its box until tapped.
       await go(t, "projects");

@@ -107,7 +107,9 @@ export function extractCodeFiles(markdown) {
 // language, a whole HTML page (the biggest complete one), or for a .csv a Markdown table.
 const extOf = (n) => (/\.([A-Za-z0-9]{1,6})$/.exec(String(n || "")) || ["", ""])[1].toLowerCase();
 const baseOf = (n) => String(n || "").replace(/\\/g, "/").split("/").pop().toLowerCase();
-const langsFor = (ext) => Object.keys(EXT).filter((l) => EXT[l] === ext).concat(ext === "cmd" ? ["bat", "batch", "cmd"] : ext === "bat" ? ["batch", "cmd"] : []);
+// 0.4.32 (dogfood sheets-script): Google Apps Script (.gs) is JavaScript; the AI writes it as ```javascript
+const EXTRA_LANGS = { cmd: ["bat", "batch", "cmd"], bat: ["batch", "cmd"], gs: ["javascript", "js", "gs", "appsscript"] };
+const langsFor = (ext) => Object.keys(EXT).filter((l) => EXT[l] === ext).concat(EXTRA_LANGS[ext] || []);
 const csvCell = (c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c);
 /** The first Markdown table in the text as CSV, or "". */
 export function markdownTableToCsv(text) {

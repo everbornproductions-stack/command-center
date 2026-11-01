@@ -46,6 +46,8 @@ import { bodyForFile, looksLikeCode } from "./code-files.js";
 import { saveEveryNamedFile, isCheckStep, fullReplacement } from "./save-named-files.js";
 import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
+import { wantsSqlCheck, sqlCheck, sqlIssueLine } from "./sql-check.js";
+import { psTraps, psIssueLine } from "./ps-lint.js";
 import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE, findPythonCommand, runPython } from "./run-node-test.js";
 import { isLocalSaveStep, SAVE_LINE, savePost, splitPost, stripHelperNotes } from "./mindmedia-step.js";
 import { dryRunBanner, preflight, mediaStatus, neededMedia } from "./media-preflight.js";
@@ -1117,6 +1119,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       t.toolCalls = (t.toolCalls || 0) + 1;
     };
     // the code of a code step goes to the file the step names, inside the project folder only
+    const sqlChecks = []; // 0.4.32: SQLite checks started by codeWrite, awaited before deterministicQa
     const codeWrite = (t) => {
       if (t.save || t.run || t.media || t.agent) return;
       const folders = writeFolders();
@@ -1178,6 +1181,17 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         t.writes.push({ name: j.name, path: r.path, bytes: r.bytes, existed: r.existed });
         lines.push(`Wrote ${j.name} (${r.bytes} bytes)`);
         log(`Wrote ${j.name} (${r.bytes} bytes) in your project folder.`);
+        // 0.4.32: a SQLite script is run once in memory; an error fails this step's check so the AI fixes it
+        // 0.4.32: known PowerShell traps are read from the text (AI-written scripts are never run to test them)
+        if (/\.ps1$/i.test(j.name)) { const traps = psTraps(j.code); t.psIssue = traps.length ? psIssueLine(j.name, traps) : null; if (traps.length) log(`Checked ${j.name}: ${traps[0]}`, { level: "error" }); }
+        // (codeWrite is not async: the check is started here and the caller waits for sqlChecks before the step's check)
+        if (wantsSqlCheck(j.name, goal, j.code)) {
+          const name = j.name;
+          sqlChecks.push(sqlCheck(j.code).then((sc) => {
+            if (!sc.ok) { t.sqlIssue = sqlIssueLine(name, sc.error); log(`Checked ${name} in SQLite: ${sc.error}`, { level: "error" }); }
+            else if (!sc.skipped) { t.sqlIssue = null; log(`Checked ${name} in SQLite: it runs.`); }
+          }));
+        }
       }
       if (lines.length) { t.wroteLine = lines.join(". "); t.output = `${t.output}\n\n${lines.join("\n")}`; outputs[t.id] = t.output; }
       if (bad.length) {
@@ -1191,6 +1205,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     const deterministicQa = (t) => {
       if (t.save || t.run || t.media || t.agent) return null;
       let issue = t.exportLoss?.length ? exportLossLine(t.exportLoss) : "";
+      if (!issue && t.sqlIssue) issue = t.sqlIssue;
+      if (!issue && t.psIssue) issue = t.psIssue;
       if (!issue) issue = removedApiNotes(t.output)[0] || "";
       // 0.4.21 (dogfood 14): a step that names files is checked against the disk, not against its own words
       if (Array.isArray(t.wantFiles) && t.wantFiles.length) {
@@ -1731,6 +1747,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         // 0.4.21 (dogfood 12): the code goes into the project folder, and what really happened is checked against what the step says
         if (t.status === "review" || t.status === "done") {
           try { codeWrite(t); } catch (e) { t.notSaved = { files: t.wantFiles || [], line: `Not saved: ${String(e.message || e).slice(0, 120)}` }; }
+          if (sqlChecks.length) await Promise.all(sqlChecks.splice(0));
           const det = deterministicQa(t);
           if (det) { t.review = det; log(`QA failed "${t.title}": ${det.issues[0]}`, { level: "error" }); emit("task.update", { missionId: id, task: pubTask(t) }); }
         }

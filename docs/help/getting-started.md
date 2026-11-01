@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.31
+lastUpdatedVersion: 0.4.32
 ---
 
 # Getting started
@@ -216,3 +216,7 @@ Work while you wait: when your AI apps run out of usage, a waiting answer now tr
 ## Hover tips and a roomier chat (0.4.31)
 
 Hover tips: point at a button, or reach it with Tab, and a small box says what it does. Single, Council, Mission, the priority and timing choices, and every page in the sidebar have one. Simple chat: after you send, the box folds to one line, so the answer has more room and Copy, Try again and Finish stay in view. Simple shows all ten choices on a wide screen. Use this in Prompts puts the words in the chat box in Simple, ready to send. Messages that pop up no longer cover your answer, and on a phone the dock scrolls with Chat first. The Saved this month pill is easier to read in light mode. Expert gives the answer the full width when the side column would be too narrow. A page that does not load says so after 8 seconds and offers Try again. Practice mode now makes real spreadsheets and lists. Live view shows every AI that is working, even when the job runs outside the project in the top bar. Project cards show one line of the description. More opens the rest without opening the project. New installs start in light mode. If you already picked a look, it stays.
+
+## Checked SQLite scripts (0.4.32)
+
+SQLite scripts are checked before they count as done: Meldmind runs the file once in an empty practice database that lives only in memory, and if it has an error the AI is asked to fix it. Scripts that would write other files are never run. A Google Apps Script (.gs) file is saved even when the AI marks the code as JavaScript. PowerShell scripts are read for a common trap (zip commands used without loading the zip library) and sent back to the AI to fix, without running them. The sidebar no longer lists Missions, Councils, Research, Second opinion or Recent chats separately. They are the How to run it choices on Chat and the History list, and searching those words still finds them.

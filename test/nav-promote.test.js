@@ -24,7 +24,7 @@ const upAt = (mode, width) => {
 
 test("the promotion order matches the plan", () => {
   assert.deepEqual(SIMPLE_PROMOTE.map((p) => p.label), [], "0.4.20: Simple has a fixed short row");
-  assert.deepEqual(EXPERT_PROMOTE.map((p) => p.label), ["Command", "Start a project", "Projects", "Pro prompts", "Builders", "Community", "Missions", "Councils", "Research", "Remix"]);
+  assert.deepEqual(EXPERT_PROMOTE.map((p) => p.label), ["Command", "Start a project", "Projects", "Pro prompts", "Builders", "Community", "Remix"]); // 0.4.32: no Missions, Councils or Research buttons
   const simple = simpleModel(VIEWS, "", SIMPLE_PROMOTE.map((p) => p.id)).map((g) => g.label);
   assert.deepEqual(simple, ["Chat", "Projects", "Create", "Community", "More", "Help", "Settings"]);
 });
@@ -96,11 +96,8 @@ test("Expert: promoted pages leave Work, Create, and Business, and come first on
   assert.ok(menuViews("work").includes("liveview"), "Live stays in Work");
   const homes = model.flatMap((g) => g.items.filter((i) => i.home && !i.focus && !i.runMode).map((i) => i.view));
   assert.equal(homes.length, new Set(homes).size, "each page is listed once");
-  const short = (id) => model.find((g) => g.id === `up-${id}`).items[0];
-  assert.equal(short("missions").runMode, "mission");
-  assert.equal(short("councils").runMode, "council");
-  assert.equal(short("research").focus, "#cc-search-cmd");
-  assert.equal(short("missions").home, false, "a Command shortcut does not take Command out of Work");
+  // 0.4.32 (Chris): Missions, Councils and Research are choices on Command, not bar buttons of their own
+  for (const id of ["missions", "councils", "research"]) assert.equal(model.some((g) => g.id === `up-${id}`), false, id);
   // Without promotion the menus are unchanged.
   assert.deepEqual(menuModel(VIEWS, "normal").map((g) => g.id), ["work", "agents", "library", "create", "business", "connect", "settings", "guides"]);
 });
@@ -116,7 +113,7 @@ test("Start a project is promoted only together with Projects", () => {
 test("the web app does not promote desktop-only pages and skips pages it does not have", () => {
   const few = ["command", "projects", "settings", "help"];
   assert.deepEqual(promotable("simple", few).map((p) => p.id), []);
-  assert.deepEqual(promotable("expert", few).map((p) => p.id), ["command", "start", "projects", "missions", "councils", "research"]);
+  assert.deepEqual(promotable("expert", few).map((p) => p.id), ["command", "start", "projects"], "0.4.32: no Missions, Councils or Research shortcuts");
 });
 
 test("the bar re-measures on resize through a debounced ResizeObserver", async () => {
