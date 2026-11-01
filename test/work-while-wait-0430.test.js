@@ -57,7 +57,7 @@ test("out of usage: the job waits with a retry time, and the next try answers th
 
   // the box says when, in plain words
   const html = waitBoxHtml({ jobId: job.id, ai: "Claude", step: "copy", retryAt: job.retryAt, since: job.createdAt });
-  assert.match(html, /tries them again by itself at \d{1,2}:\d{2}\s?[AP]M/);
+  assert.match(html, /tries them again by itself at (?:[A-Z][a-z]{2} )?\d{1,2}:\d{2}\s?[AP]M/, "a time after midnight carries its weekday");
   assert.match(html, /Continue in Claude/, "copy it over still works meanwhile");
 
   // after a restart the time is kept and the timer is armed again, without re-running the apps now

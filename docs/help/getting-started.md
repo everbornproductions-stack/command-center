@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.29
+lastUpdatedVersion: 0.4.30
 ---
 
 # Getting started
@@ -208,3 +208,7 @@ Simple mode has new choices: Spreadsheet, Document, Slides, App or script, and L
 ## Your AI helpers and Ask about Meldmind (0.4.29)
 
 Your AI helpers: Meldmind lists the AI apps on this PC, shows which are ready or resting until a set time, and gives each step to one that is free. Find it in Expert Settings under My AIs. When a step moves to another helper, the first try stays visible, for example Try 1 (Claude Code: out of usage). Ask about Meldmind: ask why a job cost what it did, which AI planned it, or why a helper is resting, and get an answer from Meldmind's own records. It is in Help, and in Expert it opens from the Live feed. It only reads; it never changes a setting, and it never shows your keys or private chats. Expert Settings fits beside the Live feed on a laptop screen. If something on the screen fails, Meldmind says so in plain words instead of showing a program error, and keeps the details in its log for support. If your antivirus stops an update from starting, Meldmind stays open and offers the installer to download, instead of closing.
+
+## Work while you wait and Finish it later (0.4.30)
+
+Work while you wait: when your AI apps run out of usage, a waiting answer now tries them again by itself at the time they said they reset, and the box shows that time. Continue in and Paste reply still work meanwhile. Meldmind tries up to 16 times and never sends anything for you. Finish it later: when a job stops because an AI is out of credit or usage, the card offers Finish it later. One click queues the same job to run again by itself a minute after your first AI is back (or in 30 minutes when none is resting). It shows with your running jobs until then, and you can cancel it there. Point at the ready pill at the top to see which AIs are resting and the time each one is back.
