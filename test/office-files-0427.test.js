@@ -244,3 +244,16 @@ test("saveNamedFile builds workout-plan.docx from markdown, dropping a build scr
   assert.match(doc, /Workout Plan/);
   assert.ok(!/from docx import/.test(doc), "the script is not in the document");
 });
+
+test("0.4.30 (dogfood church-docx): a quoted block's heading, bold line and list come out as Word heading, quote and list", async () => {
+  const { markdownBlocks, markdownSlides: pptxSlides } = await import("../server/office-files.js");
+  const b = markdownBlocks("# Grace Church\n\n> ### Welcome to the Team!\n>\n> **Dear Volunteer,**\n>\n> - Be on time\n> - Smile\n\nAfter the quote.");
+  assert.deepEqual(b.map((x) => x.type), ["heading", "heading", "quote", "item", "item", "para"]);
+  assert.equal(b[1].text, "Welcome to the Team!");
+  assert.equal(b[2].text, "**Dear Volunteer,**");
+  assert.ok(!b.some((x) => /###|^>/.test(x.text || "")), "no raw markdown left");
+  if (typeof pptxSlides === "function") {
+    const s = pptxSlides("## One\n> - quoted point\n## Two\n- point");
+    assert.ok(!JSON.stringify(s).includes("> "), "no quote markers on slides");
+  }
+});
