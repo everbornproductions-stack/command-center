@@ -32,7 +32,7 @@ function boxFor(w) {
   if (!w?.jobId) return "";
   const j = jobsById()[w.jobId];
   if (j && j.status !== "waiting") return "";
-  const merged = j ? { ...w, step: j.step, trying: j.trying, headline: j.headline, website: j.website, ai: j.ai || w.ai } : w;
+  const merged = j ? { ...w, step: j.step, trying: j.trying, headline: j.headline, website: j.website, ai: j.ai || w.ai, retryAt: j.retryAt } : w;
   return waitBoxHtml(merged, { esc });
 }
 window.CC.subWaitHtml = boxFor;
