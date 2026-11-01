@@ -196,3 +196,15 @@ body[data-style="mac"] #mac-history-drawer.open { pointer-events: auto; }
 .mac-hist-group-toggle { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: transparent; cursor: pointer; text-align: left; font-size: 0.8125rem; }
 .mac-hist-count { margin-left: auto; font-weight: 500; text-transform: none; letter-spacing: 0; }
 .mac-hist-more { display: block; width: 100%; margin: 2px 0 8px; padding: 6px 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; font-size: 0.8125rem; text-decoration: underline; cursor: pointer; text-align: left; }
+
+/* 0.4.37 (panel 0435 item 10): a row is a box with the open button and the Redo button side by side (a button inside a
+   button is not allowed, so Redo used to fall under each row as an invisible extra line). Titles get two lines instead of
+   being cut at 178 px, and a long group name is cut with "..." on one line so the header never wraps into three. */
+.mac-hist-row { display: flex; align-items: center; gap: 2px; border-radius: 8px; margin-bottom: 2px; }
+.mac-hist-row .mac-hist-item { flex: 1; min-width: 0; margin-bottom: 0; }
+.mac-hist-row:hover .mac-hist-redo-btn, .mac-hist-row:focus-within .mac-hist-redo-btn, .mac-hist-item.focused + .mac-hist-redo-btn { opacity: 1; }
+.mac-hist-redo-btn:focus-visible { opacity: 1; outline: 2px solid var(--mac-acc, #3b82f6); outline-offset: 1px; }
+.mac-hist-item-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; line-height: 1.3; }
+.mac-hist-group-toggle { flex-wrap: nowrap; }
+.mac-hist-group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mac-hist-count { flex: none; white-space: nowrap; }

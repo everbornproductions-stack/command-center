@@ -147,6 +147,10 @@ body[data-style="mac"] #mac-flow .mf-chat-wide:hover, body[data-style="mac"] #ma
 body[data-style="mac"] #mac-flow .mf-chat-wide b { font-size: 1rem; }
 body[data-style="mac"] #mac-flow .mf-chat-wide small { color: var(--mac-dim, #4b5563); font-size: 0.875rem; }
 body[data-style="mac"] #mac-flow .mf-chat-ico { font-size: 1.25rem; }
+/* 0.4.37 (panel 0435 item 5): --mac-card is not set anywhere, so dark painted the light fallback under light text
+   ("Just chat" 1.84 : 1, the line under it 1.11 : 1). Dark uses the path cards' dark surface and the 3-step dim text. */
+body[data-style="mac"].dark #mac-flow .mf-chat-wide, body[data-style="mac"][data-theme="dark"] #mac-flow .mf-chat-wide { background: #2c2c34; border-color: var(--mf-line); color: var(--mf-tx); }
+body[data-style="mac"].dark #mac-flow .mf-chat-wide small, body[data-style="mac"][data-theme="dark"] #mac-flow .mf-chat-wide small { color: var(--mf-dim); }
 /* 0.4.35 (panel 0431 item 8): Settings > Reading > Large set the page to 20 px, but the 3-step home kept its px sizes.
    Every text size on the 3-step pages now follows the reading size (a11y.js sets html[data-text]). */
 body[data-style="mac"]:is([data-text="small"] *) #mac-flow { --mf-scale: .875; }

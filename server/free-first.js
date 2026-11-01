@@ -36,7 +36,7 @@ export const FREE_KEY_PROVIDERS = new Set(["google", "groq"]); // OpenRouter and
 const DEFAULT_FREE_PAGES = [
   { id: "groq", name: "Groq", url: "https://console.groq.com/keys", provider: "groq", what: "Fast, free tier. Works well as a helper.", needs: "key" },
   { id: "google", name: "Google AI Studio (Gemini)", url: "https://aistudio.google.com/apikey", provider: "google", what: "Free Gemini Flash models. No card.", needs: "key" },
-  { id: "openrouter", name: "OpenRouter", url: "https://openrouter.ai/keys", provider: "openrouter", what: "One key, a free route that picks a free model.", needs: "key" },
+  { id: "openrouter", name: "OpenRouter", url: "https://openrouter.ai/keys", provider: "openrouter", what: "One sign-up, a free route that picks a free model.", needs: "key" },
   { id: "github", name: "GitHub Models", url: "https://github.com/marketplace/models", provider: null, what: "Free with a GitHub account.", needs: "key", later: true },
   { id: "cloudflare", name: "Cloudflare Workers AI", url: "https://dash.cloudflare.com", provider: null, what: "Free daily allowance. Needs an account id and a token.", needs: "key", later: true },
   { id: "mistral", name: "Mistral", url: "https://console.mistral.ai", provider: "mistral", what: "Free plan with low limits, no card.", needs: "key" },

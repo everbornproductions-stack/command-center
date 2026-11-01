@@ -22,8 +22,9 @@ export const WELCOME = {
   tryIt: "Try it now",
   tryLine: "Sample answers from pretend AIs. Nothing is spent. You can add your own AI account later.",
   keyLabel: "Or paste an OpenRouter key",
-  keyLine: "One OpenRouter key reaches Claude, ChatGPT, Gemini, Grok and more. It is kept sealed on this computer.",
-  getKey: "Get a key",
+  // 0.4.37 (panel 0435 item 8): the first screen said "key" 20 times; plain words where they fit.
+  keyLine: "One OpenRouter sign-up reaches Claude, ChatGPT, Gemini, Grok and more. What you paste is kept sealed on this computer.",
+  getKey: "Sign up free",
   appsTitle: "Connect your apps",
   appsLine: "Optional. Gmail, Calendar, Drive, and Outlook. You can do this later in Settings.",
   privacyLine: "Helping Meldmind get smarter: anonymous results only, never your text.",

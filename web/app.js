@@ -4053,7 +4053,8 @@ function welcomeAiHtml(st) {
   const envDetected = Object.keys(st.detectedKeys || {}).map((id) => pname(id)).filter((n) => !connectedNames.includes(n));
   const cliDetected = (st.detectedCli || S.cli || []).filter(Boolean);
   const detectedList = [...new Set([...connectedNames, ...envDetected, ...cliDetected])];
-  const detectedRow = detectedList.length ? `<div class="route small" id="su-detected-ais" style="margin-bottom:10px"><b>Detected on this PC:</b> ${detectedList.map((n) => `<span class="chip green" style="margin-left:4px">${esc(n)}</span>`).join("")}</div>` : `<div class="dim small" id="su-detected-ais" style="margin-bottom:8px">Detected on this PC: checking for connected AIs and keys...</div>`;
+  const detectedRow = detectedList.length ? `<div class="route small" id="su-detected-ais" style="margin-bottom:10px"><b>Detected on this PC:</b> ${detectedList.map((n) => `<span class="chip green" style="margin-left:4px">${esc(n)}</span>`).join("")}</div>` : `<div class="dim small" id="su-detected-ais" style="margin-bottom:8px">Detected on this PC: checking for connected AIs...</div>`;
+  // 0.4.37 (panel 0435 item 8): fewer "key" words on the first screen (Save, Sign up free, the council line)
   return `<div class="welcome-block" id="su-ai"><h3>${esc(WELCOME.aiTitle)}</h3>
     ${detectedRow}
     <button type="button" class="btn primary" id="su-try">${esc(WELCOME.tryIt)}</button>
@@ -4061,10 +4062,10 @@ function welcomeAiHtml(st) {
     <div class="lbl" style="margin-top:12px">${esc(WELCOME.keyLabel)}</div>
     ${keyed ? `<span class="chip green">OpenRouter connected</span>` : `<div class="row" style="gap:8px;flex-wrap:wrap">
       <input type="password" id="su-or-key" autocomplete="off" placeholder="sk-or-..." aria-label="OpenRouter key" value="${esc(st.orKey || "")}" style="flex:1;min-width:12rem">
-      <button type="button" class="btn sm" id="su-or-save">Save key</button>
+      <button type="button" class="btn sm" id="su-or-save" aria-label="Save the OpenRouter key">Save</button>
       <a class="btn sm" href="https://openrouter.ai/keys" target="_blank" rel="noopener">${esc(WELCOME.getKey)}</a>
     </div>`}
-    <div class="dim small" style="margin-top:6px">${esc(WELCOME.keyLine)} One key from one AI company gives one AI. A council needs two AI companies, or one OpenRouter key.</div>
+    <div class="dim small" style="margin-top:6px">${esc(WELCOME.keyLine)} One AI company gives one AI. A council needs two AI companies, or OpenRouter.</div>
   </div>`;
 }
 function welcomeAppsHtml() {

@@ -1,9 +1,24 @@
 // 0.4.23 Mac-style GUI: History data & pure logic (no DOM, unit tested)
 // Implements groupByDay, filterChats, and titleOf.
 
+// 0.4.37 (panel 0435 item 10d): a row made from a Simple path showed the built request ("Write a Word document for A
+// one-page welcome..."). Show the person's own words: the part after the path's opening, up to the added instructions.
+const BUILT = [
+  /^Write a Word document for\s+/i, /^Make an Excel spreadsheet for\s+/i, /^Make a PowerPoint deck about\s+/i,
+  /^Make a (?:JSON data file|CSV list) of\s+/i, /^.{0,140}? that does this:\s+/i,
+];
+const BUILT_TAIL = /\.\s+(?:Kind:|Use clear headings|Use working formulas|Keep it short|Keep it to one file|Use one object|Header row first|Save it as).*$/i;
+export function personWords(title) {
+  const t = String(title || "").trim();
+  const head = BUILT.find((re) => re.test(t));
+  if (!head) return t;
+  const words = t.replace(head, "").replace(BUILT_TAIL, "").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : t;
+}
+
 export function titleOf(chat) {
   if (!chat) return "Untitled chat";
-  const t = (chat.title || "").trim();
+  const t = personWords(chat.title || "");
   if (t) return t;
   const msg = chat.messages?.[0]?.text || chat.text || chat.summary || "";
   const clean = msg.replace(/\s+/g, " ").trim();
