@@ -33,10 +33,10 @@ export const VIEW_GROUP = {
 
 // Order inside each group (ids of views and of the extra items below). Unlisted ones go last.
 export const ORDER = {
-  work: ["command", "start", "projects", "liveops", "liveview", "mission", "council", "research", "opinion", "compare", "refocus"],
+  work: ["command", "start", "projects", "liveops", "liveview", "compare", "refocus"],
   create: ["webbuilders", "images", "media", "remix", "builders", "prompts", "publish", "marketplace"],
   agents: ["agents", "pipelines", "schedules", "outside-agents"],
-  library: ["mindmedia", "history", "recent-chats", "memories", "libraries", "artifacts", "brain"],
+  library: ["mindmedia", "history", "memories", "libraries", "artifacts", "brain"],
   myday: ["everyday-inbox", "everyday-plan", "everyday-work"],
   people: ["community", "ai-news", "userchat", "together"],
   business: ["workspaces", "credits", "subscriptions", "reports"],
@@ -45,16 +45,19 @@ export const ORDER = {
   help: ["help", "tour", "connect-setup", "updates", "news", "try-demo", "user-guide", "contact", "about"],
 };
 
-// Items that are not a page of their own: they open Command in a run mode, a panel, or a Settings spot.
+// 0.4.32 (Chris: "why do missions, councils, research and second opinion have a link in the side menu when it's all
+// one area? things like that don't need to be duplicated"): those are the How to run it choices on Chat, so they are
+// not rows of their own. Recent chats went too (History is the same list). Their words still find the page that has them.
+export const VIEW_KEYWORDS = {
+  command: "mission missions council councils research second opinion single auto team how to run",
+  history: "recent chats past jobs",
+};
+
+// Items that are not a page of their own: they open a panel, or a Settings spot.
 // open: {view, runMode?, focus?} | {panel, section?} | {action}
 export const EXTRAS = [
   { id: "liveops", label: "Live Ops", group: "work", icon: "📡", plain: "Watch every AI work, step by step. Pause, edit, resume or stop.", open: { panel: "live" } },
-  { id: "mission", label: "Missions", group: "work", icon: "🎯", plain: "Plan the job, hand it to specialists, check it, put it together.", open: { view: "command", runMode: "mission" }, keywords: "mission" },
-  { id: "council", label: "Councils", group: "work", icon: "🏛", plain: "Several AIs answer, review each other, and one writes the verdict.", open: { view: "command", runMode: "council" }, keywords: "council" },
-  { id: "research", label: "Research", group: "work", icon: "🔎", plain: "Searches the web and answers with numbered sources.", open: { view: "command", runMode: "research", focus: "#cc-search-cmd" } },
-  { id: "opinion", label: "Second opinion", group: "work", icon: "⚖️", plain: "Two AIs answer. The differences are shown in plain words.", open: { view: "command", runMode: "opinion" } },
   { id: "outside-agents", label: "Outside agents", group: "agents", icon: "🤝", plain: "Hand work to Grok Bot, Claude Code, Codex and others.", open: { view: "settings", focus: "[data-feature='grokbot']" }, keywords: "grok bot handoff" },
-  { id: "recent-chats", label: "Recent chats", group: "library", icon: "🕘", plain: "Every chat and mission, searchable. Reopen or redo.", open: { panel: "history" }, keywords: "history" },
   { id: "memories", label: "Memories", group: "library", icon: "🧠", plain: "What Meldmind remembers about you and each project.", open: { panel: "settings", section: "Memories" } },
   { id: "panel-cost", label: "Cost and speed", group: "settings", icon: "⚡", plain: "Free first, free only, backup AIs and priority.", open: { panel: "settings", section: "Cost and speed" } },
   { id: "panel-safety", label: "Safety and approvals", group: "settings", icon: "🛡", plain: "What needs a tap, hiding private numbers, the send check.", open: { panel: "settings", section: "Safety and approvals" } },
@@ -168,7 +171,7 @@ export function buildRegistry(views, LABELS = {}, locks = {}, src = {}) {
   for (const view of views || []) {
     if (!view || hide.has(view)) continue;
     const label = MAC_LABELS[view] || LABELS[view] || view;
-    put({ id: view, label, group: VIEW_GROUP[view] || "work", icon: ICONS[view] || "▫️", plain: plainFor(view, label), open: { view } });
+    put({ id: view, label, group: VIEW_GROUP[view] || "work", icon: ICONS[view] || "▫️", plain: plainFor(view, label), open: { view }, ...(VIEW_KEYWORDS[view] ? { keywords: VIEW_KEYWORDS[view] } : {}) });
   }
   for (const x of EXTRAS) put({ ...x });
   const links = [...(src.connectLinks || [])];

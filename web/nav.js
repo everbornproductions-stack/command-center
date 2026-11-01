@@ -20,8 +20,7 @@
 // onto the bar as direct buttons, in a fixed order, as many as fit. A promoted
 // page leaves its menu (Create, More, Work, ...) so it is never listed twice.
 // Simple: none (its row is fixed and short). Expert: Command, Start a
-// project, Projects, Pro prompts, Builders, Community, Missions, Councils,
-// Research, Remix. A promoted row uses normal gaps instead of spreading out.
+// project, Projects, Pro prompts, Builders, Community, Remix. A promoted row uses normal gaps instead of spreading out.
 
 import { CREATE_VIEWS, DAY_VIEWS } from "./mode.js";
 import { isDesktopOnly } from "./desktop-only.js";
@@ -518,9 +517,7 @@ export const EXPERT_PROMOTE = [
   { id: "prompts", label: LABELS.prompts, view: "prompts" },
   { id: "builders", label: LABELS.builders, view: "builders" },
   { id: "community", label: LABELS.community, view: "community" },
-  { id: "missions", label: "Missions", view: "command", runMode: "mission" },
-  { id: "councils", label: "Councils", view: "command", runMode: "council" },
-  { id: "research", label: "Research", view: "command", focus: "#cc-search-cmd", runMode: "research" },
+  // 0.4.32 (Chris): Missions, Councils and Research are the How to run it choices on Command, not top bar items
   { id: "remix", label: LABELS.remix, view: "remix" },
 ];
 
