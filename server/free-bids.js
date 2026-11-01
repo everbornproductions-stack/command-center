@@ -17,10 +17,13 @@ export const DEFAULT_PARALLEL = 3;
 export const DEFAULT_TOKENS = { in: 1500, out: 800 };
 
 // Freebuff and Qwen are not API providers. Another worker wires the real "ready" check; until then they say not ready.
-const hooks = { freebuff: { ready: () => false, quality: () => 3 }, qwen: { ready: () => false, quality: () => 3 } };
+const hooks = { freebuff: { ready: () => false, quality: () => 3 }, qwen: { ready: () => false, quality: () => 3 }, opencode: { ready: () => false, quality: () => 3 } };
 export function setFreeBuffHooks(h = {}) { Object.assign(hooks.freebuff, h); }
+// 0.4.33: OpenCode's free models (server/opencode-agent.js). Wired by server/free-first-wire.js; it runs as a local route.
+export function setOpenCodeHooks(h = {}) { Object.assign(hooks.opencode, h); }
 export function setQwenHooks(h = {}) { Object.assign(hooks.qwen, h); }
-const NAMES = { freebuff: "Freebuff", qwen: "Qwen" };
+const NAMES = { freebuff: "Freebuff", qwen: "Qwen", opencode: "OpenCode" };
+const LOCAL_ROUTES = new Set(["opencode"]); // not in the registry, but streamChat can run them
 
 export function bidSettings() {
   let s = {};
@@ -66,7 +69,7 @@ export function collectBids({ step = {}, candidates = null, now = Date.now(), fa
     let ready = false;
     try { ready = !!hooks[id].ready(); } catch { ready = false; }
     if (!ready) continue;
-    bids.push({ id, model: id, name: NAMES[id], free: true, estCost: 0, estSeconds: 20, quality: Number(hooks[id].quality?.()) || 3, limitLeft: limitLeft(id, { now }), failed: failedSet.has(id), runnable: !!PROVIDERS[id] });
+    bids.push({ id, model: id, name: NAMES[id], free: true, estCost: 0, estSeconds: 20, quality: Number(hooks[id].quality?.()) || 3, limitLeft: limitLeft(id, { now }), failed: failedSet.has(id), runnable: !!PROVIDERS[id] || LOCAL_ROUTES.has(id) });
   }
   return bids;
 }

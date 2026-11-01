@@ -8,13 +8,13 @@ import { FREE_TIERS, fallbackSettings, markTrouble, freeUsage } from "./fallback
 
 export const DOC = "free.limits";
 // limits for free AIs that are not API providers; null means "no known cap, only a reply can say it is out"
-export const EXTRA_LIMITS = { freebuff: null, qwen: null };
+export const EXTRA_LIMITS = { freebuff: null, qwen: null, opencode: null };
 export const OUT_PHRASE = /\b(429|quota|daily limit|rate limit(?:ed)?|too many requests|resource[_ ]exhausted)\b/i;
 
 const pad = (n) => String(n).padStart(2, "0");
 export const dayKey = (now = Date.now()) => { const d = new Date(now); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 export const nextReset = (now = Date.now()) => { const d = new Date(now); return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime(); };
-const nameOf = (id) => PROVIDERS[id]?.name || (id === "freebuff" ? "Freebuff" : id === "qwen" ? "Qwen" : id);
+const nameOf = (id) => PROVIDERS[id]?.name || (id === "freebuff" ? "Freebuff" : id === "qwen" ? "Qwen" : id === "opencode" ? "OpenCode" : id);
 
 // the saved doc, rolled to today (a new day clears used and out)
 function load(now) {

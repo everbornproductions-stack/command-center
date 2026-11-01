@@ -38,7 +38,7 @@ export const DEFAULT_WORKERS = [
   { id: "codex", label: "Codex", kind: "cli", free: true, cooldownHours: 6, route: "codex", providers: ["plan-codex"],
     good: "Code fixes and tests", needs: "Install Codex and sign in once with your ChatGPT account." },
   { id: "opencode", label: "OpenCode", kind: "cli", free: true, cooldownHours: 12, providers: ["opencode"],
-    good: "Code with free models", needs: "Start OpenCode's server, then add it with Add custom provider (OpenCode)." },
+    good: "Code and answers with free models", needs: "Install OpenCode" },
   { id: "freebuff", label: "Freebuff", kind: "agent", free: true, cooldownHours: 3, providers: ["freebuff"],
     good: "Free coding help", needs: "Set it up once under Free coder (Freebuff)." },
   { id: "grokbot", label: "Grok Bot", kind: "agent", free: false, cooldownHours: 1, providers: ["grokbot", "grok-bot"],
@@ -300,11 +300,11 @@ export async function detectAll({ detectors = {}, refresh = false } = {}) {
   }
   out.opencode = await safe(async () => {
     if (detectors.opencode) return detectors.opencode();
-    const [SR, REG] = await Promise.all([import("./sub-routes.js"), import("./registry.js")]);
-    const added = !!REG.PROVIDERS.opencode;
-    const bin = await SR.findBin({ bin: "opencode", envBin: "CC_OPENCODE_BIN" });
-    if (!bin && !added) return { installed: false };
-    return { installed: true, signedIn: added, needs: added ? "" : byId.get("opencode").needs };
+    // 0.4.33: Meldmind runs OpenCode by itself (server/opencode-agent.js), so the binary is all it needs: no sign-in
+    // and no custom provider. Its free models need no account.
+    const OC = await import("./opencode-agent.js");
+    const d = await OC.detectOpenCode({ refresh });
+    return d.installed ? { installed: true, signedIn: true } : { installed: false, needs: byId.get("opencode").needs };
   }, { installed: false });
   out.freebuff = await safe(async () => {
     if (detectors.freebuff) return detectors.freebuff();

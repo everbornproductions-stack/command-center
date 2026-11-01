@@ -27,7 +27,7 @@ export function isSlowAgent(m) {
   if (!m) return false;
   const pid = typeof m === "string" ? m : m.provider;
   if (typeof m === "object" && m.planRoute) return true;
-  return isPlanProvider(pid) || pid === "antigravity" || pid === GROKBOT_TEXT || PROVIDERS[pid]?.kind === "agent";
+  return isPlanProvider(pid) || pid === "antigravity" || pid === "opencode" || pid === GROKBOT_TEXT || PROVIDERS[pid]?.kind === "agent";
 }
 // Points a slow agent loses on a step that needs no tools. Max quality keeps the old ranking.
 export const AGENT_PENALTY = { savings: 30, speed: 40, balanced: 15, quality: 8, max: 0 };

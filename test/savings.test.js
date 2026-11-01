@@ -146,10 +146,8 @@ test("Freebuff is allowed since 0.4.22, Space Bunny is still refused and never r
     assert.equal(aider.baseUrl, "http://127.0.0.1:11434/v1");
     assert.equal(aider.noKey, true);
     assert.match(aider.note, /Ollama's address/);
-    assert.equal(opencode.baseUrl, "http://127.0.0.1:4096/v1");
-    assert.equal(opencode.noKey, true);
-    assert.match(opencode.note, /4096/);
-    assert.match(opencode.note, /OpenAI-compatible/);
+    // 0.4.33: OpenCode has no OpenAI-compatible /v1, so it is not a custom-provider preset (it runs as a helper)
+    assert.equal(opencode, undefined);
     const byName = await s.api("/providers/custom", { method: "POST", body: { name: "Space Bunny Alpha", baseUrl: "http://127.0.0.1:9/v1", noKey: true, models: ["x"] } });
     assert.equal(byName.status, 400);
     assert.match(byName.json.error, /keeps your prompts/);
@@ -162,8 +160,8 @@ test("route preview shows the batch note, and the new words have no em-dash", ()
   const app = fs.readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
   const guide = fs.readFileSync(path.join(ROOT, "docs", "USER-GUIDE.md"), "utf8");
   assert.match(app, /r\.cheaper\?\.batchNote/);
-  assert.match(app, /No key needed \(Ollama, LM Studio, Aider, OpenCode\)/);
-  assert.match(app, /Aider, OpenCode, or a company gateway\. Freebuff has its own card under Free AIs/);
+  assert.match(app, /No key needed \(Ollama, LM Studio, Aider\)/);
+  assert.match(app, /Aider, or a company gateway\. Freebuff has its own card under Free AIs, and OpenCode works by itself under Your AI helpers/);
   assert.match(guide, /Freebuff \(free, with ads\) runs inside Meldmind/);
   assert.match(guide, /pays the live price/);
   for (const file of ["server/savings.js", "web/app.js", "docs/USER-GUIDE.md", "server/plugins/providers.js"]) {

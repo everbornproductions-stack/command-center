@@ -35,7 +35,8 @@ export const PRESETS = [
   { id: "ollama", name: "Ollama (this PC)", baseUrl: "http://localhost:11434/v1", api: "openai", noKey: true, keys: "https://ollama.com/download" },
   { id: "lmstudio", name: "LM Studio (this PC)", baseUrl: "http://localhost:1234/v1", api: "openai", noKey: true, keys: "https://lmstudio.ai" },
   { id: "aider", name: "Aider", baseUrl: "http://127.0.0.1:11434/v1", api: "openai", noKey: true, keys: "https://aider.chat/docs/llms/openai-compat.html", note: "Aider talks to an OpenAI-compatible server on this PC. This starts at Ollama's address. Change it if Aider uses another one." },
-  { id: "opencode", name: "OpenCode", baseUrl: "http://127.0.0.1:4096/v1", api: "openai", noKey: true, keys: "https://opencode.ai/docs/server/", note: "Use this when OpenCode is serving an OpenAI-compatible /v1 on this PC. The default port is 4096. Change the address if yours is different." },
+  // 0.4.33: no OpenCode preset. OpenCode does not serve an OpenAI-compatible /v1 (its server has its own API), so a
+  // custom provider could never answer. Meldmind runs it by itself as a free helper (server/opencode-agent.js).
 ];
 
 // Which provider does a pasted key belong to? Order matters: specific prefixes first.
@@ -218,7 +219,7 @@ export async function routes(req, res, url, body, h) {
     if (!editing && PROVIDERS[pid]) throw err(409, "That id is taken; try another name.");
     const prev = editing ? getSecret(pid) : null;
     const key = noKey ? NO_KEY : String(body.key || "").trim() || prev?.key || "";
-    if (!key) throw err(400, "Paste the API key (or tick 'no key needed' for Ollama, LM Studio, Aider, or OpenCode).");
+    if (!key) throw err(400, "Paste the API key (or tick 'no key needed' for Ollama, LM Studio, or Aider).");
     const headers = body.headers === undefined ? prev?.headers || {} : cleanHeaders(body.headers);
     let models = cleanModels(body.models);
     if (!models.length) {
