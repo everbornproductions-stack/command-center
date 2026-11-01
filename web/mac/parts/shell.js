@@ -278,7 +278,12 @@ export default {
       bus.emit("open", { panel, open });
     });
     // The switch moves the real buttons, so settings and the per-project mode keep working.
-    on(simpleBtn, "click", () => document.getElementById("mode-simple")?.click());
+    // 0.4.35 (Chris: "when clicking on Simple it should always go to the main part with the website, image, video,
+    // campaign area"): Simple opens Chat and the choices every time, also when Simple is already on.
+    on(simpleBtn, "click", () => {
+      document.getElementById("mode-simple")?.click();
+      setTimeout(() => { try { CC.go?.("command"); bus.emit("flow", { step: "home" }); } catch { /* the flow part may not be mounted yet */ } }, 0);
+    });
     on(expertBtn, "click", () => document.getElementById("mode-expert")?.click());
     on(themeBtn, "click", () => applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark", true));
     on(helpBtn, "click", () => CC.go?.("help"));

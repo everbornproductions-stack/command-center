@@ -10,6 +10,19 @@ const START_GRACE_MS = 20000;
 // 0.4.28: the file paths get simple drawn pictures (a grid, a page, a slide, code, rows) in flow.css
 const PATH_ART = { website: "g5", image: "g2", video: "g8", campaign: "g6", mod: "g1", spreadsheet: "mf-art-sheet", document: "mf-art-doc", slides: "mf-art-slides", script: "mf-art-code", data: "mf-art-data" };
 const PATH_BLURB = F.PATH_BLURB;
+// 0.4.35 (panel 0431 item 5): the path cards get a hover tip that says what happens next, not the blurb again.
+const PATH_TIP = {
+  website: "Pick a look, say what your business does, and Meldmind writes a one-page site you can open and change.",
+  image: "Pick a style, say what the picture should show, and an image AI makes it.",
+  video: "Pick a style, say what should happen, and a video AI makes a short clip.",
+  campaign: "Say who your business is for, and Meldmind writes a week of posts with captions. Nothing is posted until you click.",
+  mod: "Say what your mod should change in the game, and Meldmind writes how to make it.",
+  spreadsheet: "Say what the sheet is for, and Meldmind saves a spreadsheet file with totals that add up.",
+  document: "Say who it is for and what it should say, and Meldmind saves a Word file.",
+  slides: "Say what the talk is about, and Meldmind saves a short slide deck.",
+  script: "Say what the tool should do, step by step, and Meldmind saves a small program you can run.",
+  data: "Say what the list is about and its columns, and Meldmind saves a file that opens in any spreadsheet app.",
+};
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -149,7 +162,8 @@ function renderHome(body) {
   homeIdeas = !!CC.layout?.IDEAS;
   body.innerHTML = `<div class="mf-subrow"><p class="mf-sub">Pick what to make.<span class="mf-swipe"> Swipe, drag, or use the arrow keys.</span></p><span class="mf-scrollbtns"><button type="button" class="mf-scroll" id="mf-prev" aria-label="Earlier choices" aria-controls="mf-paths">&lsaquo;</button><button type="button" class="mf-scroll" id="mf-more-paths" aria-label="More choices" aria-controls="mf-paths">&rsaquo;</button></span></div>
     ${stepsHtml()}
-    <div class="mf-paths" id="mf-paths" role="list" aria-label="What to make" tabindex="0">${F.PATHS.map((p) => `<button type="button" role="listitem" class="mf-path" data-path="${p}" aria-label="${esc(F.PATH_LABEL[p])}. ${esc(PATH_BLURB[p])}"><span class="mf-art ${PATH_ART[p]}" aria-hidden="true"></span><b>${esc(F.PATH_LABEL[p])}</b><small>${esc(PATH_BLURB[p])}</small></button>`).join("")}</div>
+    <button type="button" class="mf-chat-wide" id="mf-chat-card" aria-label="Just chat. Ask anything and get an answer."><span class="mf-chat-ico" aria-hidden="true">&#128172;</span><b>Just chat</b><small>Ask anything and get an answer.</small></button>
+    <div class="mf-paths" id="mf-paths" role="list" aria-label="What to make" tabindex="0">${F.PATHS.map((p) => `<button type="button" role="listitem" class="mf-path" data-path="${p}" aria-label="${esc(F.PATH_LABEL[p])}. ${esc(PATH_BLURB[p])}" data-tip="${esc(PATH_TIP[p] || "")}"><span class="mf-art ${PATH_ART[p]}" aria-hidden="true"></span><b>${esc(F.PATH_LABEL[p])}</b><small>${esc(PATH_BLURB[p])}</small></button>`).join("")}</div>
     <div class="mf-box"><input id="mf-ask" type="text" aria-label="What do you want to make?" placeholder="Or just say it: a website for my bakery" autocomplete="off">${costHtml()}<button type="button" class="mf-go" id="mf-next">Next</button></div>
     ${ideas.length ? `<div class="mf-chips" role="group" aria-label="Quick picks"><span class="mf-chips-h">Quick picks</span>${ideas.map((i) => `<button type="button" class="mf-chip" data-idea="${esc(i.chip)}" data-text="${esc(i.text)}">${esc(i.text)}</button>`).join("")}</div>` : ""}`;
   const input = $("#mf-ask", body);
@@ -554,6 +568,8 @@ function syncResult(force) {
     host.querySelectorAll(".mk-tile").forEach((n) => { n.hidden = n.dataset.id !== ver; });
   }
   paintFile();
+  const fin = $("#mf-finish", slot);
+  if (fin && fin.textContent !== finishText()) fin.textContent = finishText();
   const meta = $("#mf-meta", slot);
   if (meta) {
     const t = lastTile();
@@ -566,8 +582,18 @@ function syncResult(force) {
 
 // ----- 0.4.28: the file a file path saved -----
 const fileNow = () => (F.savesFile(state.path) ? F.savedFileInfo(S().live?.mission) : null);
+// A download button the result really has (a made picture or clip, or a result card's file).
+const DOWNLOAD = ".mk-tile:not([hidden]) .rh-main, .mk-tile:not([hidden]) .mk-dl, .rh-card .rh-main, .rh-main, .mk-dl";
+const hasDownload = () => !!$("#mf-result", slot)?.querySelector(DOWNLOAD);
+const COPY_FINISH = "Copy";
 function finishText() {
-  if (!F.savesFile(state.path)) return F.finishLabel(state.path);
+  if (!F.savesFile(state.path)) {
+    const label = F.finishLabel(state.path);
+    // 0.4.35 (panel 0431 item 15c): a Game mod in practice mode makes no file, so "Download mod" had nothing to
+    // download. With no download in the result, the button copies the answer instead and says so.
+    if (/^Download\b/.test(label) && !hasDownload() && $("#mf-result #cc-copy-main", slot)) return COPY_FINISH;
+    return label;
+  }
   return fileNow()?.ok ? F.finishLabel(state.path) : F.NO_FILE_FINISH;
 }
 // The name, where it is, and an Open file button that uses the result card's own route (/dogfood/file/open).
@@ -597,6 +623,7 @@ async function openFile() {
 function clickFinish() {
   if (F.savesFile(state.path)) { if (fileNow()?.ok) openFile(); else openMore(); return; }
   const host = $("#mf-result", slot);
+  if (finishText() === COPY_FINISH) { const copy = host?.querySelector("#cc-copy-main"); if (copy) { copy.click(); return; } }
   const btn = host?.querySelector(".mk-tile:not([hidden]) .rh-main, .mk-tile:not([hidden]) .mk-dl") || host?.querySelector(".rh-card .rh-main, .rh-main, .mk-dl");
   if (btn) { btn.click(); return; }
   openMore();
@@ -678,7 +705,8 @@ function onKey(e) {
 
 function onClick(e) {
   if (e.target.closest("#mf-back")) goBack();
-  else if (e.target.closest("#mf-chat")) { chatOnly = true; releaseAnswer(); render(); sync(); }
+  else if (e.target.closest("#mf-chat, #mf-chat-card")) { // 0.4.35 (Chris: "where can we just chat to the AIs?"): the wide Just chat bar too
+    chatOnly = true; releaseAnswer(); render(); sync(); }
   else if (e.target.closest("#mf-return")) { chatOnly = false; render(); sync(); }
 }
 

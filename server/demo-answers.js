@@ -33,11 +33,20 @@ export function requestOf(user) {
 }
 
 const KINDS = [
+  ["website", /\b(website|web ?page|landing page|html page)\b/i],
+  ["howto", /\b(how (?:do|can|to)|steps? to|instructions? for|explain how)\b/i],
+  ["review", /\b(reply|respond)\b.{0,30}\b(review|rating)\b|\b(review|rating)\b.{0,30}\b(reply|response)\b/i],
+  ["legal", /\b(opposing counsel|attorney|lawyer|legal note|case file)\b/i],
+  ["credit", /\b(credit repair|credit update|credit report)\b/i],
+  ["listing", /\b(listing|open house|flyer|property description)\b/i],
+  ["sop", /\b(sop|standard operating procedure|checklist)\b/i],
+  ["titles", /\b(title ideas?|ideas? for (?:a|my|the) video|video hooks?|thumbnail text|outline for (?:a|my|the) video)\b/i],
+  ["howto", /\bhow\b/i],
   ["code", /\b(code|script|function|python|javascript|typescript|sql|regex|bug|html|css|api endpoint|snippet)\b/i],
   // 0.4.31: a spreadsheet or a data list is a table, so the Spreadsheet and List or data paths really save a file in demo
   ["table", /\b(spread ?sheets?|excel|xlsx|xlsm|csv|(?:in|as|into) a table|table of|columns?)\b/i],
-  ["email", /\b(e-?mail|follow[ -]?up|reply to|write to|letter|message to|thank[- ]you note|cold outreach)\b/i],
-  ["post", /\b(post|caption|instagram|tiktok|tweet|reel|linkedin|facebook|social media|hashtags?)\b/i],
+  ["email", /\b(e-?mail|follow[ -]?up|reply to|write to|renewal|letter|message to|thank[- ]you note|cold outreach)\b/i],
+  ["post", /\b(posts?|caption|instagram|tiktok|tweet|reel|linkedin|facebook|social media|hashtags?)\b/i],
   ["summary", /\b(summar\w*|recap|tl;?dr|key points|main points|sum up)\b/i],
   ["plan", /\b(plan|schedule|roadmap|timeline|week|weekly|launch|strategy|checklist|steps to)\b/i],
   ["list", /\b(ideas?|list|names|options|ways to|top \d+|\d+ (ways|ideas|tips|things|reasons))\b/i],
@@ -182,6 +191,39 @@ function answer(req, v) {
   return `**Short answer:** for most people, the best first step is a small test you can finish in a week.\n\n**Why:** a small test shows you what works before you spend real time or money.\n\n**What to do next:**\n1. Write down the one result you want.\n2. Pick the smallest step that would show progress.\n3. Check back in a week and keep what worked.`;
 }
 
+function requestedCount(req, fallback = 3) {
+  const m = String(req).match(/\b(\d{1,2})\s+(?:(?:youtube|video|title|content|social)\s+){0,3}(?:lines?|steps?|titles?|ideas?|posts?|items?)\b/i);
+  return m ? Math.min(20, Number(m[1])) : fallback;
+}
+function fitAnswer(req, v, kind) {
+  const subject = subjectOf(req) || req.replace(/\b(?:write|make|draft|create|give me|please)\b/ig, "").trim().slice(0, 60) || "your request";
+  const n = requestedCount(req, kind === "howto" ? 3 : 3);
+  const lines = Array.from({ length: n }, (_, i) => {
+    if (kind === "howto") return `${i + 1}. ${["Check the instructions for", "Gather what you need for", "Do the next step for", "Check the result for"][i % 4]} ${subject}.`;
+    if (kind === "titles") return `${i + 1}. ${subject}: ${["A simple guide", "What to know", "The best tips", "A closer look"][i % 4]}`;
+    if (kind === "sop") return `${i + 1}. ${["Check", "Record", "Tell the owner", "Follow up on"][i % 4]} ${subject}.`;
+    return `${i + 1}. ${subject}: ${["A clear first step", "What to check", "A helpful update", "Next steps"][i % 4]}.`;
+  });
+  if (kind === "website") {
+    const named = String(req).match(/\b(?:called|named)\s+([A-Z][\w &'’-]*(?:\s+[A-Z][\w &'’-]*){0,3})/);
+    const biz = (named?.[1] || subjectOf(req) || "Your business").replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c]);
+    return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${biz}</title></head><body><header><h1>${biz}</h1><p>A simple page for ${biz}.</p></header><main><h2>What we offer</h2><p>Learn more about ${biz} and get in touch.</p><a href="mailto:hello@example.com">Contact us</a></main></body></html>`;
+  }
+  if (kind === "code") {
+    const t = req.toLowerCase();
+    const isPy = /\bpython\b/.test(t);
+    const lang = isPy ? "python" : /\b(?:node(?:\.js)?|javascript|\bjs\b)\b/.test(t) ? "js" : /\bpowershell\b/.test(t) ? "powershell" : "js";
+    const task = req.replace(/[\r\n]+/g, " ").replace(/`/g, "");
+    return lang === "python" ? `\`\`\`python\n# Practice answer for: ${task}\ndef run():\n    # Add the ${subject} steps here.\n    pass\n\nif __name__ == "__main__":\n    run()\n\`\`\`` : `\`\`\`${lang}\n// Practice answer for: ${task}\nfunction run() {\n  // Add the ${subject} steps here.\n}\n\nrun();\n\`\`\``;
+  }
+  if (kind === "review") return `Sample review reply about ${subject}: Thank you for sharing your feedback. We appreciate you taking the time to let us know, and we will follow up on your comments.`;
+  if (kind === "legal") return `Sample note to opposing counsel about ${subject}: I am writing to confirm receipt and ask that we coordinate the next steps and relevant dates. Please let me know if anything needs correction.`;
+  if (kind === "credit") return `Sample credit update about ${subject}: We reviewed the items you shared and noted the next steps. Results vary, and this sample is not a promise of a specific outcome.`;
+  if (kind === "listing") return `Sample listing for ${subject}: Visit an inviting place with useful details to explore. Join us for the open house and ask questions about the property.`;
+  if (kind === "email") return `Sample follow-up letter about ${subject}: Thank you for your time. I am writing about ${subject} and would be glad to discuss the next steps. Best, [Your name]`;
+  return lines.join("\n");
+}
+
 // ---- 0.4.31: a small table built from the request (a budget with a total, products, contacts, a tracker) ----
 // A spreadsheet total is a formula (=SUM), so the sheet adds up again when a number changes; a CSV gets the number.
 const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
@@ -282,7 +324,7 @@ function table(req, v) {
   return `Here is a starting ${what} you can change. Swap in your own numbers and names.\n\n${tbl}\n\n${total != null ? "Check each amount against a real bill before you rely on the total." : "Add a row for each new item and keep the header row as it is."}`;
 }
 
-const BUILDERS = { post, email, plan, summary, code, list, answer, table };
+const BUILDERS = { post, email, plan, summary, code, list, answer, table, website: fitAnswer, howto: fitAnswer, review: fitAnswer, legal: fitAnswer, credit: fitAnswer, listing: fitAnswer, sop: fitAnswer, titles: fitAnswer };
 
 // The heading over a practice answer (0.4.25). It used to be the first 70 characters, which cut
 // "Write a week of Instagram posts for my two-location bakery. Save them as posts.md." to "...Save them".
@@ -326,7 +368,8 @@ export function answerTitle(req, max = TITLE_MAX) {
 export function practiceBody(user, model) {
   const req = requestOf(user);
   const kind = kindOf(req);
-  return BUILDERS[kind](req, voiceOf(model), user);
+  if (kind === "code" && /\b(?:node(?:\.js)?|javascript|\bjs\b|powershell|apps script|google sheets script|sqlite|bash|shell)\b/i.test(req)) return fitAnswer(req, voiceOf(model), "code");
+  return BUILDERS[kind] === fitAnswer ? BUILDERS[kind](req, voiceOf(model), kind) : BUILDERS[kind](req, voiceOf(model), user);
 }
 
 // The whole practice answer the pretend AI streams back.

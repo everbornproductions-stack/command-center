@@ -250,7 +250,6 @@ function showStartup() {
     el.setAttribute("aria-label", "Meldmind.ai. Are you game?");
     el.innerHTML = `<div class="mm-name" aria-hidden="true">Meldmind.ai</div>
     <p class="mm-tag" aria-hidden="true">Are you g<span class="mm-gold">A</span>m<span class="mm-gold">I</span>e?</p>
-    <p class="mm-sub" aria-hidden="true">Meldmind never just stops.</p>
     <span class="mm-sr">Are you game?</span>`;
     document.body.appendChild(el);
   }

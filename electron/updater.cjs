@@ -168,7 +168,7 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     log("updater error:", message);
     // 0.4.29 (Oct 31 2026): "spawn EPERM" while starting the installer (antivirus) used to leave the app closed or
     // half-quit. The app now stays open, takes its lock back and says how to install by hand.
-    if (installing && /spawn|EPERM|EACCES|Cannot run installer/i.test(message)) { try { ui.installFailed && ui.installFailed(message); } catch {} }
+    if (installing && /\bspawn\b|EPERM|EACCES|Cannot run installer/i.test(message)) { try { ui.installFailed && ui.installFailed(message); } catch {} }
     installing = false;
     if (latched() || busyPhase()) setState({ phase: busyPhase() ? state.phase : "available", error: message, downloadUrl: DOWNLOAD_PAGE });
     else if (state.phase !== "failed") setState({ phase: "idle", error: message });

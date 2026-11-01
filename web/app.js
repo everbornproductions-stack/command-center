@@ -220,6 +220,65 @@ function toast(msg, err = false, link = null, ttl = 0) {
   if (err) t.setAttribute("role", "alert"); // errors are announced right away; the rest via the polite #toasts region
   $("#toasts").appendChild(t); setTimeout(() => t.remove(), ttl || (err ? 6000 : 3500));
 }
+// 0.4.35 (panel 0431 item 3): where toasts sit in the Mac look, measured each time one shows (the bars wrap and fold).
+//  - Simple on a laptop: centred just below the Next bar (and the Finish and Project tools rows), not on it.
+//  - Phone width: just above the Talk bar, off the page title and the answer's first lines.
+//  - Expert with no Live feed column (1024 x 768): bottom right, just above the chat dock and the Talk bar, off the
+//    page's own buttons at the top right.
+// Expert with the Live feed column keeps the 0.4.31 place (top right, over the feed). The Pro box rule still wins.
+function placeToasts() {
+  const body = document.body;
+  if (body.dataset.style !== "mac") { delete body.dataset.toastAt; return; }
+  const shown = (el) => { if (!el || el.hidden) return null; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? r : null; };
+  const phone = innerWidth <= 760;
+  const simple = body.dataset.ui === "simple";
+  const bottomAbove = (sels) => {
+    const tops = sels.map((s) => shown(document.querySelector(s))).filter((r) => r && r.top > innerHeight * 0.45).map((r) => r.top);
+    if (!tops.length) return false;
+    body.style.setProperty("--cc-toast-bottom", `${Math.max(8, Math.round(innerHeight - Math.min(...tops) + 8))}px`);
+    body.dataset.toastAt = "bottom";
+    return true;
+  };
+  if (phone) { if (!bottomAbove(["#vt-bar"])) delete body.dataset.toastAt; return; }
+  if (simple) {
+    const bars = ["#mac-titlebar", "#notices", "#fpbar", "#mmbar", "#projbar"].map((s) => shown(document.querySelector(s))).filter((r) => r && r.top < innerHeight * 0.4);
+    if (!bars.length) { delete body.dataset.toastAt; return; }
+    body.style.setProperty("--cc-toast-top", `${Math.round(Math.max(...bars.map((r) => r.bottom)) + 8)}px`);
+    body.dataset.toastAt = "top";
+    return;
+  }
+  const feed = shown(document.getElementById("feed"));
+  if (feed && feed.width > 160 && feed.right > innerWidth - 80) { delete body.dataset.toastAt; return; }
+  if (!bottomAbove([".cc-dock", "#vt-bar"])) { delete body.dataset.toastAt; return; }
+  // 0.4.36: a page with a box or button in that corner (Everyday inbox on a shorter screen): the toast moves up just
+  // above it, a few times if need be, while it stays in the lower half; else below the title bar if that spot is clear.
+  const start = body.style.getPropertyValue("--cc-toast-bottom");
+  for (let i = 0; i < 4; i++) {
+    const hit = coveredControls();
+    if (!hit.length) return;
+    const top = Math.min(...hit.map((r) => r.top));
+    if (top < innerHeight * 0.5) break;
+    body.style.setProperty("--cc-toast-bottom", `${Math.round(innerHeight - top + 8)}px`);
+  }
+  if (!coveredControls().length) return;
+  body.style.setProperty("--cc-toast-bottom", start);
+  const title = shown(document.getElementById("mac-titlebar"));
+  if (!title) return;
+  body.style.setProperty("--cc-toast-top", `${Math.round(title.bottom + 8)}px`);
+  body.dataset.toastAt = "top";
+  if (coveredControls().length) body.dataset.toastAt = "bottom";
+}
+/** The page controls on screen that a toast covers right now. */
+function coveredControls() {
+  const toasts = [...document.querySelectorAll("#toasts .toast")].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+  if (!toasts.length) return [];
+  return [...document.querySelectorAll("#view button, #view a[href], #view select, #view input, #view textarea")].map((c) => c.getBoundingClientRect())
+    .filter((r) => r.width && r.height && r.bottom >= 0 && r.top <= innerHeight && toasts.some((s) => s.left < r.right && r.left < s.right && s.top < r.bottom && r.top < s.bottom));
+}
+{
+  const box = document.getElementById("toasts");
+  if (box && typeof MutationObserver === "function") new MutationObserver(() => { if (box.childElementCount) placeToasts(); }).observe(box, { childList: true });
+}
 // A click handler that forgot its try/catch still tells the person what went wrong instead of failing silently.
 // The same message is shown at most once every 10 s, so a failing background poll cannot flood the screen.
 // 0.4.29: a program error ("Cannot read properties of undefined") is shown as a plain sentence, never raw; the raw text
@@ -1527,7 +1586,7 @@ function freeOnlyHtml() { const on = !!S.freeOnly?.on; return `<label class="row
 // 0.4.21: Auto picks the mode and says so in one plain line; the picker is under More options in Simple too
 const AUTO_MODES = [["auto", "Auto", "Meldmind picks Single, Mission or Council for you"], ["single", "Single", "One AI answers"], ["council", "Council", "Several AIs answer and one writes the verdict"], ["mission", "Mission", "Plan, split across AIs, check, assemble"]];
 function teamLabel() { const m = AUTO_MODES.find((x) => x[0] === (S.simpleRunMode || "auto")); return m && m[0] !== "auto" ? `${esc(m[1])} mode` : "Auto team"; }
-function simpleModeHtml() { const cur = S.simpleRunMode || "auto"; return `<div class="sc-mode" id="sc-mode"><div class="lbl">More options: how to run it</div><div class="seg" id="simple-run-mode" role="group" aria-label="How to run it">${AUTO_MODES.map(([id, label, tip]) => `<button type="button" data-m="${id}" class="${cur === id ? "on" : ""}" title="${esc(tip)}">${esc(label)}</button>`).join("")}</div></div>`; }
+function simpleModeHtml() { const cur = S.simpleRunMode || "auto"; return `<div class="sc-mode" id="sc-mode"><div class="lbl">More options: how to run it</div><div class="seg" id="simple-run-mode" role="group" aria-label="How to run it">${AUTO_MODES.map(([id, label, tip]) => `<button type="button" data-m="${id}" class="${cur === id ? "on" : ""}" title="${esc(tip)}">${esc(label)}${id === "mission" && !S.license?.limits?.missions ? ' <span class="cc-pro-mark" aria-label="Part of Pro">Pro</span>' : ""}</button>`).join("")}</div></div>`; }
 function renderSimpleChat(v) {
   v.innerHTML = `
   <div class="cmd simple-chat" data-state="${S.live?.id || S.make?.active ? "run" : "empty"}"${S.scFold ? ' data-fold="1"' : ""}>
@@ -1645,9 +1704,14 @@ function revealAnswer(id) {
   const run = () => {
     const card = document.getElementById("simple-answer");
     if (!card || card.hidden) return;
-    const scroller = card.closest(".cmd.simple-chat");
-    const box = scroller?.querySelector(".orders");
-    if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 2) return;
+    // 0.4.35 (panel 0431 item 6): at phone width the chat page does not scroll itself; the page box (#view) does, with
+    // the chat box at the top. Use whichever box around the answer really scrolls.
+    const chat = card.closest(".cmd.simple-chat");
+    const box = chat?.querySelector(".orders");
+    const scrolls = (el) => !!el && el.scrollHeight > el.clientHeight + 2 && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
+    let scroller = scrolls(chat) ? chat : null;
+    for (let el = chat?.parentElement; !scroller && el && el !== document.body; el = el.parentElement) if (scrolls(el)) scroller = el;
+    if (!scroller) return;
     // 0.4.31 (panel 0428 item 1b): Copy, Double-check, Try again and Finish (the Next bar and the finish pair) count too.
     const acts = [...card.querySelectorAll(".answer-main, #cc-v-again, [data-feature='next-actions'] .na-bar, [data-feature='finishpath'] > *")].filter((e) => e.getBoundingClientRect().height > 0);
     if (!acts.length) return;
@@ -1728,7 +1792,7 @@ function renderCommand(v) {
           <button data-m="auto" class="${modeSel === "auto" ? "on" : ""}" title="Meldmind picks Single, Mission or Council for you and says which">Auto team</button>
           <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
           <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
-          <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission</button>
+          <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission${S.license?.limits?.missions ? "" : ' <span class="cc-pro-mark" aria-label="Part of Pro">Pro</span>'}</button>
           <button data-m="research" class="${modeSel === "research" ? "on" : ""}" title="Search the web and answer with numbered sources">Research</button>
           <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
         </div>
@@ -2119,8 +2183,10 @@ function outputFollowHtml() {
   if (l.kind === "single") {
     const run = l.mission || {};
     blocks.push(threadHtml(mergedSingleTurns({ answerThread: run.answerThread, thread: run.thread || l.thread })));
-    if (run.model || l.agents?.[l.primary]?.model) blocks.push(answerReply(run.model || l.agents?.[l.primary]?.model, "Reply to this AI"));
-    blocks.push(jobReply());
+    // 0.4.35 (panel 0431 item 11): one AI wrote this answer, so one reply box ("Reply to this AI"). "Reply to all"
+    // shows only when there is no model to reply to.
+    const one = answerReply(run.model || l.agents?.[l.primary]?.model, "Reply to this AI");
+    blocks.push(one || jobReply());
     return blocks.join("");
   }
   if (simple && l.kind === "council" && l.council) {
@@ -2525,9 +2591,9 @@ function renderProjects(v) {
         return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}" role="button" tabindex="0" aria-label="Open project ${esc(p.name)}">
           <h4>${esc(p.name)} ${statusChip(p)}</h4>${projectSummaryHtml(p)}
           <div class="small dim" data-inside="${esc(p.id)}" style="margin-top:4px">${insideLine(p, runs)}</div>
-          <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
-          <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}${flowOn && subProjects.length ? `<span>${subProjects.length} sub-project${subProjects.length === 1 ? "" : "s"}</span>` : ""}${parentProj ? `<span>Sub-project of ${esc(parentProj.name)}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
-          ${S.flags?.projectbar ? `<div class="row" style="margin-top:10px;gap:8px"><button type="button" class="btn sm" data-continue="${esc(p.id)}">Continue this project</button><button type="button" class="btn sm danger" data-del="${esc(p.id)}" aria-label="Delete project ${esc(p.name)}">Delete</button></div>` : ""}
+          ${p.categories.some((c) => c.links.length) ? `<div class="cats">${p.categories.filter((c) => c.links.length).map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>` : ""}
+          <div class="row small dim pcard-meta" style="gap:14px">${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}${flowOn && subProjects.length ? `<span>${subProjects.length} sub-project${subProjects.length === 1 ? "" : "s"}</span>` : ""}${parentProj ? `<span>Sub-project of ${esc(parentProj.name)}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
+          ${S.flags?.projectbar ? `<div class="row pcard-acts" style="gap:8px"><button type="button" class="btn sm" data-continue="${esc(p.id)}" aria-label="Continue this project: ${esc(p.name)}">Continue</button><button type="button" class="btn sm danger" data-del="${esc(p.id)}" aria-label="Delete project ${esc(p.name)}">Delete</button></div>` : ""}
           ${flowOn ? `<div class="row small" style="margin-top:8px;gap:6px"><button type="button" class="btn sm" data-pcard-expand="${esc(p.id)}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Collapse" : "Expand"}</button><button type="button" class="btn sm" data-subproject-add="${esc(p.id)}">+ Sub-project</button></div>` : ""}
           ${expanded ? `<div class="pcard-expand small" data-pcard-details="${esc(p.id)}" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line)">
             <div><b>Prompts:</b> ${(expData?.prompts || runs).length} · <b>Images:</b> ${(expData?.images || []).length} · <b>Videos:</b> ${(expData?.videos || []).length} · <b>Automations:</b> ${(expData?.automations || []).length} · <b>Documents:</b> ${(expData?.documents || []).length}</div>

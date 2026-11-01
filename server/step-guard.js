@@ -183,6 +183,8 @@ const WRONG_BUSINESS = [
   ["salon", /\b(hair salon|nail salon|barber ?shop|spa day)\b/i],
   ["bakery", /\b(bakery|sourdough|cupcakes?)\b/i],
 ];
+const FOOD_FAMILY = new Set(["cafe", "restaurant", "bakery"]);
+const FOOD_TASK = /\b(restaurant|caf[eé]|bakery|menu|pizz\w*|pasta|food|kitchen|dinner|lunch|breakfast|brunch|dish(?:es)?|chef|catering|diner|deli|taco|burger|coffee|bistro|grill|eatery|bar and grill)\b/i;
 /**
  * Is this output about the job it was asked for? Returns { onBrief, reason }.
  * It compares the output with the goal, the step's title and instructions. It only fails an output that is
@@ -196,7 +198,12 @@ export function checkOnBrief(text, { goal = "", title = "", instructions = "", d
   const outLower = out.toLowerCase();
   const briefLower = brief.toLowerCase();
   // 1. a kind of business the task never named
+  // 0.4.35 (dogfood menu-docx on 0.4.32): an Italian restaurant's menu lists espresso, latte and pastries, which read as
+  // "cafe", and a good answer was thrown away. Places that serve food are one family: a task about any of them accepts
+  // the others' words.
+  const foodTask = FOOD_TASK.test(brief);
   for (const [name, re] of WRONG_BUSINESS) {
+    if (foodTask && FOOD_FAMILY.has(name)) continue;
     if (re.test(out) && !re.test(brief)) {
       const hits = (out.match(new RegExp(re.source, "gi")) || []).length;
       const names = [...properNouns(goal), ...properNouns(title)].filter((n) => !["instagram", "facebook", "linkedin", "tiktok", "youtube", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].includes(n));

@@ -52,6 +52,10 @@ export function makeIntent(text) {
   if (QUESTION.test(t)) return null;
   const hasVerb = RE_VERB_START.test(rest) || LEAD.test(t) && t.replace(LEAD, "") !== t;
 
+  // Requests for words that accompany a video are writing tasks, not video generation.
+  const VIDEO_WORDS = /\b(?:titles?|title ideas?|ideas?|scripts?|hooks?|captions?|descriptions?|tags?|thumbnail text|outlines?)\b.{0,80}\b(?:for (?:a|my|the) (?:youtube )?video|for my channel)\b|\b(?:for (?:a|my|the) (?:youtube )?video|for my channel)\b.{0,80}\b(?:titles?|title ideas?|ideas?|scripts?|hooks?|captions?|descriptions?|tags?|thumbnail text|outlines?)\b/i;
+  if (VIDEO_WORDS.test(t)) return null;
+
   // a video or a clip, with or without a verb: "a 5 second video of waves"
   if (RE_VIDEO.test(t) && (hasVerb || /^(?:an?|the|\d)/i.test(rest)) && !/\b(?:music video|lyric video|reels?)\b/i.test(t)) {
     const s = seconds(t);

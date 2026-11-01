@@ -26,6 +26,7 @@ import { rank, heuristicClassify, isSlowAgent } from "./router.js";
 import { allEntries } from "./ledger.js";
 import { describePause } from "./pause.js";
 import { noteReply as noteFreeReply } from "./free-limits.js";
+import { loadCatalog } from "./free-catalog.js";
 import { freeOnlyOn, freeOnlyView, freeOnlyError, isFreeModel, costTier, lastResortChoices, planFirstForCode } from "./free-first.js";
 import { cliLimit } from "./cli-limit.js";
 import { noteRest as poolRest, clearRest as poolClear, apiId } from "./worker-pool.js";
@@ -54,11 +55,22 @@ export function nothingCameBack(failures = []) {
 
 // Free tiers the app knows about (list limits on 2026-10-18, deliberately conservative; editable in
 // Settings > Smart fallback). "on" means the person says their key is on that tier.
-export const FREE_TIERS = {
+const BASE_FREE_TIERS = {
   google: { name: "Google AI Studio free tier", models: ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.8-flash"], perDay: 250, perMinute: 10, defaultOn: true, note: "Flash models with an AI Studio key and no card. Untick if your key has billing on, so the ledger counts those calls." },
   openrouter: { name: "OpenRouter free route", models: ["openrouter/free"], perDay: 50, perMinute: 20, defaultOn: true, note: "openrouter/free picks the best free model; the daily count is small without credits on the account." },
   groq: { name: "Groq free tier", models: ["openai/gpt-oss-20b", "openai/gpt-oss-120b"], perDay: 1000, perMinute: 30, defaultOn: true, note: "Groq keys start on a free tier with rate limits. On by default so Groq is used as a free helper; untick it if your Groq account has a card on it." },
 };
+const catalogTier = (id) => loadCatalog().entries.find((e) => e.id === id);
+export const FREE_TIERS = new Proxy(BASE_FREE_TIERS, {
+  get(target, key) {
+    const e = typeof key === "string" ? catalogTier(key) : null;
+    if (e?.status === "retired") return undefined;
+    const value = Reflect.get(target, key);
+    return value && e?.freeTier && typeof e.freeTier === "object" ? { ...value, ...e.freeTier } : value;
+  },
+  ownKeys(target) { return Reflect.ownKeys(target).filter((key) => catalogTier(key)?.status !== "retired"); },
+  getOwnPropertyDescriptor(target, key) { return catalogTier(key)?.status === "retired" ? undefined : Reflect.getOwnPropertyDescriptor(target, key); },
+});
 // subscriptions: when API credits run out and no API route is left, answer through the person's own plan
 // (server/answer-wait.js). Off means a slot fails as before.
 export const DEFAULTS = { on: true, openrouterFirst: true, maxHops: 3, subscriptions: true, freeOnly: null, freeTiers: Object.fromEntries(Object.entries(FREE_TIERS).map(([k, v]) => [k, { on: v.defaultOn, perDay: v.perDay, perMinute: v.perMinute }])) };

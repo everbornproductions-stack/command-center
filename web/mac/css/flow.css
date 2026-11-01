@@ -9,8 +9,8 @@ body[data-style="mac"] #mac-flow.mf-off .mf { display: none; }
 body[data-style="mac"] #mac-flow .mf { max-width: 980px; margin: 0 auto; }
 body[data-style="mac"] #mac-flow .mf-head { display: flex; align-items: center; gap: 10px; min-height: 36px; }
 body[data-style="mac"] #mac-flow .mf-sp { flex: 1; }
-body[data-style="mac"] #mac-flow .mf-crumb { color: var(--mf-dim); font-size: 13px; }
-body[data-style="mac"] #mac-flow .mf-back, body[data-style="mac"] #mac-flow .mf-link { border: 0; background: transparent; color: var(--mf-acc); font: inherit; font-size: 15px; padding: 8px 10px; border-radius: 8px; cursor: pointer; min-height: 40px; }
+body[data-style="mac"] #mac-flow .mf-crumb { color: var(--mf-dim); font-size: calc(13px * var(--mf-scale, 1)); }
+body[data-style="mac"] #mac-flow .mf-back, body[data-style="mac"] #mac-flow .mf-link { border: 0; background: transparent; color: var(--mf-acc); font: inherit; font-size: calc(15px * var(--mf-scale, 1)); padding: 8px 10px; border-radius: 8px; cursor: pointer; min-height: 40px; }
 body[data-style="mac"] #mac-flow .mf-back:hover, body[data-style="mac"] #mac-flow .mf-link:hover { background: rgba(120,120,128,.15); }
 /* 0.4.25 (item 8): "Use the 3 steps" sits in the title bar next to the page name, never over the sidebar. */
 body[data-style="mac"] .mf-return { flex: none; border: 0; border-radius: 999px; padding: 5px 12px; min-height: 30px; background: var(--mac-acc-btn, #0062d6); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; pointer-events: auto; }
@@ -23,11 +23,11 @@ body[data-style="mac"] .mf-return:focus-visible { outline: 2px solid var(--mac-a
   body[data-style="mac"] #mac-titlebar .mf-return { font-size: 0 !important; padding: 5px 10px; }
   body[data-style="mac"] #mac-titlebar .mf-return::after { content: "3 steps"; font-size: 16px; }
 }
-body[data-style="mac"] #mac-flow .mf-title { font-size: 30px; margin: 6px 0 4px; letter-spacing: -.02em; outline: 0; }
-body[data-style="mac"] #mac-flow .mf-sub { color: var(--mf-dim); margin: 0 0 6px; font-size: 15px; }
+body[data-style="mac"] #mac-flow .mf-title { font-size: calc(30px * var(--mf-scale, 1)); margin: 6px 0 4px; letter-spacing: -.02em; outline: 0; }
+body[data-style="mac"] #mac-flow .mf-sub { color: var(--mf-dim); margin: 0 0 6px; font-size: calc(15px * var(--mf-scale, 1)); }
 body[data-style="mac"] #mac-flow .mf-note { margin: 8px 0; padding: 8px 12px; border-radius: 10px; background: rgba(255,159,10,.15); }
 body[data-style="mac"] #mac-flow .mf-steps { display: flex; gap: 8px; margin: 8px 0 18px; padding: 0; list-style: none; flex-wrap: wrap; }
-body[data-style="mac"] #mac-flow .mf-steps li { font-size: 13px; padding: 4px 12px; border-radius: 999px; background: rgba(120,120,128,.15); color: var(--mf-dim); }
+body[data-style="mac"] #mac-flow .mf-steps li { font-size: calc(13px * var(--mf-scale, 1)); padding: 4px 12px; border-radius: 999px; background: rgba(120,120,128,.15); color: var(--mf-dim); }
 body[data-style="mac"] #mac-flow .mf-steps li.on { background: var(--mf-acc-solid); color: #fff; }
 body[data-style="mac"] #mac-flow .mf-art { display: block; height: 130px; }
 body[data-style="mac"] #mac-flow .g1 { background: linear-gradient(135deg,#5ac8fa,#0a84ff); }
@@ -38,27 +38,27 @@ body[data-style="mac"] #mac-flow .g8 { background: linear-gradient(135deg,#ff375
 body[data-style="mac"] #mac-flow .mf-paths, body[data-style="mac"] #mac-flow .mf-cards { display: flex; gap: 20px; overflow-x: auto; padding: 10px 6px 14px; scroll-snap-type: x mandatory; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; }
 body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card { flex: none; width: 230px; min-height: 230px; padding: 0 0 12px; text-align: left; border-radius: 18px; background: var(--mf-glass); border: 1px solid var(--mf-line); box-shadow: 0 10px 30px rgba(0,0,0,.12); overflow: hidden; cursor: pointer; scroll-snap-align: start; transition: transform .3s; color: inherit; font: inherit; position: relative; display: block; }
 body[data-style="mac"] #mac-flow .mf-path:hover, body[data-style="mac"] #mac-flow .mf-card:hover { transform: translateY(-4px); }
-body[data-style="mac"] #mac-flow .mf-path b, body[data-style="mac"] #mac-flow .mf-card b { display: block; padding: 10px 14px 2px; font-size: 17px; }
-body[data-style="mac"] #mac-flow .mf-path small, body[data-style="mac"] #mac-flow .mf-card small { display: block; padding: 0 14px; color: var(--mf-dim); font-size: 13px; }
+body[data-style="mac"] #mac-flow .mf-path b, body[data-style="mac"] #mac-flow .mf-card b { display: block; padding: 10px 14px 2px; font-size: calc(17px * var(--mf-scale, 1)); }
+body[data-style="mac"] #mac-flow .mf-path small, body[data-style="mac"] #mac-flow .mf-card small { display: block; padding: 0 14px; color: var(--mf-dim); font-size: calc(13px * var(--mf-scale, 1)); }
 body[data-style="mac"] #mac-flow .mf-card.sel { outline: 3px solid var(--mf-acc); }
-body[data-style="mac"] #mac-flow .mf-pop { position: absolute; top: 10px; left: 10px; font-style: normal; font-size: 12px; font-weight: 600; background: #fff; color: #1d1d1f; padding: 2px 9px; border-radius: 999px; }
+body[data-style="mac"] #mac-flow .mf-pop { position: absolute; top: 10px; left: 10px; font-style: normal; font-size: calc(12px * var(--mf-scale, 1)); font-weight: 600; background: #fff; color: #1d1d1f; padding: 2px 9px; border-radius: 999px; }
 body[data-style="mac"] #mac-flow .mf-path:focus-visible, body[data-style="mac"] #mac-flow .mf-card:focus-visible, body[data-style="mac"] #mac-flow .mf-go:focus-visible, body[data-style="mac"] #mac-flow .mf-soft:focus-visible, body[data-style="mac"] #mac-flow .mf-finish:focus-visible, body[data-style="mac"] #mac-flow .mf-chip:focus-visible, body[data-style="mac"] #mac-flow .mf-back:focus-visible, body[data-style="mac"] #mac-flow .mf-link:focus-visible, body[data-style="mac"] #mac-flow .mf-paths:focus-visible { outline: 3px solid var(--mf-acc); outline-offset: 2px; }
 body[data-style="mac"] #mac-flow .mf-box { display: flex; gap: 10px; align-items: center; background: var(--mf-glass); border: 1px solid var(--mf-line); border-radius: 16px; padding: 8px 8px 8px 16px; margin-top: 14px; }
-body[data-style="mac"] #mac-flow .mf-box input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: 17px; color: inherit; outline: 0; padding: 8px 0; }
-body[data-style="mac"] #mac-flow .mf-cost { color: var(--mf-dim); font-size: 14px; white-space: nowrap; }
-body[data-style="mac"] #mac-flow .mf-go, body[data-style="mac"] #mac-flow .mf-finish { border: 0; background: var(--mf-acc-solid); color: #fff; border-radius: 12px; padding: 12px 22px; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; min-height: 44px; }
+body[data-style="mac"] #mac-flow .mf-box input { flex: 1; min-width: 0; border: 0; background: transparent; font-size: calc(17px * var(--mf-scale, 1)); color: inherit; outline: 0; padding: 8px 0; }
+body[data-style="mac"] #mac-flow .mf-cost { color: var(--mf-dim); font-size: calc(14px * var(--mf-scale, 1)); white-space: nowrap; }
+body[data-style="mac"] #mac-flow .mf-go, body[data-style="mac"] #mac-flow .mf-finish { border: 0; background: var(--mf-acc-solid); color: #fff; border-radius: 12px; padding: 12px 22px; font: inherit; font-size: calc(16px * var(--mf-scale, 1)); font-weight: 600; cursor: pointer; min-height: 44px; }
 body[data-style="mac"] #mac-flow .mf-go:disabled { opacity: .45; cursor: default; }
-body[data-style="mac"] #mac-flow .mf-finish { width: 100%; font-size: 18px; padding: 16px; }
+body[data-style="mac"] #mac-flow .mf-finish { width: 100%; font-size: calc(18px * var(--mf-scale, 1)); padding: 16px; }
 body[data-style="mac"] #mac-flow .mf-soft { border: 0; background: rgba(120,120,128,.18); color: inherit; border-radius: 10px; padding: 11px 16px; font: inherit; font-weight: 500; cursor: pointer; min-height: 44px; }
 body[data-style="mac"] #mac-flow .mf-actions { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 body[data-style="mac"] #mac-flow .mf-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
-body[data-style="mac"] #mac-flow .mf-chips-h { color: var(--mf-dim); font-size: 13px; }
-body[data-style="mac"] #mac-flow .mf-chip { border: 0; background: rgba(120,120,128,.15); color: inherit; font: inherit; font-size: 13px; padding: 7px 13px; border-radius: 999px; cursor: pointer; min-height: 36px; }
+body[data-style="mac"] #mac-flow .mf-chips-h { color: var(--mf-dim); font-size: calc(13px * var(--mf-scale, 1)); }
+body[data-style="mac"] #mac-flow .mf-chip { border: 0; background: rgba(120,120,128,.15); color: inherit; font: inherit; font-size: calc(13px * var(--mf-scale, 1)); padding: 7px 13px; border-radius: 999px; cursor: pointer; min-height: 36px; }
 body[data-style="mac"] #mac-flow .mf-photos { margin-top: 18px; }
 body[data-style="mac"] #mac-flow .mf-photos-h { color: var(--mf-dim); margin-right: 8px; }
 body[data-style="mac"] #mac-flow .mf-strip { min-height: 4px; }
 body[data-style="mac"] #mac-flow .mf-bars { max-width: 580px; margin-top: 14px; }
-body[data-style="mac"] #mac-flow .mf-bar-row { margin: 16px 0; font-size: 15px; }
+body[data-style="mac"] #mac-flow .mf-bar-row { margin: 16px 0; font-size: calc(15px * var(--mf-scale, 1)); }
 body[data-style="mac"] #mac-flow .mf-bar { height: 10px; border-radius: 5px; background: rgba(120,120,128,.22); overflow: hidden; margin-top: 6px; }
 body[data-style="mac"] #mac-flow .mf-bar i { display: block; height: 100%; border-radius: 5px; background: var(--mf-acc); transition: width .5s ease; }
 body[data-style="mac"] #mac-flow .mf-ask { margin: 14px 0; padding: 12px 16px; border-radius: 12px; background: var(--mf-glass); border: 1px solid var(--mf-line); max-width: 580px; }
@@ -67,9 +67,9 @@ body[data-style="mac"] #mac-flow .mf-result { flex: 1 1 420px; min-width: 0; }
 body[data-style="mac"] #mac-flow .mf-side { flex: 0 0 270px; display: flex; flex-direction: column; gap: 10px; }
 body[data-style="mac"] #mac-flow .mf-badge { border: 2px solid var(--mf-warn); background: rgba(255,159,10,.14); border-radius: 12px; padding: 10px 12px; }
 body[data-style="mac"] #mac-flow .mf-vers { display: flex; gap: 6px; flex-wrap: wrap; }
-body[data-style="mac"] #mac-flow .mf-ver { border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; background: rgba(120,120,128,.18); color: inherit; cursor: pointer; }
+body[data-style="mac"] #mac-flow .mf-ver { border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: calc(13px * var(--mf-scale, 1)); background: rgba(120,120,128,.18); color: inherit; cursor: pointer; }
 body[data-style="mac"] #mac-flow .mf-ver.on { background: var(--mf-acc-solid); color: #fff; }
-body[data-style="mac"] #mac-flow .mf-meta { margin: 0; color: var(--mf-dim); font-size: 13px; }
+body[data-style="mac"] #mac-flow .mf-meta { margin: 0; color: var(--mf-dim); font-size: calc(13px * var(--mf-scale, 1)); }
 /* the borrowed result: show the picture, the page or the words big, and keep only the helpers a person needs */
 body[data-style="mac"] #mac-flow #simple-answer { display: block !important; background: transparent; border: 0; box-shadow: none; padding: 0; margin: 0; max-width: none; width: auto; }
 body[data-style="mac"] #mac-flow #simple-answer > h3, body[data-style="mac"] #mac-flow #simple-answer #copy, body[data-style="mac"] #mac-flow #simple-answer #out-head { display: none; }
@@ -82,7 +82,7 @@ body[data-style="mac"] #mac-flow #simple-answer .rh-card iframe.rh-site { height
 @media (max-width: 760px) {
   body[data-style="mac"] #mac-flow { padding: 14px 16px 24px; }
   body[data-style="mac"] #mac-flow .mf-side { flex-basis: 100%; }
-  body[data-style="mac"] #mac-flow .mf-title { font-size: 24px; }
+  body[data-style="mac"] #mac-flow .mf-title { font-size: calc(24px * var(--mf-scale, 1)); }
 }
 @media (prefers-reduced-motion: reduce) {
   body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card, body[data-style="mac"] #mac-flow .mf-bar i { transition: none; }
@@ -148,12 +148,12 @@ body[data-style="mac"] #mac-flow .mf-paths { scroll-padding: 0 6px; }
 body[data-style="mac"] #mac-flow .mf-file { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--mf-line); background: var(--mf-glass); }
 body[data-style="mac"] #mac-flow .mf-file[hidden] { display: none; }
 body[data-style="mac"] #mac-flow .mf-file.bad { border: 2px solid var(--mf-warn); background: rgba(255,159,10,.14); }
-body[data-style="mac"] #mac-flow .mf-file-name { font-size: 15px; word-break: break-word; }
-body[data-style="mac"] #mac-flow .mf-file-path { color: var(--mf-dim); font-size: 12px; word-break: break-all; }
+body[data-style="mac"] #mac-flow .mf-file-name { font-size: calc(15px * var(--mf-scale, 1)); word-break: break-word; }
+body[data-style="mac"] #mac-flow .mf-file-path { color: var(--mf-dim); font-size: calc(12px * var(--mf-scale, 1)); word-break: break-all; }
 @media (max-width: 760px) {
   body[data-style="mac"] #mac-flow .mf-path { width: 200px; }
 }
-body[data-style="mac"] #mac-flow .mf-hint { margin: 10px 2px 0; color: var(--mf-dim); font-size: 14px; }
+body[data-style="mac"] #mac-flow .mf-hint { margin: 10px 2px 0; color: var(--mf-dim); font-size: calc(14px * var(--mf-scale, 1)); }
 /* 0.4.28: a button centres its content, so a card with a two-line blurb sat higher than the others. Cards stack from the top. */
 body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card { display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; }
 body[data-style="mac"] #mac-flow .mf-path > .mf-art, body[data-style="mac"] #mac-flow .mf-card > .mf-art { flex: none; }
@@ -164,6 +164,45 @@ body[data-style="mac"] #mac-flow .mf-path > .mf-art, body[data-style="mac"] #mac
   body[data-style="mac"] #mac-flow .mf-paths { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; overflow: visible; scroll-snap-type: none; padding: 6px 4px 12px; }
   body[data-style="mac"] #mac-flow .mf-paths .mf-path { width: auto; min-width: 0; min-height: 150px; padding-bottom: 10px; }
   body[data-style="mac"] #mac-flow .mf-paths .mf-art { height: 72px; }
-  body[data-style="mac"] #mac-flow .mf-paths .mf-path b { font-size: 16px; padding-top: 8px; }
+  body[data-style="mac"] #mac-flow .mf-paths .mf-path b { font-size: calc(16px * var(--mf-scale, 1)); padding-top: 8px; }
   body[data-style="mac"] #mac-flow .mf-swipe { display: none; }
 }
+
+/* 0.4.35: the wide "Just chat" bar above the choices (Chris: "where can we just chat to the AIs?") */
+body[data-style="mac"] #mac-flow .mf-chat-wide { display: flex; align-items: center; gap: 10px; width: 100%; margin: 4px 0 10px; padding: 12px 16px; border-radius: 14px; border: 1px solid var(--mac-line, rgba(127,127,127,.3)); background: var(--mac-card, rgba(255,255,255,.7)); color: inherit; text-align: left; cursor: pointer; font: inherit; }
+body[data-style="mac"] #mac-flow .mf-chat-wide:hover, body[data-style="mac"] #mac-flow .mf-chat-wide:focus-visible { border-color: var(--mac-acc-btn, #0062d6); }
+body[data-style="mac"] #mac-flow .mf-chat-wide b { font-size: 1rem; }
+body[data-style="mac"] #mac-flow .mf-chat-wide small { color: var(--mac-dim, #4b5563); font-size: 0.875rem; }
+body[data-style="mac"] #mac-flow .mf-chat-ico { font-size: 1.25rem; }
+/* 0.4.35 (panel 0431 item 8): Settings > Reading > Large set the page to 20 px, but the 3-step home kept its px sizes.
+   Every text size on the 3-step pages now follows the reading size (a11y.js sets html[data-text]). */
+body[data-style="mac"]:is([data-text="small"] *) #mac-flow { --mf-scale: .875; }
+body[data-style="mac"]:is([data-text="large"] *) #mac-flow { --mf-scale: 1.25; }
+body[data-style="mac"]:is([data-text="xlarge"] *) #mac-flow { --mf-scale: 1.4; }
+/* With larger text the cards keep a fair width: five in a row when there is room, else four. */
+@media (min-width: 1000px) {
+  body[data-style="mac"]:is([data-text="large"] *) #mac-flow .mf-paths, body[data-style="mac"]:is([data-text="xlarge"] *) #mac-flow .mf-paths { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+}
+/* 0.4.35 (panel 0431 item 8): at 768 px tall (1366 x 768, 1024 x 768) "Or just say it" ran off the bottom of the window,
+   just over the dock. On a short window the home is tighter (less space above the title, shorter card pictures) and
+   the page keeps room under the box, so the box is on screen and the page scrolls for the rest. */
+@media (max-height: 820px) and (min-width: 761px) {
+  body[data-style="mac"] #mac-flow { padding-top: 8px; padding-bottom: 48px; }
+  body[data-style="mac"] #mac-flow .mf-head { min-height: 30px; }
+  body[data-style="mac"] #mac-flow .mf-title { font-size: calc(26px * var(--mf-scale, 1)); margin: 2px 0 2px; }
+  body[data-style="mac"] #mac-flow .mf-steps { margin: 4px 0 10px; }
+  body[data-style="mac"] #mac-flow .mf-paths .mf-art { height: 48px; }
+  body[data-style="mac"] #mac-flow .mf-paths .mf-path { min-height: 118px; }
+  body[data-style="mac"] #mac-flow .mf-box { margin-top: 8px; }
+}
+/* The home's "Or just say it" box stays at the bottom of the page while the cards scroll under it (large text, short
+   windows), so it is never off screen or under the dock. */
+@media (min-width: 761px) {
+  body[data-style="mac"] #mac-flow .mf-box:has(> #mf-ask) { position: sticky; bottom: 8px; z-index: 2; background: var(--mac-window-bg, var(--bg, #f5f6fa)); box-shadow: 0 -6px 18px rgba(0,0,0,.06); }
+}
+/* 0.4.35 (panel 0431 item 9): a Simple answer at 1440 ran about 149 characters per line. Its paragraphs and list
+   items keep a reading width. */
+body[data-style="mac"] #simple-answer p, body[data-style="mac"] #simple-answer li { max-width: 75ch; }
+/* 0.4.35 (panel 0431 item 12): a pasted or "Use this" prompt is capped at about 6 lines with its own scroll, so Send
+   stays on screen. */
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .sc-box #orders { max-height: calc(6 * 1.5em + 20px); overflow-y: auto; }

@@ -41,7 +41,8 @@ test("the setup step: Install, Sign in, Get it and Get key, in the right places,
     }));
     assert.deepEqual(info.apps, ["antigravity:Get it", "codex:Sign in", "claude-code:-", "opencode:Install", "freebuff:Sign in"]);
     assert.ok(!/Gemini CLI/.test(info.text), "Gemini CLI is not offered");
-    assert.deepEqual(info.keys, ["google:Get key", "groq:connected", "openrouter:Get key"]);
+    // 0.4.35: the free-AI catalog decides which free keys are listed (and in what order); these three are always among them
+    for (const k of ["google:Get key", "groq:connected", "openrouter:Get key"]) assert.ok(info.keys.includes(k), `${k} in ${info.keys}`);
     assert.equal(info.all, "Set up all free AIs (3)", "Install OpenCode, sign in Codex and Freebuff; a download page is not counted");
   } finally { await t.close(); }
 });

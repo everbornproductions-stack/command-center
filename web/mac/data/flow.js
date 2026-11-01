@@ -94,9 +94,20 @@ export const FALLBACK_STYLES = {
 // ---- 0.4.28: the file a file path saves ----
 // Each path saves one kind of file. A style may pick another kind (a web calculator is .html, a JSON list is .json).
 export const SAVE_EXT = { spreadsheet: "xlsx", document: "docx", slides: "pptx", script: "py", data: "csv" };
-export const ALLOWED_EXT = { spreadsheet: ["xlsx"], document: ["docx"], slides: ["pptx"], script: ["py", "html", "ps1", "gs", "js", "sql"], data: ["csv", "json"] };
+export const ALLOWED_EXT = { spreadsheet: ["xlsx"], document: ["docx"], slides: ["pptx"], script: ["py", "html", "ps1", "gs", "js", "sql", "sh"], data: ["csv", "json"] };
 export function savesFile(path) { return FILE_PATHS.includes(path); }
-export function extFor(path, style) {
+export function extFor(path, style, text = "") {
+  if (path === "script") {
+    const t = String(text || "");
+    const named = /\b(?:node(?:\.js)?|javascript|\bjs\b)\b/i.test(t) ? "js"
+      : /\bpowershell\b/i.test(t) ? "ps1"
+      : /\b(?:apps script|google sheets script|google sheets|app script)\b/i.test(t) ? "gs"
+      : /\b(?:sql|sqlite)\b/i.test(t) ? "sql"
+      : /\b(?:html|web page|webpage|website)\b/i.test(t) ? "html"
+      : /\b(?:bash|shell)\b/i.test(t) ? "sh"
+      : /\bpython\b/i.test(t) ? "py" : "";
+    if (named) return named;
+  }
   const e = String((style && typeof style === "object" && style.ext) || "").toLowerCase().replace(/^\./, "");
   if (e && (ALLOWED_EXT[path] || []).includes(e)) return e;
   return SAVE_EXT[path] || "";
@@ -120,10 +131,11 @@ export function fileName(text, fallback = "my-file") {
   return name;
 }
 export function fileFor(path, style, text) {
-  const ext = extFor(path, style);
+  const ext = extFor(path, style, text);
   if (!ext) return "";
   const st = style && typeof style === "object" ? style : null;
-  return `${fileName(text, st?.id || st?.title || path)}.${ext}`;
+  const nameText = path === "script" ? String(text || "").replace(/\b(?:node(?:\.js)?|javascript|js|powershell|apps script|google sheets script|google sheets|app script|sqlite|sql|html|web page|webpage|website|bash|shell|python|script|program)\b/ig, " ") : text;
+  return `${fileName(nameText, st?.id || st?.title || path)}.${ext}`;
 }
 
 export function isPath(p) { return PATHS.includes(p); }
@@ -260,7 +272,7 @@ function fileGoal(path, style, s, t) {
     case "spreadsheet": return `Make an Excel spreadsheet for ${t}${s ? `. Kind: ${s}` : ""}. Use working formulas for every total (for example =SUM(B2:B10)), so the numbers add up again when I change them. Save it as ${fileFor(path, style, t)}`;
     case "document": return `Write a Word document for ${t}${s ? `. Kind: ${s}` : ""}. Use clear headings and short paragraphs. Save it as ${fileFor(path, style, t)}`;
     case "slides": return `Make a PowerPoint deck about ${t}${s ? `. Kind: ${s}` : ""}. Keep it short, 6 to 10 slides. Save it as ${fileFor(path, style, t)}`;
-    case "script": return `${SCRIPT_ASK[extFor(path, style)] || SCRIPT_ASK.py} that does this: ${t}. Keep it to one file with short comments, and say in plain words how to run it. Save it as ${fileFor(path, style, t)}`;
+    case "script": return `${SCRIPT_ASK[extFor(path, style, t)] || SCRIPT_ASK.py} that does this: ${t}. Keep it to one file with short comments, and say in plain words how to run it. Save it as ${fileFor(path, style, t)}`;
     case "data": return extFor(path, style) === "json"
       ? `Make a JSON data file of ${t}${s ? `. Kind: ${s}` : ""}. Use one object per item, each with the same fields. Save it as ${fileFor(path, style, t)}`
       : `Make a CSV list of ${t}${s ? `. Kind: ${s}` : ""}. Header row first, one row per line, commas between columns. Save it as ${fileFor(path, style, t)}`;
@@ -275,6 +287,7 @@ const SCRIPT_ASK = {
   gs: "Write a small Google Sheets script (Apps Script)",
   js: "Write a small JavaScript program for Node",
   sql: "Write a SQL query",
+  sh: "Write a small Bash or shell script",
 };
 
 // Only website, campaign and mod go through the plain chat answer; picture and video go to the makers.

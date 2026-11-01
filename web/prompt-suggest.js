@@ -5,12 +5,16 @@ import { isLocked } from "./tier-lock.js";
 // exact text they had.
 
 export const MIN_CHARS = 3;
+// 0.4.35 (panel 0431 item 12): a long pasted or "Use this" prompt is already a full prompt. Suggestions for it repeated
+// the whole text and pushed Send off the screen, so past this length none are shown.
+export const MAX_CHARS = 600;
 export const MAX_ROWS = 6;
 // Turned off with the X under the list, back on in Settings. Per viewer, on this computer.
 export const OFF_KEY = "cc.ppSuggestOff";
 
 export function shouldSuggest(text) {
-  return String(text || "").trim().length >= MIN_CHARS;
+  const n = String(text || "").trim().length;
+  return n >= MIN_CHARS && n <= MAX_CHARS;
 }
 
 export function suggestionsOff(storage) {

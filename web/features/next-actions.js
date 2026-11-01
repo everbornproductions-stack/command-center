@@ -28,6 +28,8 @@ CC.register({
       ref: run.id,
       name: cleanText(run.title || run.prompt || run.deliverable, 60),
       onVariations: fillOrders,
+      // 0.4.35 (panel 0431 item 11): in Simple, "Looks good, Finish" right under this row is the one Finish button.
+      skip: CC.uiMode?.() !== "expert" && CC.S?.flags?.finishpath ? ["finish"] : [],
     });
   } },
 });

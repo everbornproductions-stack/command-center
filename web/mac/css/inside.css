@@ -617,7 +617,7 @@ body[data-style="mac"][data-ui="expert"] #app #view .pcards {
 }
 body[data-style="mac"][data-ui="expert"] #app #view .pcard {
   position: relative;
-  padding: 16px 48px 16px 68px;
+  padding: 10px 44px 10px 64px; /* 0.4.35: tighter rows (Chris) */
   border: 1px solid var(--cx-line);
   border-radius: var(--cx-r-card);
   background: var(--cx-card);
@@ -919,4 +919,10 @@ body[data-style="mac"][data-ui="expert"] #app #view:has(> .cmd) { container: cx-
 /* Item 11d: at phone width the last thing on the page can scroll clear of the Talk bar under #view (up to 48 px tall). */
 @media (max-width: 760px) {
   body[data-style="mac"][data-ui="expert"] #app #view { padding-bottom: calc(14px + 48px); scroll-padding-bottom: 48px; }
+}
+
+/* 0.4.35 (panel 0431 item 9): on wide screens Expert text ran 178 to 412 characters per line (Credits, Projects, the
+   Command welcome). Paragraphs and list items keep a reading width; the cards themselves stay wide. */
+body[data-style="mac"][data-ui="expert"] #app #view :is(p, li) {
+  max-width: 75ch;
 }

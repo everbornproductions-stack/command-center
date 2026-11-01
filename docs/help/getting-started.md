@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.34
+lastUpdatedVersion: 0.4.35
 ---
 
 # Getting started
@@ -228,3 +228,7 @@ Install and Sign in buttons for your AI helpers: in Settings under Your AI helpe
 ## Save money with free AIs (0.4.34)
 
 Save money with free AIs: the welcome screen and the Get free AIs card list every free AI with the right button. Install sets up an app for you, Sign in opens its own sign-in window, Get it opens a download page, and Get key opens the page for a free key with a box to paste it. Set up all free AIs does them one after another and waits for each sign-in. Gemini CLI is no longer offered: Google retired it for personal accounts and replaced it with Antigravity. If it is still on your PC, Meldmind says so plainly and uses Antigravity and your Gemini key instead. History is organized: your work is grouped by project (the one you are in comes first) and by kind of work, such as Pictures and video, Documents, Spreadsheets, Slides, Websites, Code and Chats, newest group first. Pinned items sit on top, chips across the top show one kind at a time, and each group shows its newest five with Show all. Update and restart no longer fails with "Please check update first" right after a new version comes out: Meldmind waits for the release list to catch up, then installs. Answers about credit repair, homes, loans or insurance are checked with the same rules as the Send check. A risky line, such as a promised result or a fair housing word, is flagged under the answer before you copy it anywhere. Nothing in the answer is changed. Freebuff works on Windows: Meldmind runs it in a built-in terminal. If Freebuff hands a step to a model that may keep prompts for training, Meldmind stops it, does not use that answer, and gives the step to another helper.
+
+## Answers that fit the request (0.4.35)
+
+Practice answers fit what you asked: a review reply reads like a review reply, a website request gives a small web page with your business name, and "3 lines" gives 3 lines. Asking for title ideas, a script or captions for a video gives words, not a video. App or script follows the language you name: Node.js, PowerShell, Apps Script, SQL, HTML or Python. A restaurant menu that lists coffee or pastries is no longer thrown away as being about a cafe. The startup screen no longer says "Meldmind never just stops". Pressing Simple always opens the main screen with Website, Image, Video, Campaign and the other choices. A Just chat bar sits above the choices: ask anything and get an answer. Project cards are smaller: one line of description, Continue and Delete side by side, and no empty link counts.

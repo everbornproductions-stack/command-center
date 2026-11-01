@@ -28,11 +28,12 @@ const grokbotReady = () => hooks.grokbotReady();
 const ocRouteModels = () => hooks.ocRouteModels(); // 0.4.33: OpenCode's free models (server/opencode-agent.js)
 import { cachedLive } from "./provider-balance.js";
 import { describePause } from "./pause.js";
+import { loadCatalog } from "./free-catalog.js";
 
 // ---------- who counts as free ----------
 // Keys for these services normally sit on a free tier, so saving one does not turn Free only off.
 export const FREE_KEY_PROVIDERS = new Set(["google", "groq"]); // OpenRouter and Mistral keys may carry credit, so they count as paid
-export const FREE_PAGES = [
+const DEFAULT_FREE_PAGES = [
   { id: "groq", name: "Groq", url: "https://console.groq.com/keys", provider: "groq", what: "Fast, free tier. Works well as a helper.", needs: "key" },
   { id: "google", name: "Google AI Studio (Gemini)", url: "https://aistudio.google.com/apikey", provider: "google", what: "Free Gemini Flash models. No card.", needs: "key" },
   { id: "openrouter", name: "OpenRouter", url: "https://openrouter.ai/keys", provider: "openrouter", what: "One key, a free route that picks a free model.", needs: "key" },
@@ -42,6 +43,17 @@ export const FREE_PAGES = [
   { id: "ollama", name: "Ollama (this PC)", url: "https://ollama.com/download", provider: null, what: "Free and private. Meldmind finds it by itself once it runs.", needs: "nothing", local: "ollama" },
   { id: "lmstudio", name: "LM Studio (this PC)", url: "https://lmstudio.ai", provider: null, what: "Free and private. Meldmind finds it by itself once it runs.", needs: "nothing", local: "lmstudio" },
 ];
+export function freePages() {
+  const catalog = loadCatalog();
+  const old = new Map(DEFAULT_FREE_PAGES.map((p) => [p.id, p]));
+  // the AIs on this PC (Ollama, LM Studio) are pages too: no key, found by the port probe
+  return catalog.entries.filter((e) => (e.kind === "key" || e.kind === "local") && e.status === "active" && e.page).map((e) => ({
+    ...(old.get(e.id) || {}), id: e.id, name: e.label, url: e.page, provider: e.kind === "local" ? null : e.provider || null,
+    what: e.good, needs: e.kind === "local" ? "nothing" : "key", later: ["github", "cloudflare"].includes(e.id),
+    ...(e.kind === "local" ? { local: old.get(e.id)?.local || e.id } : {}),
+  }));
+}
+export const FREE_PAGES = freePages();
 const nameOf = (pid) => PROVIDERS[pid]?.name || (pid === GROKBOT_TEXT ? "Grok Bot" : pid === "antigravity" ? "Antigravity" : pid === "opencode" ? "OpenCode" : String(pid).startsWith("plan-") ? planName(pid) : pid);
 const PLAN_NAMES = { "plan-claude-code": "Claude Code", "plan-codex": "Codex", "plan-gemini-cli": "Gemini CLI" };
 const planName = (pid) => PLAN_NAMES[pid] || String(pid).replace(/^plan-/, "");
@@ -73,7 +85,7 @@ export const TIER_WORD = ["this PC", "free", "your plan", "paid"];
 export function hasPaidKey() {
   for (const p of Object.values(PROVIDERS)) {
     if (p.kind !== "text" || p.demo || p.noKey) continue; // a custom gateway with a key may charge, so it counts as paid
-    if (FREE_KEY_PROVIDERS.has(p.id)) continue;
+    if (FREE_KEY_PROVIDERS.has(p.id) && FREE_TIERS[p.id]) continue;
     try { if (hasSecret(p.id, p.keyEnv)) return true; } catch { /* a vault that cannot be read counts as no key */ }
   }
   return false;
