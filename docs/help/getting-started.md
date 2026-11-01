@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.33
+lastUpdatedVersion: 0.4.34
 ---
 
 # Getting started
@@ -224,3 +224,7 @@ SQLite scripts are checked before they count as done: Meldmind runs the file onc
 ## Install and sign in to helpers from Settings (0.4.33)
 
 Install and Sign in buttons for your AI helpers: in Settings under Your AI helpers, a missing helper (Codex, OpenCode, Freebuff, Gemini CLI, Claude Code) has an Install button. It needs Node.js on your PC and takes about a minute. A signed-out helper has Sign in, which opens its own sign-in window; you sign in there with your own account, and Meldmind never sees your password. Antigravity is not installed this way, so it gets a Get it button for its download page. OpenCode works as a free helper: Meldmind starts OpenCode in the background when a step needs it, uses only its free models, and hands the step to the next helper when OpenCode's free allowance is used up.
+
+## Save money with free AIs (0.4.34)
+
+Save money with free AIs: the welcome screen and the Get free AIs card list every free AI with the right button. Install sets up an app for you, Sign in opens its own sign-in window, Get it opens a download page, and Get key opens the page for a free key with a box to paste it. Set up all free AIs does them one after another and waits for each sign-in. Gemini CLI is no longer offered: Google retired it for personal accounts and replaced it with Antigravity. If it is still on your PC, Meldmind says so plainly and uses Antigravity and your Gemini key instead. History is organized: your work is grouped by project (the one you are in comes first) and by kind of work, such as Pictures and video, Documents, Spreadsheets, Slides, Websites, Code and Chats, newest group first. Pinned items sit on top, chips across the top show one kind at a time, and each group shows its newest five with Show all. Update and restart no longer fails with "Please check update first" right after a new version comes out: Meldmind waits for the release list to catch up, then installs. Answers about credit repair, homes, loans or insurance are checked with the same rules as the Send check. A risky line, such as a promised result or a fair housing word, is flagged under the answer before you copy it anywhere. Nothing in the answer is changed. Freebuff works on Windows: Meldmind runs it in a built-in terminal. If Freebuff hands a step to a model that may keep prompts for training, Meldmind stops it, does not use that answer, and gives the step to another helper.
