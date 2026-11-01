@@ -128,7 +128,7 @@ function fakeFreebuff(opts = {}) {
     if (k === "Enter") {
       if (f.mode === "picker") { f.model = f.rows[f.sel].split(/\s{2,}/)[0].trim(); f.mode = "idle"; }
       else if (/^\/model/.test(f.typed)) { f.typed = ""; f.mode = "picker"; f.sel = 0; }
-      else if (f.mode === "idle" && f.pasted.length) f.mode = "working";
+      else if (f.mode === "idle" && f.pasted.length) { f.mode = "working"; if (opts.switchOnSend) f.model = opts.switchOnSend; }
     } else if (k === "Down") { f.downs++; f.sel = Math.min(f.sel + 1, f.rows.length - 1); }
     else if (k === "Escape" && f.mode === "picker") f.mode = "idle";
   };
@@ -177,6 +177,30 @@ test("ask pastes the masked text only after the model is verified and returns th
   assert.match(r.ad.text, /Archil/);
   assert.equal(f.keys.at(-1), "Enter");
   await m.stop();
+});
+
+// 0.4.34, seen live on 2026-11-01 with Freebuff 0.2.35: the bar showed the safe model before sending and a model that
+// may use data for training right after. The answer is not used, the window is closed and Freebuff is out until restarted.
+test("a model switch after sending stops Freebuff and the answer is not used", async () => {
+  const f = fakeFreebuff({ switchOnSend: "DeepSeek V4.1 Flash 10/17 • high" }); const { m, calls } = manager(f);
+  await m.start({ folder: path.join(DIR, "p2s") });
+  await assert.rejects(m.ask("Reply with just the word OK.", { folder: path.join(DIR, "p2s") }), (e) => e.status === 409 && e.code === "model-switched" && /switched itself to DeepSeek V4.1 Flash/.test(e.message) && !/—/.test(e.message));
+  assert.equal(f.closed, true);
+  const s = await m.status({ refresh: false });
+  assert.equal(s.phase, "error");
+  assert.equal(s.running, false);
+  assert.equal(m.isReady(), false);
+  assert.ok(calls.mark.some(([k]) => k === "server"));
+});
+
+test("Freebuff 0.2.35 screen: the answer comes back without the copy row, the context counter or the help hint", () => {
+  const s = fx("answer-0235");
+  assert.equal(A.isIdle(s), true);
+  assert.equal(A.statusShowsModel(s), true);
+  assert.deepEqual(A.hoursLeft(s), { left: 30, total: 30 });
+  assert.equal(A.detectSignIn(s).needed, false);
+  assert.equal(A.detectLimit(s), null);
+  assert.equal(A.answerFrom(s, "Reply with just the word OK."), "OK");
 });
 
 test("a key in the request is refused and nothing is pasted", async () => {

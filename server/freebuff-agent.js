@@ -5,12 +5,14 @@
 // Layout of this file:
 //  1. Pure functions that take screen text (model pick rules, idle, ads, limits, sign-in, masking, cleanup). Tests feed
 //     them recorded screens (test/fixtures/freebuff).
-//  2. A Terminal driver: tmux (Linux, Mac) or node-pty (only when it is already installed; nothing is added).
+//  2. A Terminal driver: tmux (Linux, Mac) or node-pty. Since 0.4.34 the app ships node-pty (Microsoft's build, with
+//     ready-made binaries for Windows and Mac, kept outside app.asar), so Windows uses it first.
 //  3. A session manager (createFreebuff) with start / ask / stop, and the two hooks the free-first router uses.
 // Never used: the "Space Bunny Alpha" model (it keeps prompts), any model with a training note, any priced or locked row.
 // Nothing is stored about the person's sign-in. The sign-in page is opened by the person, never typed into.
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import { maskPrivate } from "./mask-private.js";
@@ -117,7 +119,9 @@ export function extractAd(screen) {
   return text ? { text: text.slice(0, 300) } : null;
 }
 
-const CHROME_LINE = /\/model to change|Enter a coding task|Add to the current task|working\.\.\.|hours? remaining|^\s*Thinking\b/i;
+// 0.4.34: Freebuff 0.2.35 also draws a copy / timing row ("⎘ • 2s • △▽"), a context counter with "✕ End session" and
+// the "← for history · ? for help" hint under the input.
+const CHROME_LINE = /\/model to change|Enter a coding task|Add to the current task|working\.\.\.|hours? remaining|^\s*Thinking\b|✕ End session|← for history|^\s*⎘\s*•|△▽\s*$/i;
 export function cleanTranscript(screen) {
   const kept = stripAds(screen).split("\n").filter((l) => !BOX_ONLY.test(l) || !l.trim()).map((l) => trimChrome(l).replace(/\s+$/, "")).filter((l) => !CHROME_LINE.test(l));
   const out = [];
@@ -241,41 +245,107 @@ export function tmuxDriver({ run: sh = run, exe = "tmux", freebuff = () => findF
 }
 
 const PTY_KEYS = { Down: "\x1b[B", Up: "\x1b[A", Enter: "\r", Escape: "\x1b", "C-c": "\x03" };
-// node-pty is used only when it is already installed. Nothing is added to the app for it.
-export function ptyDriver({ load = () => import("node-pty"), loadXterm = () => import("@xterm/headless"), freebuff = () => findFreebuff() || "freebuff", env = process.env } = {}) {
+// 0.4.34: the app ships node-pty (Microsoft, prebuilt for Windows and Mac). @lydell/node-pty is tried next in case a
+// build carries that one instead. When neither loads, the driver says the terminal is not available.
+export const PTY_PACKAGES = ["node-pty", "@lydell/node-pty"];
+async function loadFirst(names) {
+  let last = null;
+  for (const name of names) { try { return { name, mod: await import(name) }; } catch (e) { last = e; } }
+  throw last || new Error("no terminal package");
+}
+// node-pty loads its binary only on the first spawn, so this loads it now. A layout without lib/utils.js is left to
+// spawn to report.
+export function ptyNativeLoads(name, platform = process.platform) {
+  const req = createRequire(import.meta.url);
+  let utils;
+  try { utils = req(`${name}/lib/utils.js`); } catch { return true; }
+  if (typeof utils?.loadNativeModule !== "function") return true;
+  try { utils.loadNativeModule(platform === "win32" ? "conpty" : "pty"); return true; } catch { return false; }
+}
+// What the pseudo-terminal starts. ConPTY starts a real program, so on Windows a .cmd shim (what npm installs) goes
+// through cmd.exe by its full path: /d skips AutoRun, /s keeps the quoted line as written so folders with spaces work.
+export function ptyCommand(bin, cwd, { platform = process.platform, env = process.env } = {}) {
+  if (platform !== "win32") return { file: bin, args: ["--cwd", cwd] };
+  const sysRoot = env.SystemRoot || env.SYSTEMROOT || env.windir || "C:\\Windows";
+  const ext = path.win32.extname(String(bin)).toLowerCase();
+  if (ext === ".exe") return { file: bin, args: ["--cwd", cwd] };
+  if (ext === ".ps1") return { file: path.win32.join(sysRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"), args: ["-NoProfile", "-File", bin, "--cwd", cwd] };
+  const q = (s) => `"${String(s).replace(/"/g, "")}"`;
+  const comspec = env.ComSpec || env.COMSPEC || path.win32.join(sysRoot, "System32", "cmd.exe");
+  return { file: comspec, args: `/d /s /c "${q(bin)} --cwd ${q(cwd)}"` };
+}
+// Stops Freebuff and everything it started (Windows). Never throws.
+function killTreeWin(pid, env = process.env) {
+  const exe = path.win32.join(env.SystemRoot || env.windir || "C:\\Windows", "System32", "taskkill.exe");
+  return run(exe, ["/PID", String(pid), "/T", "/F"], { timeoutMs: 8000 }).catch(() => {});
+}
+export function ptyDriver({ load = undefined, probe = undefined, loadXterm = () => import("@xterm/headless"), freebuff = () => findFreebuff() || "freebuff", env = process.env, platform = process.platform, killTree = killTreeWin } = {}) {
+  const loader = load || (() => loadFirst(PTY_PACKAGES));
+  const check = probe || (load ? () => true : (name) => ptyNativeLoads(name, platform));
   let ptyMod = null;
-  const getPty = async () => { if (ptyMod) return ptyMod; try { const m = await load(); ptyMod = m.default?.spawn ? m.default : m; } catch { ptyMod = false; } return ptyMod; };
+  const getPty = async () => {
+    if (ptyMod !== null) return ptyMod;
+    try {
+      const got = await loader();
+      const m = got && got.mod ? got.mod : got;
+      const mod = m?.default?.spawn ? m.default : m;
+      ptyMod = mod?.spawn && check(got?.name || "node-pty") ? mod : false;
+    } catch { ptyMod = false; }
+    return ptyMod;
+  };
+  const win = platform === "win32";
   return {
     id: "pty",
     async available() { return !!(await getPty())?.spawn; },
     async start({ cwd, cols = 200, rows = 60 }) {
       const pty = await getPty();
       if (!pty?.spawn) throw new Error(NO_TERMINAL);
-      const bin = freebuff();
-      const proc = process.platform === "win32" ? pty.spawn("cmd.exe", ["/c", bin, "--cwd", cwd], { name: "xterm-256color", cols, rows, cwd, env: cleanEnv(env) }) : pty.spawn(bin, ["--cwd", cwd], { name: "xterm-256color", cols, rows, cwd, env: cleanEnv(env) });
+      const { file, args } = ptyCommand(freebuff(), cwd, { platform, env });
+      const proc = pty.spawn(file, args, { name: "xterm-256color", cols, rows, cwd, env: cleanEnv(env) });
       let term = null;
       try { const x = await loadXterm(); const T = x.Terminal || x.default?.Terminal; term = new T({ cols, rows, scrollback: 3000, allowProposedApi: true }); } catch { term = null; }
       let raw = "";
+      let exited = false;
       proc.onData((d) => { if (term) term.write(d); else raw = (raw + d).slice(-200000); });
+      let markExit = () => {};
+      const exitSeen = new Promise((r) => { markExit = r; });
+      proc.onExit?.(() => { exited = true; markExit(); });
       const render = () => {
         if (term) { const b = term.buffer.active; const out = []; for (let i = 0; i < b.length; i++) out.push(b.getLine(i)?.translateToString(true) || ""); return out.join("\n"); }
         return plain(raw).replace(/[\x00-\x08\x0b-\x1f]/g, ""); // eslint-disable-line no-control-regex
       };
       return {
         driver: "pty",
+        pid: proc.pid,
         screen: async () => { await new Promise((r) => setImmediate(r)); return render(); },
         visible: async () => { await new Promise((r) => setImmediate(r)); return render().split("\n").slice(-rows).join("\n"); },
         type: (t) => proc.write(t),
         key: (k) => proc.write(PTY_KEYS[k] || k),
         paste: (t) => proc.write(`\x1b[200~${t}\x1b[201~`),
-        close: async () => { try { proc.write("\x03"); proc.write("\x03"); } catch { /* ended */ } try { proc.kill(); } catch { /* ended */ } try { term?.dispose(); } catch { /* ended */ } },
+        close: async () => {
+          if (!exited) { try { proc.write("\x03"); proc.write("\x03"); } catch { /* ended */ } }
+          if (win && !exited && proc.pid) {
+            await killTree(proc.pid, env);
+            await Promise.race([exitSeen, new Promise((r) => { const t = setTimeout(r, 3000); t.unref?.(); })]);
+          }
+          if (!exited) { try { proc.kill(); } catch { /* ended */ } }
+          else if (win) { try { proc._agent?._conoutSocketWorker?.dispose?.(); } catch { /* gone */ } }
+          // node-pty keeps its input pipe open on Windows after the program ends, which would keep the server busy.
+          if (win) { const t = setTimeout(() => { try { proc._agent?.inSocket?.destroy(); } catch { /* gone */ } }, 1000); t.unref?.(); }
+          try { term?.dispose(); } catch { /* ended */ }
+        },
       };
     },
   };
 }
 
+// The drivers to try, in order. Windows has no tmux, so the built-in terminal comes first there.
+export function defaultDrivers(platform = process.platform, { tmux = {}, pty = {} } = {}) {
+  const t = tmuxDriver(tmux), p = ptyDriver({ platform, ...pty });
+  return platform === "win32" ? [p, t] : [t, p];
+}
 // The first driver that works on this computer, or null.
-export async function detectDriver(drivers = [tmuxDriver(), ptyDriver()]) {
+export async function detectDriver(drivers = defaultDrivers()) {
   for (const d of drivers) { try { if (await d.available()) return d; } catch { /* next */ } }
   return null;
 }
@@ -446,6 +516,18 @@ export function createFreebuff({ driver = undefined, drivers = undefined, instal
         if (lim && !isBusy(screen)) { applyLimit(lim); throw fail(429, lim.message, "limit"); }
         const si = detectSignIn(screen);
         if (si.needed) { await advance(screen); throw fail(409, "Freebuff asked you to sign in again.", "signin"); }
+        // 0.4.34: Freebuff can change the model by itself once the first message starts its session (seen live on
+        // 2026-11-01: the safe model before sending, a model that may use data for training right after). The answer
+        // is not used, the window is stopped, and Freebuff is not used again until it is started fresh.
+        const bar = statusBarLine(screen);
+        if (bar && !statusShowsModel(screen, WANT_MODEL)) {
+          const other = bar.split(/\s+·\s+/).map((s) => s.replace(/\/model to change/i, "").replace(/\b\d+m left\b/i, "").replace(/\s+/g, " ").trim())
+            .find((s) => s && !/^~|^[A-Za-z]:\\|^\/|^Chat:/i.test(s))?.slice(0, 60) || "another model";
+          await closeTerm();
+          Object.assign(st, { phase: "error", model: "", message: `Freebuff switched itself to ${other} after the request was sent, so Meldmind stopped it and did not use the answer.` });
+          flag.mark("server", st.message);
+          throw fail(409, st.message, "model-switched");
+        }
         const snap = cleanTranscript(screen);
         if (snap !== last) { last = snap; sameSince = Date.now(); }
         if (isIdle(screen) && Date.now() - sameSince >= T.idleMs && (seenBusy || Date.now() - t0 > T.idleMs * 2)) {

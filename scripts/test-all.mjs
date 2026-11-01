@@ -19,7 +19,9 @@ if (!files.includes(serialName)) {
 }
 
 function isHelper(name) {
-  return fs.readFileSync(path.join(root, "test", name), "utf8").includes("startServer(");
+  // "@helper-process" marks a file that starts its own child process without the app server (0.4.34 pty test).
+  const src = fs.readFileSync(path.join(root, "test", name), "utf8");
+  return src.includes("startServer(") || src.includes("@helper-process");
 }
 
 function run(names, extra) {
