@@ -1,0 +1,8 @@
+{
+  "bullets": [
+    "Install and Sign in buttons for your AI helpers: in Settings, a missing helper (Codex, OpenCode, Freebuff, Gemini CLI, Claude Code) has an Install button that sets it up for you, and a signed-out one has Sign in, which opens its own sign-in window. Antigravity gets a Get it button for its download page."
+  ],
+  "article": "docs/help/getting-started.md",
+  "heading": "Install and sign in to helpers from Settings",
+  "body": "Install and Sign in buttons for your AI helpers: in Settings under Your AI helpers, a missing helper (Codex, OpenCode, Freebuff, Gemini CLI, Claude Code) has an Install button. It needs Node.js on your PC and takes about a minute. A signed-out helper has Sign in, which opens its own sign-in window; you sign in there with your own account, and Meldmind never sees your password. Antigravity is not installed this way, so it gets a Get it button for its download page."
+}
