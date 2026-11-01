@@ -1,5 +1,5 @@
 // 0.4.23 Mac part: dock
-import { itemsFor, magnifyScale } from "../data/dock.js";
+import { itemsFor, magnifyFor, autoHideOk, DOCK_HIDE_MS, DOCK_EDGE_PX } from "../data/dock.js";
 
 export default {
   id: "dock",
@@ -25,6 +25,12 @@ export default {
     let currentView = CC.S?.view || "command";
 
     function render() {
+      // 0.4.36: a keyboard pick redraws the dock; keep the focus on the same button so it does not drop to the page.
+      const had = root.contains(document.activeElement) ? document.activeElement.dataset?.p : null;
+      paint();
+      if (had) [...root.querySelectorAll(".di")].find((b) => b.dataset.p === had)?.focus({ preventScroll: true });
+    }
+    function paint() {
       const items = itemsFor(currentMode);
       root.innerHTML = items.map((d, i) => {
         if (d.type === "sep") {
@@ -42,16 +48,20 @@ export default {
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    // The resting icon size: 54 px in Framed, smaller (--mac-di) in Fill the window.
+    const iconBase = () => parseFloat(getComputedStyle(root).getPropertyValue("--mac-di")) || 54;
+
     function handleMouseMove(e) {
       if (reducedMotion) return;
       const buttons = root.querySelectorAll(".di");
+      const base = iconBase();
       requestAnimationFrame(() => {
         buttons.forEach((b) => {
           if (!b.offsetParent) return;
           const r = b.getBoundingClientRect();
           const c = r.left + r.width / 2;
           const d = Math.abs(e.clientX - c);
-          const z = magnifyScale(d);
+          const z = magnifyFor(d, base);
           b.style.width = z + "px";
           b.style.height = z + "px";
         });
@@ -157,9 +167,66 @@ export default {
       render();
     });
 
+    // ---- 0.4.36: auto-hide in "Fill the window" ----
+    // The dock hides once the pointer has been away from it for 2 s, and comes back when the pointer reaches the
+    // bottom 8 px of the window or the keyboard moves focus into it (it stays in the tab order while hidden, just
+    // moved below the edge). Never in Framed, under 760 px wide, or on a touch screen. body.mac-dock-away tells
+    // shell.css to give the window body the dock's band back.
+    const body = document.body;
+    let hideTimer = 0, near = false;
+    let touch = (() => { try { return matchMedia("(hover: none) and (pointer: coarse)").matches; } catch { return false; } })();
+    const allowed = () => autoHideOk({ style: body.dataset.macwin === "framed" ? "framed" : "fill", width: innerWidth, touch });
+    // The band is the dock plus the closed Asset Tray at its right (shell.css moves them together).
+    const BAND = "#mac-dock, #cc-asset-tray.collapsed";
+    const inBand = (el) => !!el?.closest?.(BAND);
+    const focusInside = () => inBand(document.activeElement);
+    const setAway = (away) => { if (body.classList.contains("mac-dock-away") !== away) body.classList.toggle("mac-dock-away", away); };
+    function showDock() { clearTimeout(hideTimer); hideTimer = 0; setAway(false); }
+    function scheduleHide() {
+      clearTimeout(hideTimer); hideTimer = 0;
+      if (!allowed()) { setAway(false); return; }
+      hideTimer = setTimeout(() => { hideTimer = 0; if (allowed() && !near && !focusInside()) setAway(true); }, DOCK_HIDE_MS);
+    }
+    function nearDock(e) {
+      if (e.clientY >= innerHeight - DOCK_EDGE_PX) return true;
+      if (body.classList.contains("mac-dock-away")) return false;
+      return [...document.querySelectorAll(BAND)].some((el) => {
+        const r = el.getBoundingClientRect();
+        return r.height > 0 && e.clientY >= r.top - 4 && e.clientY <= r.bottom && e.clientX >= r.left && e.clientX <= r.right;
+      });
+    }
+    const onPointerMove = (e) => {
+      if (e.pointerType === "touch") { touch = true; near = false; showDock(); return; }
+      const now = nearDock(e);
+      if (now === near) return;
+      near = now;
+      if (near) showDock(); else scheduleHide();
+    };
+    const onPointerOut = (e) => { if (!e.relatedTarget && near) { near = false; scheduleHide(); } }; // the pointer left the window
+    const onFocusIn = (e) => { if (inBand(e.target)) showDock(); };
+    const onFocusOut = (e) => { if (inBand(e.target) && !inBand(e.relatedTarget)) setTimeout(() => { if (!focusInside() && !near) scheduleHide(); }, 0); };
+    const onResize = () => { if (!allowed()) showDock(); else if (!near && !hideTimer && !body.classList.contains("mac-dock-away")) scheduleHide(); };
+    document.addEventListener("pointermove", onPointerMove, { passive: true });
+    document.addEventListener("pointerdown", onPointerMove, { passive: true });
+    document.addEventListener("pointerout", onPointerOut, { passive: true });
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("focusout", onFocusOut);
+    addEventListener("resize", onResize);
+    const unsubWindow = bus.on("window", () => { if (allowed()) { if (!near) scheduleHide(); } else showDock(); });
+    scheduleHide();
+
     ctx._unsubDock = () => {
       unsubMode?.();
       unsubView?.();
+      unsubWindow?.();
+      clearTimeout(hideTimer);
+      body.classList.remove("mac-dock-away");
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerdown", onPointerMove);
+      document.removeEventListener("pointerout", onPointerOut);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("focusout", onFocusOut);
+      removeEventListener("resize", onResize);
       root.removeEventListener("mousemove", handleMouseMove);
       root.removeEventListener("mouseleave", handleMouseLeave);
     };

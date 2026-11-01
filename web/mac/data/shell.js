@@ -41,3 +41,13 @@ export function restingTitle(workers) {
   if (!resting.length) return "Your AIs right now";
   return `Your AIs right now. Resting: ${resting.map((w) => `${w.label} back at ${w.backLabel}`).join(", ")}. Meldmind uses the others meanwhile.`;
 }
+
+// 0.4.36 (Chris: "we have a window in a window basically?"): the Look setting "Window style". "fill" uses the whole
+// app window (the default for new and existing installs); "framed" is the smaller window with margins from 0.4.23.
+// The saved setting wins, then this computer's choice, then the default.
+export const WINDOW_STYLES = ["fill", "framed"];
+export function windowStyle(saved, local) {
+  if (WINDOW_STYLES.includes(saved)) return saved;
+  if (WINDOW_STYLES.includes(local)) return local;
+  return "fill";
+}

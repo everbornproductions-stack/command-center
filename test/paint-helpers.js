@@ -56,7 +56,18 @@ export async function paintedContrast(page, selector, { max = 12 } = {}) {
   }, { selector, max });
   const res = [];
   for (const b of boxes) {
-    await page.evaluate((id) => document.querySelector(`[data-cc-paint="${id}"]`)?.classList.add("cc-paint-hide"), b.id);
+    // 0.4.36: a page that redraws between the measure and the picture moves the text (Command draws #go once higher up
+    // for a moment, which the taller Fill the window layout no longer clips); a box that moved is not measured.
+    const still = await page.evaluate((b) => {
+      const el = document.querySelector(`[data-cc-paint="${b.id}"]`);
+      if (!el) return false;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const r = range.getBoundingClientRect();
+      el.classList.add("cc-paint-hide");
+      return Math.abs(Math.max(0, Math.floor(r.left)) - b.x) <= 1 && Math.abs(Math.max(0, Math.floor(r.top)) - b.y) <= 1;
+    }, b);
+    if (!still) { await page.evaluate((id) => { const e = document.querySelector(`[data-cc-paint="${id}"]`); if (e) { e.classList.remove("cc-paint-hide"); delete e.dataset.ccPaint; } }, b.id); continue; }
     const png = await page.screenshot({ clip: { x: b.x, y: b.y, width: Math.max(1, b.w), height: Math.max(1, b.h) }, animations: "disabled" });
     await page.evaluate((id) => { const e = document.querySelector(`[data-cc-paint="${id}"]`); if (e) { e.classList.remove("cc-paint-hide"); delete e.dataset.ccPaint; } }, b.id);
     const bg = await page.evaluate(async (b64) => {
@@ -92,16 +103,23 @@ export async function hitTest(page, selectors) {
         const r = rects.length > 1 ? rects[0] : el.getBoundingClientRect();
         const cs = getComputedStyle(el);
         if (r.width < 1 || r.height < 1 || cs.visibility === "hidden" || el.closest("[hidden]")) continue;
+        // 0.4.36: a control inside a closed <details> keeps a box but is not drawn (the taller Fill the window layout
+        // brought one into view on Video and media): it is reached by opening the details, not covered.
+        const det = el.closest("details");
+        if (det && !det.open && !el.closest("summary")) continue;
         if (r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) continue;
         const x = Math.min(innerWidth - 1, Math.max(0, r.left + r.width / 2));
         const y = Math.min(innerHeight - 1, Math.max(0, r.top + r.height / 2));
         // A control scrolled out of its own scroll box is reached by scrolling, not covered: skip it.
+        // 0.4.36: judged by its real middle, not the one pulled back onto the screen: a sideways row that runs to the
+        // window edge (Fill the window has no side margin) has its last button half off screen, inside the row's box.
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
         let clipped = false;
         for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
           const s = getComputedStyle(a);
           if (s.overflowX === "visible" && s.overflowY === "visible") continue;
           const c = a.getBoundingClientRect();
-          if (x < c.left || x > c.right || y < c.top || y > c.bottom) { clipped = true; break; }
+          if (cx < c.left || cx > c.right || cy < c.top || cy > c.bottom) { clipped = true; break; }
         }
         if (clipped) continue;
         const hit = document.elementFromPoint(x, y);
