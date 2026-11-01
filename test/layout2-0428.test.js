@@ -372,16 +372,21 @@ test("item 9: the two light-theme lines are on a solid card and readable (Settin
       await toExpert(t);
       await go(t, view);
       await t.page.waitForTimeout(1500);
-      const found = await t.page.evaluate((needle) => {
+      const mark = () => t.page.evaluate((needle) => {
         const el = [...document.querySelectorAll("#view *")].find((e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.includes(needle)));
         if (!el) return false;
         el.scrollIntoView({ block: "center" });
         el.dataset.testLine = "1";
         return true;
       }, needle);
-      if (!found) continue; // Credits shows this line only when an AI gives no balance
-      await t.page.waitForTimeout(500);
-      const got = await paintedContrast(t.page, "[data-test-line]", { max: 1 });
+      if (!(await mark())) continue; // Credits shows this line only when an AI gives no balance
+      // a state tick can redraw the view between marking and measuring (CI 0.4.28): mark again and retry
+      let got = [];
+      for (let i = 0; i < 3 && got.length !== 1; i++) {
+        await t.page.waitForTimeout(500);
+        if (!(await mark())) break;
+        got = await paintedContrast(t.page, "[data-test-line]", { max: 1 });
+      }
       assert.equal(got.length, 1, `${view}: measured`);
       assert.deepEqual(low(got), [], `${view} at ${width}`);
     } finally { await t.close(); }
