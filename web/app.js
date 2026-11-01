@@ -3447,6 +3447,26 @@ watchNavLayout((layout) => {
   ensureFeatureTabs();
 });
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
+// 0.4.36 (Chris: "you should be able to make the live feed area minimize to the side if you don't want to look at the feed
+// the entire time"): Hide tucks the feed into a thin tab with a count of new events; the tab brings it back. Remembered.
+const FEED_MIN_KEY = "cc.feed.min";
+let feedNew = 0;
+function setFeedMin(min) {
+  document.body.classList.toggle("feed-min", min);
+  $("#feed-tab").hidden = !min;
+  $("#feed-min").setAttribute("aria-expanded", String(!min));
+  if (!min) { feedNew = 0; $("#feed-new").hidden = true; }
+  try { localStorage.setItem(FEED_MIN_KEY, min ? "1" : "0"); } catch { /* kept for this window only */ }
+}
+$("#feed-min").addEventListener("click", () => { setFeedMin(true); $("#feed-tab").focus(); });
+$("#feed-tab").addEventListener("click", () => { setFeedMin(false); $("#feed-min").focus(); });
+new MutationObserver((list) => {
+  if (!document.body.classList.contains("feed-min")) return;
+  const added = list.reduce((n, m) => n + m.addedNodes.length, 0);
+  if (!added) return;
+  feedNew += added; const b = $("#feed-new"); b.textContent = feedNew > 99 ? "99+" : String(feedNew); b.hidden = false;
+}).observe($("#feed-list"), { childList: true });
+try { if (localStorage.getItem(FEED_MIN_KEY) === "1") setFeedMin(true); } catch { /* starts open */ }
 document.addEventListener("input", (e) => {
   const form = e.target.closest?.(".reply-box");
   if (!form || e.target.tagName !== "TEXTAREA" || !S.live?.id) return;

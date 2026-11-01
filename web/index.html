@@ -68,7 +68,9 @@
       <span>Live feed</span>
       <button class="ghost" id="feed-ask" title="Ask Meldmind about its own jobs, costs, helpers and settings">Ask about Meldmind</button>
       <button class="ghost" id="feed-clear" title="Clear the live feed">clear</button>
+      <button class="ghost" id="feed-min" aria-expanded="true" aria-controls="feed-list" title="Tuck the live feed to the side">Hide &rsaquo;</button>
     </div>
+    <button type="button" class="feed-tab" id="feed-tab" hidden aria-label="Show the live feed" title="Show the live feed"><span>&lsaquo; Live feed</span><b id="feed-new" hidden>0</b></button>
     <div class="feed-list" id="feed-list" role="log" aria-live="off"></div>
   </aside>
 

@@ -579,3 +579,12 @@ body:not([data-ui="expert"]) .pcards { grid-template-columns: repeat(auto-fill, 
 .pcard .pcard-acts { flex-wrap: nowrap; }
 .pcard .pcard-acts .btn.sm { padding: 3px 9px; font-size: 0.8125rem; white-space: nowrap; }
 .pcard .pcard-sum-more { padding: 0; }
+
+/* 0.4.36: the live feed can tuck into a thin tab at the side */
+body.feed-min { --feed-w: 44px; }
+body.feed-min .feed .feed-head, body.feed-min .feed .feed-list { display: none; }
+.feed-tab { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; height: 100%; padding: 12px 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; }
+.feed-tab[hidden] { display: none; }
+.feed-tab span { writing-mode: vertical-rl; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.04em; }
+.feed-tab b { min-width: 22px; padding: 1px 6px; border-radius: 999px; background: var(--mac-acc-btn, #0062d6); color: #ffffff; font-size: 0.75rem; }
+.feed-tab b[hidden] { display: none; }
