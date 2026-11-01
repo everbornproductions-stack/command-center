@@ -167,6 +167,8 @@ test("page: History in the sidebar lists a finished chat, search narrows it, a q
     await t.page.waitForSelector("#side-recent .side-empty", { timeout: waitBudget(10000) });
     await t.page.fill("#side-search", "sourdough");
     await t.page.waitForSelector("#side-recent .side-chat", { timeout: waitBudget(10000) });
+    // 0.4.37: on the clean Simple chat page the quick picks wait behind Auto team (More options)
+    if (await t.page.$("#sc-team")) await t.page.click("#sc-team");
     await t.page.waitForSelector("#hh-picks .hh-pick", { timeout: waitBudget(20000) });
     await t.page.click("#hh-picks .hh-pick");
     assert.equal(await t.page.inputValue("#orders"), "Write a welcome line for my sourdough bakery.");
