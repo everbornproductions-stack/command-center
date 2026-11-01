@@ -107,3 +107,9 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - ease-of-use bans words like "deliverable" anywhere between `function renderSimpleChat` and `function paintStarters`, comments included. A new helper's comment said "Deliverable card".
 - Simple chat's answer reveal ran only at 300 and 1200 ms; on the slower runner the answer grew after that and Copy stayed under the chat box (its Mic button). It now checks every 250 ms for 6 s and stops when the person scrolls or clicks. The test waits for the fold and for Copy to be on top with a real deadline.
 - The new "Saved $X this month" title bar pill pushed the 390 px title bar 147 px over. It hides on a phone like the ready pill and drops "this month" under 1280 px.
+
+## 2026-11-01: Persona ideas go into the next build round, not "Proposed" (Chris's rule)
+
+- What happened: the Nov 1 persona session (on 0.4.35) saved its 8 ideas as "Proposed" in the master feature list, where they would sit with no owner or date.
+- Fix: all 8 are committed items in docs/plan-0.4.36.md, each with a plain-words "Done when" check, labelled "Next round (0.4.36)".
+- Rule: a persona idea is either in the next round plan with acceptance checks, or dropped as a duplicate. Do not leave a "Proposed" label. The master feature list is not in this repo, so relabel it where it lives (see PERSONA-IDEAS-0436-REPORT.md).
