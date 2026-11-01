@@ -10,7 +10,8 @@ const LS = "cc.theme";
 // this is the only place its path is written.
 export const DEFAULT_PICTURE_URL = "/backgrounds/meldmind-default.jpg";
 // The default look (Chris, 2026-10-21). It paints the same way as any picture wallpaper.
-const DEFAULTS = { mode: "dark", accent: "#22d3ee", background: "#10241c", wallpaper: "image:stage", photo: null };
+// 0.4.31 (Chris): a new install starts in light mode; a stored look is kept.
+const DEFAULTS = { mode: "light", accent: "#22d3ee", background: "#10241c", wallpaper: "image:stage", photo: null };
 let prefs = read();
 let presets = {
   cyan: "#22d3ee", violet: "#a78bfa", green: "#34d399", amber: "#fbbf24", rose: "#fb7185", blue: "#60a5fa", orange: "#fb923c", lime: "#a3e635",

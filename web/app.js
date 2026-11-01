@@ -2499,6 +2499,15 @@ function wireRunRows(v) {
     } catch (err) { toast(err.message, true); }
   }));
 }
+// 0.4.31 (Chris: "in project view it shouldn't have the whole description unless you click on it to expand"): the
+// card shows one line of the description; More opens the rest in place (it does not open the project), Less folds it.
+// The More button is drawn for every description and hidden again after paint when the line is not cut off.
+function projectSummaryHtml(p) {
+  const text = String(p.summary || "").trim();
+  if (!text) return "";
+  const open = !!S.openSummaries?.has?.(p.id);
+  return `<div class="muted small pcard-sum${open ? " open" : ""}" id="psum-${esc(p.id)}">${esc(text)}</div><button type="button" class="linklike small pcard-sum-more" data-psum="${esc(p.id)}" aria-expanded="${open}" aria-controls="psum-${esc(p.id)}">${open ? "Less" : "More"}</button>`;
+}
 function renderProjects(v) {
   if (S.openProject) return renderProjectDetail(v, S.projects.find((p) => p.id === S.openProject));
   const hq = S.hq;
@@ -2514,7 +2523,7 @@ function renderProjects(v) {
         const expanded = flowOn && S.expandedProjects?.has?.(p.id);
         const expData = flowOn ? S.projectExpansions?.[p.id] : null;
         return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}" role="button" tabindex="0" aria-label="Open project ${esc(p.name)}">
-          <h4>${esc(p.name)} ${statusChip(p)}</h4><div class="muted small">${esc(p.summary || "")}</div>
+          <h4>${esc(p.name)} ${statusChip(p)}</h4>${projectSummaryHtml(p)}
           <div class="small dim" data-inside="${esc(p.id)}" style="margin-top:4px">${insideLine(p, runs)}</div>
           <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
           <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}${flowOn && subProjects.length ? `<span>${subProjects.length} sub-project${subProjects.length === 1 ? "" : "s"}</span>` : ""}${parentProj ? `<span>Sub-project of ${esc(parentProj.name)}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
@@ -2537,7 +2546,19 @@ function renderProjects(v) {
         <div id="run-list">${recentRunRows(S.missions.slice(0, 12))}</div>
       </div>
     </div></div>`;
-  $$(".pcard", v).forEach((c) => c.addEventListener("click", (e) => { if (e.target.closest("[data-pcard-expand],[data-subproject-add],[data-subproject-open],[data-continue],[data-del]")) return; S.openProject = c.dataset.id; render(); }));
+  $$(".pcard", v).forEach((c) => c.addEventListener("click", (e) => { if (e.target.closest("[data-pcard-expand],[data-subproject-add],[data-subproject-open],[data-continue],[data-del],[data-psum]")) return; S.openProject = c.dataset.id; render(); }));
+  requestAnimationFrame(() => $$("[data-psum]", v).forEach((b) => {
+    const sum = document.getElementById(`psum-${b.dataset.psum}`);
+    if (sum && !sum.classList.contains("open") && sum.scrollWidth <= sum.clientWidth + 1) b.hidden = true;
+  }));
+  $$("[data-psum]", v).forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!S.openSummaries) S.openSummaries = new Set();
+    const id = b.dataset.psum; const open = !S.openSummaries.has(id);
+    if (open) S.openSummaries.add(id); else S.openSummaries.delete(id);
+    document.getElementById(`psum-${id}`)?.classList.toggle("open", open);
+    b.textContent = open ? "Less" : "More"; b.setAttribute("aria-expanded", String(open));
+  }));
   $$("[data-continue]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); continueProject(b.dataset.continue); }));
   $$(".pcard [data-del]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const p = S.projects.find((x) => x.id === b.dataset.del); if (p) deleteProjectSoft(p); }));
   wireRecentlyDeleted(v);

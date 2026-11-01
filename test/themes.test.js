@@ -61,7 +61,7 @@ test("normalize: defaults, presets, short hex, rejects junk", () => {
   assert.throws(() => validatePhoto("data:image/jpeg;base64," + Buffer.from("not-a-jpeg").toString("base64")), /do not match/);
   assert.equal(validatePhoto(PNG), PNG);
   // The default since 0.4.17: dark, cyan accent, pine background, the built-in stage picture.
-  assert.deepEqual({ ...DEFAULTS }, { mode: "dark", accent: "#22d3ee", background: "#10241c", wallpaper: "image:stage", photo: null });
+  assert.deepEqual({ ...DEFAULTS }, { mode: "light", accent: "#22d3ee", background: "#10241c", wallpaper: "image:stage", photo: null }); // 0.4.31: new installs start light
   const fresh = normalize({}, DEFAULTS);
   assert.equal(fresh.wallpaper, "image:stage"); assert.equal(fresh.background, "#10241c"); assert.equal(fresh.photo, null);
 });
@@ -74,7 +74,7 @@ test("server: GET returns defaults with presets; POST saves; invalid → 400 and
   assert.equal((await s.api("/themes", { noToken: true })).status, 401, "needs the session token");
   const g = await s.api("/themes");
   assert.equal(g.status, 200);
-  assert.equal(g.json.mode, "dark"); assert.equal(g.json.accent, "#22d3ee");
+  assert.equal(g.json.mode, "light"); assert.equal(g.json.accent, "#22d3ee");
   assert.equal(g.json.background, BACKGROUNDS.pine, "a new install starts on the default look");
   assert.equal(g.json.wallpaper, "image:stage");
   assert.equal(g.json.photo, null);
@@ -151,7 +151,7 @@ test("server: GET returns defaults with presets; POST saves; invalid → 400 and
   assert.equal(noPicture.json.photo, null);
 
   const reset = await s.api("/themes", { method: "DELETE" });
-  assert.equal(reset.status, 200); assert.equal(reset.json.mode, "dark"); assert.equal(reset.json.accent, "#22d3ee");
+  assert.equal(reset.status, 200); assert.equal(reset.json.mode, "light"); assert.equal(reset.json.accent, "#22d3ee");
   assert.equal(reset.json.background, BACKGROUNDS.pine, "reset puts the default look back");
   assert.equal(reset.json.wallpaper, "image:stage");
   assert.equal(reset.json.photo, null);

@@ -106,9 +106,9 @@ export function installTips(doc = typeof document !== "undefined" ? document : n
   const box = doc.createElement("div");
   box.className = "cc-tip"; box.id = "cc-tip"; box.setAttribute("role", "tooltip"); box.hidden = true;
   const style = doc.createElement("style");
-  style.textContent = `.cc-tip{position:fixed;z-index:2147483000;max-width:${MAX_WIDTH}px;padding:7px 10px;border-radius:8px;font:500 12.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;color:#f5f7fa;background:#1f2430;box-shadow:0 6px 20px rgba(0,0,0,.28);pointer-events:none;opacity:0;transform:translateY(2px);transition:opacity .12s,transform .12s}
+  style.textContent = `.cc-tip{position:fixed;z-index:2147483000;max-width:${MAX_WIDTH}px;padding:7px 10px;border-radius:8px;font:500 12.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;--tip-fg:#f5f7fa;--tip-bg:#1f2430;color:var(--tip-fg);background:var(--tip-bg);box-shadow:0 6px 20px rgba(0,0,0,.28);pointer-events:none;opacity:0;transform:translateY(2px);transition:opacity .12s,transform .12s}
 .cc-tip.on{opacity:1;transform:none}
-[data-theme="light"] .cc-tip,body[data-theme="light"] .cc-tip{color:#14181f;background:#ffffff;border:1px solid #c9d1db;box-shadow:0 6px 20px rgba(20,24,31,.16)}
+[data-theme="light"] .cc-tip,body[data-theme="light"] .cc-tip{--tip-fg:#14181f;--tip-bg:#ffffff;border:1px solid #c9d1db;box-shadow:0 6px 20px rgba(20,24,31,.16)}
 @media (prefers-reduced-motion: reduce){.cc-tip{transition:none}}`;
   doc.head.appendChild(style);
   doc.body.appendChild(box);
