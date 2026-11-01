@@ -75,6 +75,8 @@ test("1366 x 800: the window fills the app window, the dock hides and comes back
     await page.mouse.move(683, 300);
     await away(page, true);
     await page.waitForFunction(() => document.getElementById("mac-dock").getBoundingClientRect().top >= innerHeight - 1, null, { timeout: WAIT });
+    // 0.4.37: the window takes the band back once the dock has finished sliding away (.28 s later), not at once
+    await page.waitForFunction(() => Math.round(document.getElementById("app").getBoundingClientRect().bottom) === innerHeight, null, { timeout: WAIT });
     assert.equal((await rect(page, "#app")).b, 800);
     // the bottom edge: it comes back and the window body ends above it
     await page.mouse.move(683, 797);
