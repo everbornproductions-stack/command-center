@@ -303,7 +303,7 @@ function paintPicker(data) {
     </div>
     <p class="small dim" style="margin:0">${esc(modeNote({ experience: data.experience }))} Pick a type, or watch a labeled example. An example does not call an AI.</p>
     <div id="sp-help-body"></div>
-    <div class="sp-types">${(data.types || []).map((t) => `
+    ${Object.entries((data.types || []).reduce((groups, t) => { const group = t.category === "Website" || t.category === "Music Videos" || t.category === "Social Posts" || t.category === "Software" ? "Make something" : t.category === "Campaigns" ? "Grow a business" : "Plan or learn"; (groups[group] ||= []).push(t); return groups; }, {})).map(([group, types]) => `<h4>${esc(group)}</h4><div class="sp-types">${types.map((t) => `
       <div class="sp-type" style="border-top:3px solid ${esc(t.color || "#22d3ee")}">
         <h4>${esc(t.name)}</h4>
         <div class="small dim">${esc(t.blurb || "")}</div>
@@ -311,7 +311,7 @@ function paintPicker(data) {
           <button class="btn sm primary" type="button" data-start="${esc(t.id)}">Start</button>
           <button class="btn sm" type="button" data-example="${esc(t.id)}">Watch an example</button>
         </div>
-      </div>`).join("")}</div>
+      </div>`).join("")}</div>`).join("")}
     ${templatesHtml(data)}
     ${(data.walks || []).length ? `<div class="panel"><h3>Your projects</h3>${data.walks.slice(0, 8).map((w) => `<button class="btn sm" type="button" data-open="${esc(w.id)}" style="margin:0 6px 6px 0">${esc(w.typeName)}: ${esc(w.plan?.title || w.idea || "In progress")}</button>`).join("")}</div>` : ""}`;
   wireTemplates(root, data);
@@ -325,7 +325,9 @@ function paintPicker(data) {
 function templatesHtml(data) {
   if (!data.templatesEnabled) return "";
   const list = data.templates || [];
-  return `<div class="panel" id="sp-tpl-panel"><h3 style="margin-top:0">Your templates</h3>
+  const ready = data.readyTemplates || [];
+  return `<div class="panel" id="sp-tpl-panel"><h3 style="margin-top:0">Ready-made templates</h3><div class="sp-types">${ready.map((t) => `<div class="sp-type"><h4>${esc(t.name)}</h4><div class="small dim">${esc(t.typeName || t.type)}</div><button class="btn sm primary" type="button" data-ready="${esc(t.id)}">Use this</button><button class="btn sm" type="button" data-ready-copy="${esc(t.id)}">Save a copy</button></div>`).join("")}</div><h3>Your templates</h3>
+    <button class="btn sm" type="button" id="sp-tpl-import">Import a template</button><input id="sp-tpl-file" type="file" accept=".json,application/json" hidden>
     ${list.length ? `<div class="sp-types">${list.map((t) => `
       <div class="sp-type sp-tpl" style="border-top:3px solid ${esc(t.color || "#22d3ee")}">
         <h4>${esc(t.name)}</h4>
@@ -333,6 +335,7 @@ function templatesHtml(data) {
         <div class="sp-actions" style="margin-top:8px">
           <button class="btn sm primary" type="button" data-tpl-start="${esc(t.id)}">Start</button>
           <button class="btn sm" type="button" data-tpl-edit="${esc(t.id)}">Edit</button>
+          <button class="btn sm" type="button" data-tpl-export="${esc(t.id)}">Export</button>
           <button class="btn sm" type="button" data-tpl-del="${esc(t.id)}">Delete</button>
         </div>
       </div>`).join("")}</div>` : `<p class="small dim" style="margin:0">No templates yet. Open a project and choose Save as template.</p>`}
@@ -342,6 +345,25 @@ function wireTemplates(root, data) {
   if (!data.templatesEnabled) return;
   const byId = (id) => (data.templates || []).find((t) => t.id === id);
   root.querySelectorAll("[data-tpl-start]").forEach((b) => b.addEventListener("click", () => begin(null, b.dataset.tplStart)));
+  root.querySelectorAll("[data-ready]").forEach((b) => b.addEventListener("click", () => begin(null, b.dataset.ready)));
+  root.querySelectorAll("[data-ready-copy]").forEach((b) => b.addEventListener("click", async () => {
+    const t = (data.readyTemplates || []).find((item) => item.id === b.dataset.readyCopy); if (!t) return;
+    try { await api("/walkthrough/templates", { method: "POST", body: { ...t, id: undefined, typeName: undefined, color: undefined } }); toast("Saved a copy in Your templates."); paintPicker(await api(`/walkthrough?${qexp()}`)); }
+    catch (e) { toast(e.message, true); }
+  }));
+  root.querySelectorAll("[data-tpl-export]").forEach((b) => b.addEventListener("click", async () => {
+    try { const r = await api(`/walkthrough/templates/${encodeURIComponent(b.dataset.tplExport)}`); const t = r.template; download(`${String(t.name).replace(/[^a-z0-9 _-]/gi, "").trim()}.meldmind-template.json`, JSON.stringify(t, null, 2)); }
+    catch (e) { toast(e.message, true); }
+  }));
+  const importButton = root.querySelector("#sp-tpl-import");
+  const fileInput = root.querySelector("#sp-tpl-file");
+  importButton?.addEventListener("click", () => fileInput.click());
+  fileInput?.addEventListener("change", async () => {
+    const file = fileInput.files?.[0]; fileInput.value = ""; if (!file) return;
+    if (file.size > 65536) { toast("Choose a template file under 64 KB.", true); return; }
+    try { await api("/walkthrough/templates/import", { method: "POST", body: { template: await file.text() } }); toast("Template imported."); paintPicker(await api(`/walkthrough?${qexp()}`)); }
+    catch (e) { toast(e.message, true); }
+  });
   root.querySelectorAll("[data-tpl-edit]").forEach((b) => b.addEventListener("click", () => {
     const t = byId(b.dataset.tplEdit);
     if (!t) return;

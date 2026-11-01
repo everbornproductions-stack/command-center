@@ -12,9 +12,15 @@ import { normalizeMode } from "../modes.js";
 import { fillAnswers, answerFromDescription } from "../build-all.js";
 import { zipStore } from "../doc-export.js";
 import { templatesOn } from "../flags.js";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { hasSecret } from "../redact-text.js";
 import {
   listTemplates, findTemplate, createTemplate, updateTemplate, deleteTemplate, templateFromWalk, applyTemplate,
 } from "../project-templates.js";
+
+const TEMPLATE_LIBRARY = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "template-library.json"), "utf8"));
 
 export const id = "walkthrough";
 const KIND = "walkthrough.items";
@@ -391,6 +397,21 @@ export async function routes(req, res, url, body, h) {
     if (!templatesFlag(h)) return h.json(res, 404, { error: "Templates are turned off on this install.", code: "flag_off" });
     const tid = parts[1];
     try {
+      if (req.method === "POST" && parts[1] === "import") {
+        const raw = body?.template;
+        if (typeof raw !== "string" || Buffer.byteLength(raw, "utf8") > 65536) return h.json(res, 400, { error: "Choose a template file under 64 KB.", code: "bad_file" });
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch { return h.json(res, 400, { error: "That file is not valid template JSON.", code: "bad_file" }); }
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return h.json(res, 400, { error: "That file is not a template.", code: "bad_shape" });
+        if (hasSecret(JSON.stringify(parsed))) return h.json(res, 400, { error: "That file looks like it contains a key or password. Remove it before importing.", code: "secret" });
+        parsed.name = `${String(parsed.name || "").slice(0, 49).trim()} (imported)`;
+        return h.json(res, 200, createTemplate(h, parsed));
+      }
+      if (req.method === "GET" && tid) {
+        const t = findTemplate(h, tid);
+        if (!t) return h.json(res, 404, { error: "Template not found." });
+        return h.json(res, 200, { template: t });
+      }
       if (req.method === "GET" && !tid) return h.json(res, 200, { templates: listTemplates(h) });
       if (req.method === "POST" && !tid) {
         if (body?.walkId) {
@@ -414,14 +435,15 @@ export async function routes(req, res, url, body, h) {
       experience: exp,
       modeLabel: exp === "expert" ? "Expert" : "Simple",
       ...(flowOn ? { flowStagesEnabled: true } : {}),
-      types: TYPES.map((t) => ({ id: t.id, name: t.name, blurb: t.blurb, color: t.color })),
+      types: TYPES.map((t) => ({ id: t.id, name: t.name, blurb: t.blurb, color: t.color, category: t.category })),
       walks: items.map((w) => presentWalk(w, exp, flowOpts)),
       ...(templatesFlag(h) ? { templatesEnabled: true, templates: listTemplates(h) } : {}),
+      ...(templatesFlag(h) ? { readyTemplates: TEMPLATE_LIBRARY.map((t, i) => ({ ...t, id: `ready-${i}`, typeName: typeById(t.type)?.name, color: typeById(t.type)?.color })) } : {}),
       examples: EXAMPLES.map((e) => ({ type: e.type, label: "Example data", title: e.plan.title })),
     });
   }
   if (req.method === "GET" && parts[0] === "types") {
-    return h.json(res, 200, TYPES.map((t) => ({ id: t.id, name: t.name, blurb: t.blurb, questions: t.questions, nextSteps: t.nextSteps })));
+    return h.json(res, 200, TYPES.map((t) => ({ id: t.id, name: t.name, blurb: t.blurb, category: t.category, questions: t.questions, nextSteps: t.nextSteps })));
   }
   if (req.method === "GET" && parts[0] === "help" && !parts[1]) return h.json(res, 200, { docs: helpDocs() });
   if (req.method === "GET" && parts[0] === "help" && parts[1]) {
@@ -446,7 +468,8 @@ export async function routes(req, res, url, body, h) {
   }
 
   if (req.method === "POST" && parts.length === 0) {
-    const tpl = body?.templateId && templatesFlag(h) ? findTemplate(h, String(body.templateId)) : null;
+    const readyIndex = /^ready-(\d+)$/.exec(String(body?.templateId || ""));
+    const tpl = body?.templateId && templatesFlag(h) ? (readyIndex ? { ...TEMPLATE_LIBRARY[Number(readyIndex[1])], id: String(body.templateId) } : findTemplate(h, String(body.templateId))) : null;
     if (body?.templateId && !tpl && templatesFlag(h)) return h.json(res, 404, { error: "Template not found.", code: "not_found" });
     const type = typeById(tpl ? tpl.type : body?.type);
     if (!type) return h.json(res, 400, { error: "Pick a project type.", code: "bad_type" });

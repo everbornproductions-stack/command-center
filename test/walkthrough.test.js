@@ -21,7 +21,8 @@ const FILES = [
 ];
 
 test("six project types, simple by default, expert when asked", () => {
-  assert.deepEqual(TYPES.map((t) => t.id), ["website", "music-video", "marketing", "app", "business-plan", "reels"]);
+  assert.deepEqual(TYPES.slice(0, 6).map((t) => t.id), ["website", "music-video", "marketing", "app", "business-plan", "reels"]);
+  assert.ok(TYPES.length >= 14);
   for (const t of TYPES) {
     assert.ok(t.questions.filter((q) => q.required).length >= 2, t.id);
     assert.ok(t.nextSteps.length >= 2, t.id);
@@ -108,7 +109,7 @@ test("Help lists Start a project, and the home card and tour mention it", () => 
 
 test("a missing examples folder still shows a labeled placeholder", () => {
   const missing = loadExamples(path.join(ROOT, "walkthroughs", "examples-not-here"));
-  assert.equal(missing.length, 6);
+  assert.equal(missing.length, TYPES.length, "0.4.36: one example per project type");
   assert.deepEqual(missing.map((e) => e.type), TYPES.map((t) => t.id));
   for (const ex of missing) {
     assert.equal(ex.placeholder, true);
@@ -144,7 +145,7 @@ test("examples and help are read-only and do not call an AI", async () => {
     assert.equal((await s.api("/walkthrough", { noToken: true })).status, 401);
     const list = await s.api("/walkthrough");
     assert.equal(list.json.experience, "simple");
-    assert.equal(list.json.types.length, 6);
+  assert.ok(list.json.types.length >= 14);
     const help = await s.api("/walkthrough/help");
     const slugs = help.json.docs.map((d) => d.slug);
     assert.equal((await s.api("/walkthrough/help/../secrets")).status, 404);
