@@ -147,8 +147,10 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   catch (e) { log("updater feed failed:", cleanError(e)); }
 
   const latched = () => !!(state.version && newer(state.version, currentVersion));
+  let providerVersion = null; // the newest version electron-updater itself has seen: download can start without another look
   autoUpdater.on("update-available", (info) => {
     if (!newer(info.version, currentVersion)) return;
+    providerVersion = info.version;
     setState({ phase: busyPhase() ? state.phase : "available", version: info.version, notes: notes(info), error: null, downloadUrl: DOWNLOAD_PAGE });
     emit({ type: "available", version: info.version, notes: state.notes });
   });
@@ -264,6 +266,7 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   // 0.4.36 (panel 0434 item 1): one helper for every path. "Update and restart" on the card, the tray item and the
   // engine dialog used install(), which looked once; only Settings had the wait.
   async function lookUntilCurrent() {
+    if (providerVersion && state.version && !newer(state.version, providerVersion)) return true;
     for (let i = 0; i < 3; i++) {
       let info = null;
       try { info = (await runCheck())?.updateInfo || null; } catch (e) { log("update look before download failed:", cleanError(e)); }

@@ -754,15 +754,17 @@ body[data-style="mac"] .toasts .toast {
 /* 0.4.35 (panel 0431 item 3): the 0.4.31 Simple place (the band above the page title) was on the Next bar. app.js
    placeToasts() measures the bars each time a toast shows: Simple toasts sit centred just below the Next bar; at
    phone width and in Expert with no Live feed column they sit just above the Talk bar and the chat dock. */
-body[data-style="mac"][data-toast-at="top"] .toasts {
+/* 0.4.36: :is(.toasts, #toasts) gives these the weight of an id, so dock.css's phone rule (#toasts, bottom 202 px) no
+   longer pins the toast over the Talk bar, which the full window moved up */
+body[data-style="mac"][data-toast-at="top"] :is(.toasts, #toasts) {
   top: var(--cc-toast-top, calc(var(--mac-win-t) + var(--mac-title-h) + var(--mac-note-h, 0px) + 56px));
 }
-body[data-style="mac"][data-toast-at="bottom"] .toasts {
+body[data-style="mac"][data-toast-at="bottom"] :is(.toasts, #toasts) {
   top: auto;
   bottom: var(--cc-toast-bottom, 120px);
 }
 /* The Pro box covers the middle of the window: toasts move below it, and the box leaves them room. */
-body[data-style="mac"]:has(#cc-upgrade) .toasts {
+body[data-style="mac"]:has(#cc-upgrade) :is(.toasts, #toasts) {
   top: auto;
   bottom: 10px;
 }
