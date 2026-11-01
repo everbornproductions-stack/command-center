@@ -221,16 +221,23 @@ function toast(msg, err = false, link = null, ttl = 0) {
 }
 // A click handler that forgot its try/catch still tells the person what went wrong instead of failing silently.
 // The same message is shown at most once every 10 s, so a failing background poll cannot flood the screen.
+// 0.4.29: a program error ("Cannot read properties of undefined") is shown as a plain sentence, never raw; the raw text
+// goes to console.error, which the desktop app writes to its log. Uncaught errors (not only promises) are handled too.
 const lastUnhandled = new Map();
-window.addEventListener("unhandledrejection", (e) => {
-  const err = e.reason;
+const RAW_UI_ERR = /\b(?:TypeError|ReferenceError|RangeError|SyntaxError)\b|Cannot (?:read|set|destructure) propert|\bis not (?:a function|a constructor|defined|iterable)\b|undefined \(reading|Unexpected (?:token|end of JSON)|in JSON at position|\[object Object\]/;
+function reportUiError(err) {
   if (!err || err.name === "AbortError") return;
   const msg = String(err.message || err);
-  console.warn("[unhandled]", err);
-  if (Date.now() - (lastUnhandled.get(msg) || 0) < 10000) return;
-  lastUnhandled.set(msg, Date.now());
-  toast(msg, true);
-});
+  const raw = /^(?:Type|Reference|Range|Syntax)Error$/.test(String(err.name || "")) || RAW_UI_ERR.test(msg);
+  console.error("[ui-error]", msg, err && err.stack ? String(err.stack).split("\n").slice(1, 3).join(" ").trim() : "");
+  const shown = raw ? "Something on this screen did not work. Nothing was sent. Try again; if it keeps happening, open Help." : msg;
+  if (Date.now() - (lastUnhandled.get(shown) || 0) < 10000) return;
+  lastUnhandled.set(shown, Date.now());
+  toast(shown, true);
+}
+window.addEventListener("unhandledrejection", (e) => reportUiError(e.reason));
+// a script error inside a made app's preview frame or an extension is not ours; only errors from Meldmind's own scripts are reported
+window.addEventListener("error", (e) => { if (e.error && (!e.filename || e.filename.startsWith(location.origin))) reportUiError(e.error); });
 // Keyboard: anything drawn as a clickable card or row (role="button", not a real <button>) opens with Enter or Space.
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;

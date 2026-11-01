@@ -123,6 +123,20 @@ function setupUpdater() {
         }).then(({ response }) => { if (response === 0) shell.openExternal(page); }).catch(() => {});
       },
       result: (st) => { if (st.error) dialog.showMessageBox({ type: "warning", title: "Meldmind", message: "Couldn't check for updates", detail: st.detail || st.error, buttons: ["Download", "Later"], defaultId: 0, cancelId: 1, noLink: true }).then(({ response }) => { if (response === 0) shell.openExternal((st && st.downloadUrl) || `${RELEASES_PAGE}/latest`); }).catch(() => {}); else dialog.showMessageBox({ type: "info", title: "Meldmind", message: `You have the newest version (v${app.getVersion()}).` }); },
+      // 0.4.29: the installer could not start (antivirus said no): stay open, hold the lock again, and say what to do
+      installFailed: (message) => {
+        quittingForUpdate = false;
+        installBlocked = true;
+        setTimeout(() => { installBlocked = false; }, 30000).unref?.(); // only the updater's own quit right after this
+        try { app.requestSingleInstanceLock(); } catch {}
+        try { inst.writeRecord && inst.writeRecord(userData, { pid: process.pid, port: PORT, instance: INSTANCE }); } catch {}
+        log("update: the installer could not start:", message);
+        dialog.showMessageBox({
+          type: "warning", title: "Meldmind", message: "The update could not start",
+          detail: "Windows did not let the installer run. Your antivirus may have stopped it. Meldmind is still open and nothing changed. Download the installer and run it yourself, or try again later.",
+          buttons: ["Download", "Later"], defaultId: 0, cancelId: 1, noLink: true,
+        }).then(({ response }) => { if (response === 0) shell.openExternal(`${RELEASES_PAGE}/latest`); }).catch(() => {});
+      },
       // 0.4.28: free the one-copy lock now and leave a helper that starts the new version (see electron/relaunch.cjs)
       beforeQuit: () => {
         quittingForUpdate = true;
@@ -360,6 +374,19 @@ function watchReloads(w) {
     if (d && d.reason !== "clean-exit") setImmediate(() => recoverWindow(`the window process stopped (${d && d.reason})`));
   });
   w.webContents.on("unresponsive", () => log("window unresponsive"));
+  // 0.4.29 (Chris: "there is a javascript error going on?"): errors in the window used to stay in DevTools, so the log
+  // could not say what he saw. Each distinct one is written here, at most once a minute.
+  const seen = new Map();
+  w.webContents.on("console-message", (e, lvl, msg, line, src) => {
+    const level = e && e.level !== undefined ? e.level : lvl; // newer Electron passes one event object
+    const text = String(e && e.message !== undefined ? e.message : msg || "");
+    if (!(level === "error" || level === 3)) return;
+    const where = String((e && e.sourceId) || src || "").replace(/^https?:\/\/127\.0\.0\.1:\d+/, "") + ":" + ((e && e.lineNumber) || line || 0);
+    const key = text.slice(0, 200) + where;
+    if (Date.now() - (seen.get(key) || 0) < 60000) return;
+    seen.set(key, Date.now());
+    log("window error:", text.slice(0, 500), "at", where);
+  });
 }
 // Wait for the engine to answer, with growing pauses (1, 2, 4, 8, then 15 s), and only then load the page once.
 // At most 5 recoveries in 10 minutes; after that the engine page stays up with its Restart button.
@@ -500,7 +527,9 @@ app.on("second-instance", () => {
 });
 // Running prompt: Later downloads the update, and quit installs it. The launch prompt's Later does not.
 let holdingQuitForUpdate = false;
+let installBlocked = false; // 0.4.29: set when the installer could not start; the quit the updater asks for next is cancelled once
 app.on("before-quit", (event) => {
+  if (installBlocked) { installBlocked = false; event.preventDefault(); log("update: staying open, the installer did not start"); return; }
   if (!updater || quittingForUpdate) return;
   const action = quitInstallAction(updater.state);
   if (action === "skip") return;
