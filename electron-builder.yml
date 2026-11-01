@@ -25,14 +25,25 @@ files:
   # Heavy tools are add-ons. They are never packed into the installer.
   - "!addons/**"
   - "!**/{playwright,playwright-core,puppeteer,lighthouse,tesseract,tesseract.js,whisper,whisperx,piper,godot,bevy,postiz,chatwoot,docuseal}/**"
+  # 0.4.34: node-pty is the built-in terminal Freebuff runs in. Only its lib and ready-made binaries ship: no C++ sources,
+  # no debug symbols, no build folder (it loads prebuilds/<os>-<arch>). The other OS binaries are dropped per platform below.
+  - "!node_modules/node-pty/{src,deps,third_party,scripts,typings,build}/**"
+  - "!node_modules/node-pty/binding.gyp"
+  - "!node_modules/node-pty/**/*.pdb"
+  - "!node_modules/node-pty/lib/**/*.test.js"
 # Zip codesign toolset. The legacy 7z bundle contains macOS symlinks, and a
 # Windows runner cannot unpack those, so packaging stops before the installer exists.
 toolsets:
   winCodeSign: "1.1.0"
+# node-pty (0.4.34) is the only native module, and it ships N-API binaries that load in Electron as they are.
+# A rebuild would need Visual Studio on the build machine, so electron-builder does not rebuild it.
+npmRebuild: false
 asar: true
 # the browser extension (Phase 24) is loaded unpacked by Chrome / Edge, so it must sit outside app.asar
 asarUnpack:
   - extension/**
+  # node-pty loads .node binaries and starts helper programs and a worker script; none of that runs from inside app.asar
+  - node_modules/node-pty/**
 compression: normal
 win:
   target:
@@ -42,6 +53,9 @@ win:
       arch: [x64]
   icon: build/icon.ico
   artifactName: "Meldmind-${version}-${arch}-${os}.${ext}"
+  # the Windows installer is x64 only, so it keeps the win32-x64 node-pty binaries and drops the rest
+  files:
+    - "!node_modules/node-pty/prebuilds/{darwin-*,win32-arm64,linux-*}/**"
   # Code signing: azureSignOptions (Azure Artifact Signing) is not set here on purpose.
   # The release job adds it as -c.win.azureSignOptions.* flags only when every signing
   # value exists (scripts/azure-sign-config.mjs). Local builds and PR CI stay unsigned.
@@ -62,6 +76,9 @@ mac:
   # unsigned until there is an Apple Developer account (see docs/RELEASING.md); zip is what Mac updates use
   # identity null keeps the build unsigned even when a cert is on the Mac
   identity: null
+  # Mac keeps the darwin node-pty binaries only
+  files:
+    - "!node_modules/node-pty/prebuilds/{win32-*,linux-*}/**"
   gatekeeperAssess: false
   target: [dmg, zip]
   category: public.app-category.productivity
