@@ -232,6 +232,22 @@ export const TYPES = [
       "A paid clip waits until you click Approve in Media.",
     ],
   },
+  // 0.4.36 (Chris: "do we have other categories we can list in Start a project?"): eight more kinds of project. Each
+  // row: id, name, blurb, then three questions as [label, placeholder]; the first two are required.
+  ...[
+    ["spreadsheet", "Spreadsheet or budget", "A useful workbook plan and a real .xlsx file at the end.", ["What should the workbook track?", "Budget, income, costs, or a simple list"], ["Who will use it?", "A small team"], ["What should the totals check?", "Totals you can check by hand"]],
+    ["document", "Document or report", "A clear .docx draft with sources and next steps.", ["What should this document do?", "A short report for a team"], ["Who will read it?", "Project leads"], ["Facts you can stand behind", "Dates, numbers and names you know are right"]],
+    ["slides", "Slide deck", "A focused .pptx outline and speaker notes.", ["What is the deck about?", "A project update"], ["Who will watch it?", "The team"], ["How long should it be?", "About eight slides"]],
+    ["online-store", "Online store", "Products, pages, policies, and a launch checklist.", ["What will the store offer?", "Handmade candles"], ["Who will buy?", "People buying gifts"], ["Which pages do you need?", "Home, shop, about, contact"]],
+    ["event", "Event", "A plan, timeline, invites, and checklist.", ["What are you planning?", "A neighborhood open house"], ["Who is it for?", "Local families"], ["What will you need?", "Space, food, helpers"]],
+    ["channel", "YouTube or podcast channel", "A channel name and first ten episode ideas, titles, and descriptions.", ["What will the channel cover?", "Home cooking basics"], ["Who is it for?", "New cooks"], ["What style?", "Friendly and practical"]],
+    ["course", "Course or training", "An outline, lessons, and a short quiz.", ["What should learners know?", "Safe food handling"], ["Who are the learners?", "New kitchen staff"], ["What format?", "Four short lessons"]],
+    ["game-mod", "Game mod", "A change plan and clear steps. Add a game file when asked.", ["Which game or mod?", "A local single-player game"], ["What should change?", "Adjust the inventory screen"], ["Anything to keep the same?", "Keep saved games intact"]],
+  ].map(([id, name, blurb, q1, q2, q3]) => ({
+    id, name, blurb, color: "#22d3ee", category: "Make something",
+    questions: [{ key: "focus", label: q1[0], required: true, placeholder: q1[1] }, { key: "audience", label: q2[0], required: true, placeholder: q2[1] }, { key: "extra", label: q3[0], required: false, placeholder: q3[1] }],
+    nextSteps: ["Check each fact before using the result.", "Keep drafts for you to review. Nothing is sent or published.", "Use the file step when the project asks for one."],
+  })),
 ];
 
 const clip = (s, n) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -314,14 +330,25 @@ export function parsePlan(text) {
 
 export function scaffoldPlan(type, idea) {
   const topic = clip(idea, 48) || type.name;
+  const plans = {
+    spreadsheet: ["List the workbook fields", "Build formulas and checks", "Prepare the .xlsx file"],
+    document: ["Set the report outline", "Draft the document", "Check facts and prepare .docx"],
+    slides: ["Set the story and slide order", "Draft slide text and notes", "Check the deck and prepare .pptx"],
+    "online-store": ["List products and facts", "Draft pages and policies", "Prepare the launch checklist"],
+    event: ["Set the event plan", "Build a timeline and invite draft", "Check the event checklist"],
+    channel: ["Set the channel name and focus", "Draft ten episode ideas", "Write titles and descriptions"],
+    course: ["Set the course outline", "Draft lesson plans", "Write a short quiz"],
+    "game-mod": ["Define the requested change", "Write safe implementation steps", "Check the mod and game files"],
+  };
+  const titles = plans[type.id] || ["Frame who it is for", "Draft the main piece", "Checks and next actions"];
   return {
     title: topic,
     source: "template",
     assembly: "One document: who it is for, the main draft, then a checklist. Keep every [ASK].",
     steps: normalizeSteps([
-      { id: "t1", title: "Frame who it is for", capability: "research", difficulty: 2, deps: [], instructions: `Using only the idea and the answers, describe who this ${type.name.toLowerCase()} is for and the one action they should take.`, deliverable: "Audience and goal notes" },
-      { id: "t2", title: "Draft the main piece", capability: type.id === "app" ? "code" : type.id === "music-video" ? "creative" : "writing", difficulty: 2, deps: ["t1"], instructions: "Write the main deliverable in plain language. Do not invent numbers. Mark gaps as [ASK].", deliverable: "Draft" },
-      { id: "t3", title: "Checks and next actions", capability: "analysis", difficulty: 1, deps: ["t2"], instructions: "List what to check before this is used, and the next three actions for the person. Do not send or post anything.", deliverable: "Checklist" },
+      { id: "t1", title: titles[0], capability: "research", difficulty: 2, deps: [], instructions: `Use only the idea and answers to prepare the first part of this ${type.name.toLowerCase()}.`, deliverable: "Plan notes" },
+      { id: "t2", title: titles[1], capability: type.id === "app" || type.id === "game-mod" ? "code" : type.id === "music-video" ? "creative" : type.id === "spreadsheet" ? "math" : "writing", difficulty: 2, deps: ["t1"], instructions: "Prepare the main deliverable in plain language. Do not invent numbers. Mark gaps as [ASK].", deliverable: "Draft" },
+      { id: "t3", title: titles[2], capability: "analysis", difficulty: 1, deps: ["t2"], instructions: "List checks and next actions. Do not send, post, or publish anything. For file projects, ask for the needed source file and name the requested output format.", deliverable: "Checked draft and next steps" },
     ]),
   };
 }

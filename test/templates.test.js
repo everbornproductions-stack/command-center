@@ -55,7 +55,7 @@ test("flag on: save from a project, list, start from it, edit, delete", async ()
     const picker = await s.api("/walkthrough");
     assert.equal(picker.json.templatesEnabled, true);
     assert.equal(picker.json.templates[0].name, "Bakery site");
-    assert.equal(picker.json.types.length, 6);
+    assert.ok(picker.json.types.length >= 14);
 
     const from = await s.api("/walkthrough", { method: "POST", body: { templateId: made.json.id } });
     assert.equal(from.status, 200);

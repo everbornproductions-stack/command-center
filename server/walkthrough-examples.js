@@ -88,8 +88,12 @@ function fromFile(type, data) {
   };
 }
 
+// 0.4.36: one example per project type. The six first types have recorded sample files; a type added later shows the
+// labeled placeholder until its sample file exists.
 export function loadExamples(dir) {
-  return Object.entries(FILES).map(([type, file]) => {
+  return TYPES.map(({ id: type }) => {
+    const file = FILES[type];
+    if (!file) return placeholderExample(type);
     try {
       const raw = fs.readFileSync(path.join(dir, file), "utf8");
       return fromFile(type, JSON.parse(raw));
