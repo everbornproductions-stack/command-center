@@ -275,7 +275,8 @@ export function workerRow(spec, det = {}, now = Date.now()) {
  */
 export function listWorkers({ detected = {}, apiProviders = [], providers = null, now = Date.now() } = {}) {
   const rows = [];
-  for (const kind of ["cli", "agent"]) for (const w of DEFAULT_WORKERS) if (w.kind === kind) rows.push(workerRow(w, detected[w.id] || {}, now));
+  // 0.4.36 (Chris): a retired helper is removed from the list, not shown as off
+  for (const kind of ["cli", "agent"]) for (const w of DEFAULT_WORKERS) if (w.kind === kind) { const row = workerRow(w, detected[w.id] || {}, now); if (row.status !== "retired") rows.push(row); }
   const pmap = providers || Object.fromEntries((apiProviders || []).map((p) => [p.id, p]));
   for (const p of apiProviders || []) {
     if (!p?.id || byId.has(p.id) || providerToWorker.has(p.id)) continue;

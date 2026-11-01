@@ -8,7 +8,8 @@ import { PROVIDERS } from "./registry.js";
 import { registerLocalRoute } from "./local-routes.js";
 import { addRouteSource } from "./route-extras.js";
 import { readPlanFirst } from "./plans.js";
-import { ROUTES, routeOn, routeById, cachedStatus, allStatus, askApp } from "./sub-routes.js";
+import { liveRoutes, routeOn, routeById, cachedStatus, allStatus, askApp } from "./sub-routes.js";
+const ROUTES_LIVE = () => liveRoutes(); // 0.4.36: retired apps (Gemini CLI) are never planned for
 import { LIMIT_REST_MS } from "./cli-limit.js";
 import { noteRest as poolRest, clearRest as poolClear, workerUsable } from "./worker-pool.js";
 
@@ -68,7 +69,7 @@ export function readyPlanRoutes(now = Date.now()) {
   const known = cachedStatus();
   if (!known || now - known.at > 60000) refreshSoon();
   if (!known) return [];
-  return ROUTES.filter((r) => !r.agy && routeOn(r.id) && known.rows.some((x) => x.id === r.id && x.status === "ready"));
+  return ROUTES_LIVE().filter((r) => !r.agy && routeOn(r.id) && known.rows.some((x) => x.id === r.id && x.status === "ready"));
 }
 
 function capsOf(route) {
@@ -123,12 +124,12 @@ export function planMeterView(now = Date.now()) {
   const m = meter(now);
   const known = cachedStatus();
   const on = readPlanFirst();
-  const readyNames = ROUTES.filter((r) => !r.agy && routeOn(r.id) && known?.rows.some((x) => x.id === r.id && x.status === "ready") && !outOfQuota(r.id, now)).map((r) => r.name);
+  const readyNames = ROUTES_LIVE().filter((r) => !r.agy && routeOn(r.id) && known?.rows.some((x) => x.id === r.id && x.status === "ready") && !outOfQuota(r.id, now)).map((r) => r.name);
   return {
     on,
     line: loginLine(readyNames, on),
     day: m.day,
-    routes: ROUTES.filter((r) => !r.agy).map((r) => ({
+    routes: ROUTES_LIVE().filter((r) => !r.agy).map((r) => ({
       id: r.id, name: r.name, ai: r.ai,
       ready: !!known?.rows.some((x) => x.id === r.id && x.status === "ready"),
       answersToday: m.counts[r.id] || 0,
@@ -143,7 +144,7 @@ let registered = false;
 export function registerPlanFirst() {
   if (registered) return;
   registered = true;
-  for (const r of ROUTES) {
+  for (const r of ROUTES_LIVE()) {
     if (r.agy) continue;
     registerLocalRoute(planId(r.id), (opts) => planStream(routeById(r.id), opts), `${r.name} (your plan)`);
   }

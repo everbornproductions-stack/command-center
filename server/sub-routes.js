@@ -10,6 +10,7 @@
 // process tree on a timeout or on Stop waiting. API keys are kept out of the child's environment, so the app
 // answers with the person's subscription, not an API key. Nothing here opens or reads a chat website.
 import crypto from "node:crypto";
+import { loadCatalog } from "./free-catalog.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -60,7 +61,11 @@ export const ROUTES = [
     setupUrl: "https://antigravity.google/" },
 ];
 export const routeById = (id) => ROUTES.find((r) => r.id === id) || null;
-export const routesFor = (provider) => ROUTES.filter((r) => r.providers.includes(provider));
+// 0.4.36 (Chris: "if an AI is gone it shouldn't be just turned off, the AI should be removed"): an app the free-AI catalog
+// marks retired (Gemini CLI, 2026-11-01) is left out of every list and never asked.
+export function isRetiredApp(id) { try { return loadCatalog().entries.some((e) => e.id === id && e.status === "retired"); } catch { return false; } }
+export const liveRoutes = () => ROUTES.filter((r) => !isRetiredApp(r.id));
+export const routesFor = (provider) => liveRoutes().filter((r) => r.providers.includes(provider));
 
 // ---------- settings (one source of truth for Settings and Setup) ----------
 export function routeSettings() {
@@ -173,7 +178,7 @@ export async function routeStatus(route, opts = {}) {
 export async function allStatus({ refresh = false, ...opts } = {}) {
   if (!refresh && cache.rows && Date.now() - cache.at < 60000) return cache.rows;
   const rows = [];
-  for (const r of ROUTES) rows.push(await routeStatus(r, opts));
+  for (const r of liveRoutes()) rows.push(await routeStatus(r, opts));
   cache = { at: Date.now(), rows };
   return rows;
 }
