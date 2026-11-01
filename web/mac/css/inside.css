@@ -226,8 +226,11 @@ body[data-style="mac"][data-ui="expert"] #app #view .panel > h3 .right {
   letter-spacing: 0;
   color: var(--cx-muted);
 }
-body[data-style="mac"][data-ui="expert"] #app #view .cmd .ops.idle > h3 { white-space: nowrap; min-width: 0; }
-body[data-style="mac"][data-ui="expert"] #app #view .cmd .ops.idle > h3 .right { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* 0.4.28 (panel item 7): in the narrow side column at 1366 the status word was cut to one letter ("N"). The heading wraps
+   and the status word drops under "Live ops" when the row is short. */
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .ops.idle { flex-wrap: wrap; }
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .ops.idle > h3 { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 2px; white-space: normal; min-width: 0; }
+body[data-style="mac"][data-ui="expert"] #app #view .cmd .ops.idle > h3 .right { min-width: 0; margin-left: 0; overflow: visible; white-space: normal; overflow-wrap: anywhere; }
 body[data-style="mac"][data-ui="expert"] #app #view .cmd .deliv-wait,
 body[data-style="mac"][data-ui="expert"] #app #view .cmd .ops.idle {
   padding-top: 14px;
@@ -787,6 +790,14 @@ body[data-style="mac"][data-ui="expert"] #app #view .cmd :is(.orders, .cmd-side)
   overflow: visible;
   max-height: none;
 }
+/* 0.4.28 (panel item 1): web/styles.css still sets `.view:has(> .cmd) { overflow: hidden }` at 1251 px and up (from when
+   the order column scrolled itself), so on a 1366 or 1440 wide window a long answer was cut off and the wheel moved
+   nothing. The page itself scrolls again. */
+body[data-style="mac"][data-ui="expert"] #app #view:has(> .cmd) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > * { order: 5; }
 body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > :is(#graduate-slot, #cmd-mode-banner) { order: 0; }
 body[data-style="mac"][data-ui="expert"] #app #view .cmd .orders-panel > #orders { order: 1; }
@@ -859,6 +870,15 @@ body[data-style="mac"][data-ui="expert"] #app .cx-notes:not(.cx-open) [data-cx-o
   body[data-style="mac"][data-ui="expert"] #app #view :is(.grid, .row, .panel, .cat-h) > * { min-width: 0; max-width: 100%; }
   body[data-style="mac"][data-ui="expert"] #app #view .panel > h3 { flex-wrap: wrap; }
   body[data-style="mac"][data-ui="expert"] #app .cx-notes { margin-left: 12px; margin-right: 12px; }
+  /* 0.4.28 (panel item 6): Settings had a plan cell (a <b> that would not shrink) to 439 px and the bookmarks browser
+     list to 407 px; Credits table cells reached 410 px. Fields fit the card, plan cells wrap, tables scroll in their card. */
+  body[data-style="mac"][data-ui="expert"] #app #view select { max-width: 100%; min-width: 0; }
+  body[data-style="mac"][data-ui="expert"] #app #view textarea { max-width: 100%; min-width: 0; }
+  body[data-style="mac"][data-ui="expert"] #app #view input:not([type="checkbox"]):not([type="radio"]) { max-width: 100%; min-width: 0; }
+  body[data-style="mac"][data-ui="expert"] #app #view .plan-compare .plan-row { flex-wrap: wrap; }
+  body[data-style="mac"][data-ui="expert"] #app #view .plan-compare .plan-row b { flex: 1 1 auto; min-width: 0; text-align: left; overflow-wrap: anywhere; }
+  body[data-style="mac"][data-ui="expert"] #app #view .panel:has(> table) { overflow-x: auto; }
+  body[data-style="mac"][data-ui="expert"] #app #view :is(td, th) { overflow-wrap: anywhere; }
 }
 
 /* ---------- motion: fade in when the page changes, small hover moves ---------- */
@@ -878,3 +898,10 @@ body[data-style="mac"][data-ui="expert"] #app :is(#view, .cx-notes, .feed) .btn:
 }
 /* The Light mode setting (calmer screen) turns the motion off too. */
 body.light-mode[data-style="mac"][data-ui="expert"] #app #view[data-cx-enter] > * { animation: none; }
+
+/* ---------- 0.4.28 (panel item 10): the last small text in Expert ----------
+   11 px: the Live feed times (every page with the feed), "My chats" on Command, the "Savings receipts" heading on Credits
+   and Live view. All 12 to 13 px. The 10 px sidebar lock badges are raised in expert.css (this file never names the frame). */
+body[data-style="mac"][data-ui="expert"] #app .feed .ev .t { font-size: .75rem; }
+body[data-style="mac"][data-ui="expert"] #app #view #cc-desk-chats > .lbl { font-size: .8125rem; }
+body[data-style="mac"][data-ui="expert"] #app #view .panel > .row > h3 { font-size: var(--cx-fs-h2); }

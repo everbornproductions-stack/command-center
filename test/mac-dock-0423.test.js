@@ -29,7 +29,7 @@ test("dock data: itemsFor simple vs expert and valid actions", () => {
     assert.ok(item.label);
     assert.ok(item.icon);
     assert.ok(item.gradient);
-    assert.ok(["path", "view", "open"].includes(item.action.type));
+    assert.ok(["path", "view", "open", "chat"].includes(item.action.type));
   }
 });
 
@@ -44,6 +44,7 @@ test("dock browser: renders 9 items in simple, expert adds 2, clicking projects,
 
     // 2. Expert adds 2 items (switch to expert)
     await t.page.evaluate(() => {
+      window.CC.S.uiMode = "expert"; // what the real toggle sets; a state tick re-renders the dock from it
       window.CC.mac.bus.emit("mode", "expert");
     });
     await t.page.waitForFunction(() => document.querySelectorAll("#mac-dock .di").length === 11, null, { timeout: 5000 });
@@ -54,6 +55,7 @@ test("dock browser: renders 9 items in simple, expert adds 2, clicking projects,
 
     // Switch back to simple for remaining tests
     await t.page.evaluate(() => {
+      window.CC.S.uiMode = "simple";
       window.CC.mac.bus.emit("mode", "simple");
     });
 

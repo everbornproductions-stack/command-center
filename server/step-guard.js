@@ -6,6 +6,7 @@
 // No network, no state. The only disk use is stat on a file path (onDisk, diskLine, diskCheck). Every function is safe to call with odd input.
 import fs from "node:fs";
 import path from "node:path";
+import { extractCodeFiles, langExt, unglueFences } from "./code-files.js";
 
 export const CODE_TOKEN_CAP = 8000; // output cap for a code or file step (was 2500)
 export const WORK_TOKEN_CAP = 2500;
@@ -57,15 +58,40 @@ function stripStrings(code) {
  * stop: the provider's stop reason ("length" and "max_tokens" mean the token limit was hit).
  * ext: the file type the step makes, when known (html, css, js, json, md ...).
  */
-export function checkTruncation(text, { stop = null, ext = "", capability = "" } = {}) {
+export function checkTruncation(text, { stop = null, ext = "", capability = "", complete = false } = {}) {
   const t = clean(text);
   const trimmed = t.trimEnd();
   if (!trimmed) return { truncated: false, reason: "" };
-  const s = String(stop || "").toLowerCase();
-  if (s === "length" || s === "max_tokens" || s === "max_output_tokens") return { truncated: true, reason: "The AI hit its output limit and stopped mid-answer." };
   // a code fence that never closes
   const fences = countOf(t, /^\s*(```|~~~)/gm);
+  // 0.4.28 (dogfood catalog-json): asked to carry on, the AI said the answer was already complete. That is taken as
+  // complete; only a code block that is still open is plain proof that something is missing.
+  if (complete) return fences % 2 === 1 ? { truncated: true, reason: "A code block was never closed." } : { truncated: false, reason: "" };
+  const s = String(stop || "").toLowerCase();
+  if (s === "length" || s === "max_tokens" || s === "max_output_tokens") return { truncated: true, reason: "The AI hit its output limit and stopped mid-answer." };
   if (fences % 2 === 1) return { truncated: true, reason: "A code block was never closed." };
+  // 0.4.28 (dogfood chrome-ext): an answer made of closed code blocks for a code file (manifest.json, popup.html and
+  // popup.js) is judged one block at a time, each by its own file type. A complete ```json block that parses is not
+  // cut off just because the whole answer is not one JSON document. Only a block that is really unfinished is named.
+  if (fences >= 2 && CODE_EXT.has(ext) && !["md", "txt", "csv"].includes(ext)) {
+    const blocks = extractCodeFiles(t);
+    if (blocks.length) {
+      for (const b of blocks) {
+        const named = !/^code-\d+\./.test(b.name);
+        const bext = named ? fileExt(b.name) : (langExt(b.lang) || (blocks.length === 1 ? ext : ""));
+        const r = bodyTruncation(clean(b.text), bext);
+        if (r.truncated) return { truncated: true, reason: named ? `${r.reason.replace(/\.$/, "")} (in ${b.name}).` : r.reason, file: named ? b.name : null };
+      }
+      return { truncated: false, reason: "" };
+    }
+  }
+  return bodyTruncation(t, ext);
+}
+
+// The checks for one text of one file type (the whole answer, or one code block of it).
+function bodyTruncation(t, ext = "") {
+  const trimmed = t.trimEnd();
+  if (!trimmed) return { truncated: false, reason: "" };
   // html: must end the document
   const lower = t.toLowerCase();
   const isHtml = ext === "html" || ext === "htm" || /<!doctype html|<html[\s>]/.test(lower);
@@ -107,13 +133,36 @@ export function continuePrompt(text, ext = "") {
   const tail = clean(text).slice(-1200);
   return `Your answer was cut off. Carry on from exactly where it stopped. Output ONLY the missing rest${ext ? ` of the ${ext} file` : ""}, starting with the very next character after this ending, with no repeats, no explanation and no new code fence unless you are inside one:\n\n--- END OF WHAT YOU WROTE ---\n${tail}\n--- CONTINUE FROM HERE ---`;
 }
-// glue a continuation onto the text: drop an overlap the AI repeated
+// ---- 0.4.28 (dogfood catalog-json): "The JSON was not cut off" is not a continuation ----
+// Asked to carry on, the AI answered "The JSON was not cut off. The previous response ends with the closing ] and
+// code fence ..." and that sentence was glued right after the closing fence, so catalog.json was no longer JSON.
+// A reply that opens by saying the answer was already complete, not cut off, or that nothing is missing is dropped,
+// and the step keeps its own output as complete.
+const COMPLETE_SAID = /\b(?:not|never|wasn't|isn't|wasn’t|isn’t) (?:actually |really |at all )?(?:cut off|cut short|truncated|incomplete|unfinished)\b|\balready (?:complete|finished|whole)\b|\b(?:answer|output|response|reply|file|json|code|array|list|catalog|script|document|page|table|it|everything|this|that)(?:\s+\w+){0,2}\s+(?:is|was|looks|seems|appears)\s+(?:fully |actually |entirely )?(?:complete|finished|whole)\b|\bnothing (?:is |was )?(?:missing|left out|cut off)\b|\bnothing (?:more |else |further |left )?to (?:add|continue|carry on|finish|write)\b|\bno (?:missing|remaining|more|further) (?:text|content|part|code|output|lines?|items?) (?:to|is|was|left)\b|\b(?:ends|ended|finishes|finished|closes|closed) with the (?:closing|final|last)\b|\bthere(?:'s| is| was|’s) nothing (?:more |else |further )?(?:to|missing)\b/i;
+/** Does this carry-on reply say the answer was already complete (instead of carrying it on)? */
+export function saysComplete(reply) {
+  const r = clean(reply).trim();
+  if (!r || /^(`{3,}|~{3,})/.test(r)) return false; // starts with code: a real continuation
+  if (!/^[\s*_"'(]*[A-Z]/.test(r)) return false; // a continuation mid-sentence or mid-code starts in lower case or a symbol
+  const lead = r.split(/^\s*(?:`{3,}|~{3,})/m)[0];
+  const m = COMPLETE_SAID.exec(lead);
+  return !!m && m.index < 240;
+}
+const openFence = (s) => countOf(s, /^\s*(```|~~~)/gm) % 2 === 1;
+// glue a continuation onto the text: drop an overlap the AI repeated. Words never go inside or right onto a code block.
 export function joinContinuation(base, extra) {
   let a = clean(base), b = clean(extra);
-  b = b.replace(/^\s*```[a-z0-9]*\n/i, (m) => (a.split("```").length % 2 === 0 ? "" : m)); // a fence reopened inside an open fence
+  if (saysComplete(b)) return a;
+  if (openFence(a)) {
+    // "Here is the rest:\n```json\n..." inside an open block: the intro line and the reopened fence are dropped
+    b = b.replace(/^\s*(?:[A-Z][^\n`]*\s[^\n`]*:[ \t]*\n){1,2}(?=\s*```)/, "");
+    b = b.replace(/^\s*```[a-z0-9]*\n/i, ""); // a fence reopened inside an open fence
+  }
   const max = Math.min(a.length, b.length, 400);
   for (let n = max; n >= 20; n--) { if (a.endsWith(b.slice(0, n))) { b = b.slice(n); break; } }
-  return a + b;
+  // after a closed block, the next words start a new paragraph instead of sitting on the fence line
+  if (b.trim() && !openFence(a) && /(?:^|\n)[ \t]*(?:`{3,}|~{3,})[ \t]*$/.test(a) && !/^[ \t]*\n/.test(b)) { a = `${a.replace(/[ \t]+$/, "")}\n\n`; b = b.replace(/^[ \t]+/, ""); }
+  return unglueFences(a + b);
 }
 
 // ---------- on brief ----------
@@ -170,10 +219,10 @@ export function checkOnBrief(text, { goal = "", title = "", instructions = "", d
 
 // ---------- all of it ----------
 /** One verdict for a step's output. kind: ok | empty | refusal | truncated | off-brief */
-export function judgeStep(text, { goal, title, instructions, deliverable, context, stop, ext, capability } = {}) {
+export function judgeStep(text, { goal, title, instructions, deliverable, context, stop, ext, capability, complete = false } = {}) {
   if (isEmptyOutput(text)) return { ok: false, kind: "empty", reason: "The AI sent back nothing." };
   if (isRefusal(text)) return { ok: false, kind: "refusal", reason: `The AI refused: ${refusalReason(text)}` };
-  const tr = checkTruncation(text, { stop, ext, capability });
+  const tr = checkTruncation(text, { stop, ext, capability, complete });
   if (tr.truncated) return { ok: false, kind: "truncated", reason: tr.reason };
   const br = checkOnBrief(text, { goal, title, instructions, deliverable, context });
   if (!br.onBrief) return { ok: false, kind: "off-brief", reason: br.reason };
@@ -301,14 +350,14 @@ export function removedApiNotes(text) {
 // 0.4.27 (dogfood batch 2): scripts (.ps1, .bat, .cmd, .sh, .sql) count too, every named file is found (not only the
 // first), a full Windows path gives its file name, and "Node.js" is a product, not a file.
 export const SAVABLE_EXT = ["html", "htm", "md", "markdown", "css", "js", "mjs", "cjs", "ts", "json", "txt", "csv", "py", "yml", "yaml", "xml", "svg", "ps1", "bat", "cmd", "sh", "sql", "gs"];
-// Word and Excel files are made by server/office-files.js (when that module is there); they are named files too
-export const OFFICE_EXT = ["xlsx", "xlsm", "docx"];
+// Word, Excel and PowerPoint files are made by server/office-files.js (when that module is there); they are named files too
+export const OFFICE_EXT = ["xlsx", "xlsm", "docx", "pptx"];
 const EXT_ALT = [...SAVABLE_EXT, ...OFFICE_EXT].sort((a, b) => b.length - a.length).join("|");
 const FILE_TOKEN = new RegExp(`(?<![\\w.-])([A-Za-z0-9][\\w.-]{0,80}\\.(?:${EXT_ALT}))(?![\\w-])`, "gi");
 const SAVE_WORD = /\b(?:save|saved|saving|write|writes|export|name|named|call|called|put|store|output|as|into|to|file(?:name)?)\b[^.\n]{0,40}$/i;
 const PRODUCT = /^(?:node|next|nuxt|vue|react|express|three|d3|chart|p5|socket|alpine|ember|backbone|jquery|angular|nest|deno|bun|electron|svelte|astro|remix|gatsby|meteor)\.(?:js|ts)$/i;
 const notAFile = (n) => /^(?:www|e\.g|i\.e|etc)\./i.test(n) || /^(?:\d+\.)+\d+$/.test(n) || PRODUCT.test(n) || /\.\./.test(n);
-/** Can this name be saved as a file (a text, code or script file)? Word and Excel files only with office: true. */
+/** Can this name be saved as a file (a text, code or script file)? Word, Excel and PowerPoint files only with office: true. */
 export function isSavableName(name, { office = false } = {}) {
   const e = fileExt(name);
   return SAVABLE_EXT.includes(e) || (office && OFFICE_EXT.includes(e));

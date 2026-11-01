@@ -101,6 +101,14 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 #cc-mode-ask, #cc-upgrade { position: fixed; inset: 0; z-index: 90; background: rgba(3,6,12,.62); display: flex; align-items: center; justify-content: center; padding: 16px; }
 #cc-mode-ask .card, #cc-upgrade .card { width: 560px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 14px; padding: 18px 20px; box-shadow: 0 24px 60px rgba(0,0,0,.45); }
 #cc-mode-ask h4, #cc-upgrade h4 { margin: 0 0 8px; font-size: 1.125rem; }
+/* 0.4.28 (panel item 7): at 390 the box ran off the bottom with its only close button out of view. A Close button sits
+   at the top and stays there while the box scrolls inside itself. */
+/* The Mac look's style-picker rule (mac/css/cards.css: body[data-style="mac"] .card, 260 px tall, a 240 px flex basis,
+   a pointer cursor) also matched these boxes, so the Pro box was cut to 260 px. These boxes size to their content. */
+#cc-mode-ask .card, #cc-upgrade .card { position: relative; display: block; flex: 0 1 560px; min-width: 0; height: auto; cursor: auto; user-select: text; transform: none; }
+#cc-upgrade .cc-up-head { position: sticky; top: -18px; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin: -18px -20px 0; padding: 18px 20px 4px; background: inherit; border-radius: 14px 14px 0 0; }
+#cc-upgrade .cc-up-head h4 { margin-bottom: 4px; }
+#cc-upgrade .cc-up-head .btn { flex: none; }
 #cc-mode-ask p, #cc-upgrade p { margin: 0; color: var(--muted); }
 #cc-starters[hidden] { display: none; }
 #simple-create { display: none; position: fixed; left: 8px; right: 8px; bottom: calc(56px + var(--strip-h) + 8px); z-index: 40; background: var(--card-bg, #0d1420); border: 1px solid var(--line-2); border-radius: 14px; padding: 8px; box-shadow: 0 16px 40px #000a; }
@@ -404,6 +412,8 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 .sig.low, .sig.attention { background: #3a1a1a; color: var(--red); }
 .sig.renewing { background: #3b2d10; color: var(--amber); }
 @media (max-width: 1250px) { .app { grid-template-columns: 1fr 0; } .feed { display: none; } .toasts { right: 20px; } .view:has(> .cmd) { overflow: auto; } .cmd { grid-template-columns: 1fr; height: auto; max-height: none; grid-template-rows: auto auto; } .cmd .orders { grid-row: auto; overflow: visible; max-height: none; } .cmd-side { overflow: visible; } .cmd-side .output { min-height: 0; } .cmd .ops, .cmd .output, .cmd.simple-chat .orders { overflow: visible; max-height: none; } }
+/* 0.4.28 (panel item 7): the Pro box at phone width. Kept below the 1250 px block so the stacked-layout rules read in order. */
+@media (max-width: 760px) { #cc-upgrade { padding: 12px; align-items: flex-start; } #cc-upgrade .card { max-height: calc(100dvh - 120px); padding: 14px 14px; } #cc-upgrade .cc-up-head { top: -14px; margin: -14px -14px 0; padding: 14px 14px 4px; } }
 
 /* ---- phone layout ---- */
 @media (max-width: 760px) {

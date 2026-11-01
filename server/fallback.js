@@ -27,6 +27,7 @@ import { allEntries } from "./ledger.js";
 import { describePause } from "./pause.js";
 import { noteReply as noteFreeReply } from "./free-limits.js";
 import { freeOnlyOn, freeOnlyView, freeOnlyError, isFreeModel, costTier, lastResortChoices, planFirstForCode } from "./free-first.js";
+import { cliLimit } from "./cli-limit.js";
 
 export const KIND = "fallback.settings";
 export const STATE = "fallback.state";
@@ -244,6 +245,10 @@ export function troubleKind(e) {
   // the app's own monthly budget stop is not a provider problem: never bench a provider for it
   if (e.code === "budget_cap" || /this month's budget is used up|monthly budget/.test(m)) return null;
   if (/no api key saved/.test(m)) return "key";
+  // 0.4.28 (dogfood loan-calc): an app on this PC out of its plan ("You've hit your session limit · resets 2:30pm")
+  // is out like an AI with no credits, never a "provider error" that gets asked again in the same run
+  if (e.limit === true || (e.code === "quota" && !s)) return "credits";
+  if (!s && cliLimit(m, { short: true })) return "credits";
   if (s === 402 || /credit|spending limit|spend limit|insufficient_quota|insufficient quota|exceeded your current quota|billing|balance is too low|payment required|out of credits/.test(m)) return "credits";
   // 0.4.21: a 429 that says the quota is gone (no free-tier quota, limit 0) is not a short rate limit: remember it like no credits
   if (s === 429 && /quota|limit: ?0|free.?tier|check your plan/.test(m) && !/per minute|per second|retry in|try again in|requests per/.test(m)) return "credits";
@@ -252,6 +257,14 @@ export function troubleKind(e) {
   if (s === 0 || /network error|could not reach|fetch failed|econnrefused|econnreset|enotfound|etimedout|timed out|socket hang up|connect timeout/.test(m)) return "unreachable";
   if (s >= 500) return "server";
   return null;
+}
+
+// A limit (plan, session, quota, credits or a rate limit) rather than a fault in the job itself.
+export function isLimitError(e) {
+  if (!e) return false;
+  if (e.limit === true || e.code === "quota") return true;
+  const k = troubleKind(e);
+  return k === "credits" || k === "rate";
 }
 
 // ---------- OpenRouter: the same model through another door ----------

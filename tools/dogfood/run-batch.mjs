@@ -110,10 +110,16 @@ function check(f, file) {
       res.ok = r.code === 0 && new RegExp(f.expect || ".").test(r.out); break;
     }
     case "node": {
-      const r = run(process.execPath, [p], dir);
+      const r = run(process.execPath, [p, ...(f.args || [])], dir);
       res.notes.push(`exit ${r.code}: ${r.out.trim().slice(0, 300).replace(/\s+/g, " ")}`);
       res.ok = r.code === 0 && new RegExp(f.expect || ".").test(r.out); break;
     }
+    case "pptx": {
+      const r = PY(dir, `import zipfile,re\nz=zipfile.ZipFile(r'''${p}''')\nn=[x for x in z.namelist() if re.match(r'ppt/slides/slide[0-9]+[.]xml$',x)]\nprint(len(n))`);
+      if (r.code !== 0) { res.notes.push("does not open as a PowerPoint file: " + r.out.trim().split("\n").pop()); break; }
+      const n = Number(r.out.trim()); res.notes.push(`${n} slides`); res.ok = n >= (f.minSlides || 1); break;
+    }
+    case "svg": { const t = text(); const miss = (f.mustInclude || []).filter((x) => !t.includes(x)); res.ok = /<svg[\s>]/i.test(t) && /<\/svg>/i.test(t) && !miss.length; if (miss.length) res.notes.push("missing: " + miss.join(", ")); break; }
     case "sqlite": {
       const r = PY(dir, `import sqlite3\nc=sqlite3.connect(':memory:')\nc.executescript(open(r'''${p}''',encoding='utf-8').read())\nt=[x[0] for x in c.execute("select name from sqlite_master where type='table'")]\nprint(len(t), ','.join(t))`);
       res.notes.push(r.code === 0 ? `runs in SQLite: ${r.out.trim()}` : "SQLite error: " + r.out.trim().split("\n").pop());

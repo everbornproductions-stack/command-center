@@ -9,37 +9,48 @@ import { registerLocalRoute } from "./local-routes.js";
 import { addRouteSource } from "./route-extras.js";
 import { readPlanFirst } from "./plans.js";
 import { ROUTES, routeOn, routeById, cachedStatus, allStatus, askApp } from "./sub-routes.js";
+import { LIMIT_REST_MS } from "./cli-limit.js";
 
 export const METER_DOC = "plan.meter";
-export const OUT_MS = 60 * 60 * 1000;
+// 0.4.28 (dogfood loan-calc): an app out of its plan rests until the reset time it gave, else a few hours
+export const OUT_MS = LIMIT_REST_MS;
 export const planId = (routeId) => `plan-${routeId}`;
 const day = (now = Date.now()) => new Date(now).toISOString().slice(0, 10);
 
 function meter(now = Date.now()) {
   let d = null;
-  try { d = doc(METER_DOC, () => ({ day: day(now), counts: {}, outAt: {} })); } catch { d = null; }
-  const m = d && typeof d === "object" ? d : { day: day(now), counts: {}, outAt: {} };
-  if (m.day !== day(now)) return { day: day(now), counts: {}, outAt: m.outAt || {} };
-  return { day: m.day, counts: m.counts || {}, outAt: m.outAt || {} };
+  try { d = doc(METER_DOC, () => ({ day: day(now), counts: {}, outAt: {}, outUntil: {} })); } catch { d = null; }
+  const m = d && typeof d === "object" ? d : { day: day(now), counts: {}, outAt: {}, outUntil: {} };
+  if (m.day !== day(now)) return { day: day(now), counts: {}, outAt: m.outAt || {}, outUntil: m.outUntil || {} };
+  return { day: m.day, counts: m.counts || {}, outAt: m.outAt || {}, outUntil: m.outUntil || {} };
 }
 
 export function noteAnswer(routeId, now = Date.now()) {
   const m = meter(now);
   m.counts[routeId] = (m.counts[routeId] || 0) + 1;
   delete m.outAt[routeId];
+  delete m.outUntil[routeId];
   putDoc(METER_DOC, m);
 }
 
-export function noteOutOfQuota(routeId, now = Date.now()) {
+// until: when the app said its limit ends (its own reset time); else it rests OUT_MS (a few hours)
+export function noteOutOfQuota(routeId, now = Date.now(), until = null) {
   const m = meter(now);
   m.outAt[routeId] = now;
+  const u = Number(until) || 0;
+  m.outUntil[routeId] = u > now ? u : now + OUT_MS;
   putDoc(METER_DOC, m);
 }
 
-export const outOfQuota = (routeId, now = Date.now()) => {
-  const at = Number(meter(now).outAt[routeId]) || 0;
-  return at > 0 && now - at < OUT_MS;
-};
+// When the app comes back (ms), or 0 when it is not resting.
+export function restingUntil(routeId, now = Date.now()) {
+  const m = meter(now);
+  const u = Number(m.outUntil[routeId]) || 0;
+  if (u) return u > now ? u : 0;
+  const at = Number(m.outAt[routeId]) || 0; // an entry from before 0.4.28
+  return at > 0 && now - at < OUT_MS ? at + OUT_MS : 0;
+}
+export const outOfQuota = (routeId, now = Date.now()) => restingUntil(routeId, now) > 0;
 
 let refreshing = false;
 function refreshSoon() {
@@ -84,10 +95,11 @@ async function* planStream(route, opts = {}) {
   const ready = readyPlanRoutes().find((r) => r.id === route.id) || route;
   const res = await askApp(ready, `${system}${text}`, { signal: opts.signal });
   if (!res.ok) {
-    if (res.code === "quota") noteOutOfQuota(route.id);
+    if (res.code === "quota") noteOutOfQuota(route.id, Date.now(), res.until || res.resetAt || null);
     const err = new Error(res.message || `${route.name} could not answer.`);
     err.status = res.code === "quota" ? 429 : 502;
     err.code = res.code || "failed";
+    if (res.code === "quota") { err.limit = true; err.until = restingUntil(route.id) || null; }
     throw err;
   }
   noteAnswer(route.id);
@@ -117,6 +129,7 @@ export function planMeterView(now = Date.now()) {
       answersToday: m.counts[r.id] || 0,
       outOfQuota: outOfQuota(r.id, now),
       outAt: m.outAt[r.id] || null,
+      backAt: restingUntil(r.id, now) || null,
     })),
   };
 }

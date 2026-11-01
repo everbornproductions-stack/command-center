@@ -92,3 +92,18 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - What fixed it (0.4.26 panel harness, 0.4.27 tests): save `uiMode` together with `expertConfirmed: true`, click the Mac toggle (`#mac-expert`) when the page is not in Expert yet, accept the confirm, and then log and assert `document.body.dataset.ui === "expert"` before measuring anything (test/layout-0427.test.js `toExpert`).
 - Rule: after asking for a mode, read `document.body.dataset.ui` back and fail the run if it is not the mode asked for. Never trust that a click or a saved setting changed the mode.
 - Also from 0.4.27: the phone companion replaced the window's active project with its default (the first project) on every Command draw, so a remembered project and its mode note were lost after a reload. Anything that changes `S.project` after load calls `CC.projectChanged()` so the mode and the note are worked out again.
+
+## 2026-10-30: "Send is on screen" passed while the page could not scroll at all (0.4.28, from the 0.4.27 panel)
+
+- What failed: test/layout-0427.test.js checked that the task box and Send were on screen at 1366 x 800, and it passed. But at 1251 px wide and up Expert Command could not scroll: web/styles.css still had `.view:has(> .cmd) { overflow: hidden }` from when the order column scrolled itself, so a long answer was cut off after about 400 px and 12 wheel turns moved nothing.
+- What fixed it: inside.css gives the scroll back to `#view` in the Mac Expert look, and test/layout2-0428.test.js sends a task, turns the mouse wheel over the answer and checks that the answer's last line comes on screen and is the top element there.
+- Rule: a layout test that checks "X is on screen" must also wheel-scroll and check that the bottom of the content (the end of the answer, the last button) can be reached. Never set a scroll check with `scrollTop =`; that works even where a person's wheel does nothing.
+- Also from this panel: the Mac look's style-picker rule `body[data-style="mac"] .card` (260 px tall) also matched the "That is a Pro feature" box, which is why it was cut off at 390. A generic class name in a part's CSS leaks onto every old box with the same class; scope part rules to the part's own root.
+- Harness (Windows): `tail -F` on a progress file blocks PowerShell `Add-Content` writes to it, so the END lines of the 0.4.27 sweep progress file were lost. Read such files with a plain `grep` or `cat` loop instead, and judge a run by its result files.
+
+## 2026-10-30: Five Windows CI failures on PR 138 (0.4.28)
+
+- Two source-text tests (command-layout, live-ops-layout) slice web/styles.css from the first `@media (max-width: 1250px)` to the first `@media (max-width: 760px)`. A new phone rule for the Pro box sat near the top of the file, so the slice was empty and both failed, though the rules they check were unchanged. Rule: in styles.css, add phone rules below the 1250 px block.
+- ease-of-use bans words like "deliverable" anywhere between `function renderSimpleChat` and `function paintStarters`, comments included. A new helper's comment said "Deliverable card".
+- Simple chat's answer reveal ran only at 300 and 1200 ms; on the slower runner the answer grew after that and Copy stayed under the chat box (its Mic button). It now checks every 250 ms for 6 s and stops when the person scrolls or clicks. The test waits for the fold and for Copy to be on top with a real deadline.
+- The new "Saved $X this month" title bar pill pushed the 390 px title bar 147 px over. It hides on a phone like the ready pill and drops "this month" under 1280 px.

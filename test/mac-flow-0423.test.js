@@ -117,7 +117,8 @@ test("transitions never change the old state", () => {
 });
 
 test("finish label per path", () => {
-  assert.deepEqual(F.PATHS.map(F.finishLabel), ["Publish site", "Download image", "Download video", "Post campaign", "Download mod"]);
+  // 0.4.28: five file paths were added after the first five (test/mac-paths-0428.test.js covers them)
+  assert.deepEqual(F.PATHS.map(F.finishLabel), ["Publish site", "Download image", "Download video", "Post campaign", "Download mod", "Open spreadsheet", "Open document", "Open slides", "Open file", "Open list"]);
   assert.equal(F.finishLabel("zzz"), "Finish");
 });
 
@@ -140,7 +141,8 @@ test("buildPrompt: one prompt per path, picture and video still read as picture 
 });
 
 test("skipsProjectStart: only the text paths", () => {
-  assert.deepEqual(F.PATHS.filter(F.skipsProjectStart), ["website", "campaign", "mod"]);
+  // 0.4.28: the file paths skip the project questions too
+  assert.deepEqual(F.PATHS.filter(F.skipsProjectStart), ["website", "campaign", "mod", "spreadsheet", "document", "slides", "script", "data"]);
 });
 
 test("costLine: Free, about price, or empty", () => {
@@ -215,7 +217,7 @@ test("browser: Simple, image path: pick a style, tell us, make it, Done with ONE
   try {
     const home = await t.page.evaluate(() => ({ title: document.querySelector("#mf-title").textContent, paths: [...document.querySelectorAll(".mf-path")].map((b) => b.dataset.path), shown: !document.getElementById("mac-flow").hidden }));
     assert.equal(home.title, "What do you want to make?");
-    assert.deepEqual(home.paths, ["website", "image", "video", "campaign", "mod"]);
+    assert.deepEqual(home.paths, ["website", "image", "video", "campaign", "mod", "spreadsheet", "document", "slides", "script", "data"]);
     assert.equal(home.shown, true);
     assert.ok(await visible(t.page, "#mf-ask") === 1, "the box is on Home");
     await t.page.waitForFunction(() => document.querySelectorAll(".mf-chip").length >= 3, null, { timeout: WAIT });

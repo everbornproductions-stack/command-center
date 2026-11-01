@@ -8,7 +8,7 @@ import { saveToMindMedia, safeMediaDir } from "./project-media.js";
 import { extractCodeFiles, safeFileName } from "./code-files.js";
 import { fileExt, namedFile } from "./step-guard.js";
 import { find as findInFolder } from "./code-source.js";
-import { xlsxFromTable, docxFromMarkdown, tablesFromAnswer, documentText } from "./office-files.js";
+import { xlsxFromTable, docxFromMarkdown, pptxFromMarkdown, markdownSlides, tablesFromAnswer, documentText } from "./office-files.js";
 
 const PREVIEW_EXT = new Set(["html", "htm"]);
 const TEXT_EXT = new Set(["md", "txt", "csv", "json", "css", "js", "mjs", "xml", "svg", "py", "yml", "yaml"]);
@@ -18,23 +18,26 @@ export const NOT_SAVED_LINE = "Not saved: Meldmind can only show this code here.
 // ---- 0.4.27 (dogfood batch 1): real Excel and Word files ----
 // "save it as bakery-sales.xlsx", "a Word document ... workout-plan.docx": the file is built from the tables or the
 // markdown in the answer. A script that would build the file is not the file.
-export const OFFICE_EXT = new Set(["xlsx", "xlsm", "docx"]);
+// 0.4.28: and PowerPoint decks, built from markdown with one "## " heading per slide
+export const OFFICE_EXT = new Set(["xlsx", "xlsm", "docx", "pptx"]);
 export const NO_TABLE_LINE = "Not saved: there was no table to put in the spreadsheet.";
+export const NO_SLIDES_LINE = "Not saved: there were no slides to put in the deck.";
 export const SCRIPT_ONLY_LINE = "Not saved: the answer was a script that would build the document, not the document itself.";
-const OFFICE_NAMED_RE = /\b(?:save|saved|write|export|name|call|put|store|output|as|into|to|file(?:name)?|named)\b[^.\n]{0,40}?\b([A-Za-z0-9][\w-]{0,60}\.(?:xlsx|xlsm|docx))\b/i;
-const OFFICE_ANY_RE = /\b([A-Za-z0-9][\w-]{0,60}\.(?:xlsx|xlsm|docx))\b/i;
-/** The file a task asks for, including .xlsx, .xlsm and .docx (step-guard's namedFile does not know those). */
+const OFFICE_NAMED_RE = /\b(?:save|saved|write|export|name|call|put|store|output|as|into|to|file(?:name)?|named)\b[^.\n]{0,40}?\b([A-Za-z0-9][\w-]{0,60}\.(?:xlsx|xlsm|docx|pptx))\b/i;
+const OFFICE_ANY_RE = /\b([A-Za-z0-9][\w-]{0,60}\.(?:xlsx|xlsm|docx|pptx))\b/i;
+/** The file a task asks for, including .xlsx, .xlsm, .docx and .pptx (an Office file wins over a text file named in the same task). */
 export function wantedFile(goal) {
   const g = String(goal || "");
   const m = OFFICE_NAMED_RE.exec(g) || OFFICE_ANY_RE.exec(g);
   return m ? m[1] : namedFile(g);
 }
-/** One short instruction for the step and assembler prompts when the task wants a spreadsheet or a Word file. */
+/** One short instruction for the step and assembler prompts when the task wants a spreadsheet, a Word file or a deck. */
 export function officeNote(goal) {
   const want = wantedFile(goal);
   const ext = fileExt(want);
   if (ext === "xlsx" || ext === "xlsm") return `\nThe person wants the spreadsheet ${want}. Give the sheet as a markdown table, one row per line, header row first (it is row 1, so data starts on row 2). Write formulas as cells that start with = (for example =SUM(B2:B8)). Do not write code to build the file: Meldmind builds ${want} from your table.`;
   if (ext === "docx") return `\nThe person wants the Word document ${want}. Write the document itself in Markdown with headings, lists and tables. Do not write code to build the file: Meldmind builds ${want} from your Markdown.`;
+  if (ext === "pptx") return `\nThe person wants the PowerPoint deck ${want}. Write the deck itself in Markdown: a first line "# " with the deck title, then one "## " heading per slide, each with 3 to 6 short bullets (a small markdown table is fine for numbers). Put speaker notes for a slide on a line that starts with "Notes:" under that slide. Do not write code to build the file: Meldmind builds ${want} from your Markdown.`;
   return "";
 }
 
@@ -94,7 +97,7 @@ export function saveNamedFile({ goal = "", name, text, projectId = "", missionId
   }
 }
 
-// a spreadsheet or Word file: built from the answer, written as bytes, read back by size
+// a spreadsheet, Word file or deck: built from the answer, written as bytes, read back by size
 function saveOfficeFile({ want, text, projectId, missionId, source, status }) {
   const ext = fileExt(want);
   const t = String(text || "");
@@ -105,6 +108,11 @@ function saveOfficeFile({ want, text, projectId, missionId, source, status }) {
       const doc = documentText(t);
       if (!doc.text.replace(/[#*_`>|\-\s]/g, "")) return { ok: false, name: want, error: doc.scripts ? SCRIPT_ONLY_LINE : `Not saved: there was nothing to write to ${want}.` };
       buf = docxFromMarkdown(doc.text);
+    } else if (ext === "pptx") {
+      const doc = documentText(t);
+      const title = path.basename(want).replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim();
+      if (!markdownSlides(doc.text, { title }).length) return { ok: false, name: want, error: NO_SLIDES_LINE };
+      buf = pptxFromMarkdown(doc.text, { title });
     } else {
       const sheets = tablesFromAnswer(t);
       if (!sheets.length) return { ok: false, name: want, error: NO_TABLE_LINE };
@@ -136,7 +144,7 @@ function saveOfficeFile({ want, text, projectId, missionId, source, status }) {
 }
 
 // read a saved file back for the preview pane, only from inside the project media folder
-// (a spreadsheet or Word file is bytes, not text: it opens in its own app, so the preview text is empty)
+// (a spreadsheet, Word file or deck is bytes, not text: it opens in its own app, so the preview text is empty)
 export function readSavedFile(info, limit = 300000) {
   if (!info?.path) return null;
   const pid = String(info.projectId || "") || "unfiled";

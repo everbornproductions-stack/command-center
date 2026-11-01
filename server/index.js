@@ -67,6 +67,7 @@ import { bindPerf, noteActivity } from "./perf/power.js";
 import { sourcesFromCitations, recordNative, previewSearch } from "./search.js";
 import { prepareWeb, beginDeep } from "./research.js";
 import { isDrawingOrPageJob, wantsSearch } from "./step-guard.js";
+import { saveFilesFromAnswer } from "./save-named-files.js";
 import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { sendCheck } from "./send-check.js";
@@ -287,13 +288,30 @@ function startWaitingChat({ id, prompt, projectId, customAgent, provider, model,
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   return m;
 }
+// 0.4.28 (persona panel item 2): a finished single answer whose prompt names a file saves it, on every plan, with
+// the same savers missions use (save-named-files.js). The answer then says "Saved posts.md in ..." or "Not saved: ...",
+// and the run keeps savedFile / savedFiles / askedFolder in the mission shape, so the Saved line and Open file work.
+function saveChatFiles(m, { stop = null } = {}) {
+  try {
+    const r = saveFilesFromAnswer({ prompt: m.prompt, answer: m.deliverable, projectId: m.projectId || "", runId: m.id, stop });
+    if (!r) return;
+    m.deliverable = r.deliverable;
+    m.savedFile = r.savedFile;
+    m.savedFiles = r.savedFiles;
+    if (r.askedFolder) m.askedFolder = r.askedFolder;
+    for (const l of r.lines) emit("log", { text: l, missionId: m.id, ...(/^Not saved|^Could not/.test(l) ? { level: "error" } : {}) });
+  } catch (e) {
+    m.savedFile = { ok: false, name: "", error: `Not saved: ${String(e?.message || e).slice(0, 160)}` };
+    m.deliverable = `${String(m.deliverable || "").trimEnd()}\n\n---\n${m.savedFile.error}`.trim();
+  }
+}
 // A single chat that waited on the person's own plan fills in when the answer comes back.
 onSlotAnswer("single", async (job, res) => {
   const m = await ctx().store.getMission(job.runId);
   if (!m || m.kind !== "single" || m.status !== "waiting") return;
   const title = (m.customAgent ? `${m.customAgent.name}: ${m.prompt}` : m.prompt || "").slice(0, 90);
   if (res.stopped) { m.status = "failed"; m.error = `Stopped waiting. No answer came back from ${job.aiName}.`; m.deliverable = m.error; }
-  else { m.status = "done"; m.deliverable = `**${res.tag}**\n\n${res.text}`; m.via = "subscription"; m.subscription = { tag: res.tag, by: res.by, route: res.route, jobId: job.id }; }
+  else { m.status = "done"; m.deliverable = `**${res.tag}**\n\n${res.text}`; m.via = "subscription"; m.subscription = { tag: res.tag, by: res.by, route: res.route, jobId: job.id }; saveChatFiles(m); }
   m.waiting = null;
   m.finishedAt = Date.now();
   ctx().store.saveMission(m, missionSummary({ ...m, title }));
@@ -656,6 +674,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   const s = Date.now();
   const asked = { provider, model };
   let text = "";
+  let stopReason = null;
   const stopCtl = new AbortController();
   chatRuns.set(id, stopCtl);
   try {
@@ -674,6 +693,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
       else if (ev.type === "tool" && ev.phase === "done") { m.toolCalls.push({ tool: ev.tool, server: ev.server, ok: ev.ok, denied: ev.denied, ms: ev.ms }); emit("mission.update", { mission: { ...m, title, tasks: [] } }); }
       else if (ev.type === "done") {
         netTrace(`mission finishing ${id}`);
+        stopReason = ev.stop || null;
         const ms = Date.now() - s;
         noteCall(provider, true, ms);
         const e = recordCall({ provider, model, usage: ev.usage, missionId: id, role: "answer", ms });
@@ -714,6 +734,7 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   // 0.4.21: the result card says what this cost and why this AI did it ("$0 (free: Groq)", "$0.04 (Claude)")
   try { m.costText = costText({ provider: m.provider, model: m.model, cost: m.cost, free: !!m.free }); const last = (m.fallbacks || []).slice(-1)[0]; m.why = whyHandoff({ provider: m.provider, model: m.model, standIn: last ? { for: last.from?.provider, reason: last.reason } : null, difficulty: (cls || {}).difficulty }); } catch { /* the card just has no cost line */ }
   if (promptPackApplied?.industry && m.deliverable) m.deliverable = annotateOutput(m.deliverable, prompt, { scf: !!promptPackApplied.scf, industry: promptPackApplied.industry });
+  if (m.status === "done") saveChatFiles(m, { stop: stopReason });
   const creditHop = (m.fallbacks || []).find((f) => f.kind === "credits" || f.kind === "rate");
   if (creditHop && !m.notice && !m.waiting) m.notice = pauseNotice(creditHop);
   if (m.status !== "waiting") m.finishedAt = Date.now();

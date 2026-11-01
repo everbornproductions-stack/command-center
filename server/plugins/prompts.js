@@ -21,6 +21,7 @@ import { completeFallback } from "../fallback.js";
 import { subscriptionView } from "../subscriptions.js";
 import { promptdropOn } from "../flags.js";
 import { buildDrop, stageFor, videoTips } from "../prompts/drop.js";
+import { fileIntoShelves, pickWhatsNew, releasedRows } from "../prompts/whatsnew.js";
 
 export const id = "prompts";
 const SHELF_KIND = "prompts.customShelves";
@@ -119,15 +120,20 @@ export async function routes(req, res, url, body, h) {
     const cloudVotes = await refreshCloud(state);
     state = cloudVotes.state;
     const packs = await fetchCloudPacks();
-    const weekly = mergePacks(readPackDir(), packs.rows).map((row) => decorate(row, state, now));
+    // 0.4.28: a pack dated for a later week waits for its week. What's new holds this week's pack
+    // (or the newest one), and every released pack row is also filed into its category.
+    const weekly = rankPrompts(releasedRows(mergePacks(readPackDir(), packs.rows), now).map((row) => decorate(row, state, now)), now);
     if (!packs.offline || !cloudVotes.offline) h.putDoc(VOTE_KIND, state);
+    const templates = listTemplates().map((t) => decorate({ ...t, title: t.name, shelf: shelfFor(t), locked: !!(t.industry && !industryOpen) }, state, now));
     return h.json(res, 200, {
       note: NOTE,
       categories: CATEGORIES,
       packCategories: PACK_CATEGORIES,
       industryOpen,
-      templates: listTemplates().map((t) => decorate({ ...t, title: t.name, shelf: shelfFor(t), locked: !!(t.industry && !industryOpen) }, state, now)),
-      weekly: rankPrompts(weekly, now),
+      templates,
+      weekly,
+      whatsNew: pickWhatsNew(weekly, now),
+      filed: fileIntoShelves(weekly, templates, now),
       shelves: SHELVES,
       custom: customRows(h).map((row) => decorate({ ...row, title: row.name }, state, now)),
       interview: INTERVIEW,
@@ -141,7 +147,7 @@ export async function routes(req, res, url, body, h) {
     const now = Date.now();
     const state = voteState(h);
     const packs = await fetchCloudPacks();
-    const weekly = mergePacks(readPackDir(), packs.rows);
+    const weekly = releasedRows(mergePacks(readPackDir(), packs.rows), now);
     const pool = [
       ...weekly.map((row) => ({ ...row, kind: row.feature ? "builder" : "weekly" })),
       ...listTemplates().map((t) => ({ id: t.id, title: t.name, name: t.name, category: t.category, description: t.description || "", prompt: t.description || t.name, kind: "template", industry: t.industry || null, inputs: (t.inputs || []).map((f) => ({ key: f.key, label: f.label, required: f.required !== false })) })),
@@ -176,7 +182,7 @@ export async function routes(req, res, url, body, h) {
     const now = Date.now();
     const state = voteState(h);
     const packs = await fetchCloudPacks();
-    const weekly = rankPrompts(mergePacks(readPackDir(), packs.rows).map((row) => decorate(row, state, now)), now);
+    const weekly = rankPrompts(releasedRows(mergePacks(readPackDir(), packs.rows), now).map((row) => decorate(row, state, now)), now);
     const saved = customRows(h).map((row) => ({ id: row.id, title: row.name, prompt: row.text || row.name }));
     return h.json(res, 200, buildDrop({ stage: stageFor(url.searchParams.get("stage")), weekly, saved }));
   }

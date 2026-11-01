@@ -1,7 +1,7 @@
 // 0.4.23 Mac dock data and logic (pure logic, no DOM, unit tested)
 
 export const DOCK_ITEMS = [
-  { id: "chat", label: "Chat", icon: "💬", gradient: "g1", action: { type: "view", view: "command" } },
+  { id: "chat", label: "Chat", icon: "💬", gradient: "g1", action: { type: "chat", view: "command" } }, // 0.4.28: opens chat and puts the cursor in the box
   { id: "website", label: "Website", icon: "🌐", gradient: "g2", action: { type: "path", path: "website" } },
   { id: "image", label: "Image", icon: "🎨", gradient: "g3", action: { type: "path", path: "image" } },
   { id: "video", label: "Video", icon: "🎬", gradient: "g4", action: { type: "path", path: "video" } },
