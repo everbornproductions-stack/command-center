@@ -161,6 +161,7 @@ body[data-ui="simple"] .app { grid-template-columns: minmax(0, 1fr); grid-templa
 .topbar.nav-collapsed.nav-open #tabs { display: flex; flex-wrap: wrap; position: absolute; top: 100%; left: 8px; right: 8px; z-index: 60; gap: 4px; padding: 8px; background: var(--panel-solid, #0d1420); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: 0 16px 40px #000a; }
 .welcome { max-width: 920px; margin: 0 auto; }
 .welcome-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 12px; margin-top: 16px; }
+#su-backup-slot:has(#cc-free-setup) { grid-column: 1 / -1; }
 .welcome-block { border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
 .welcome-block h3 { margin: 0 0 8px; font-size: 1rem; }
 .welcome-slot:empty { display: none; }
@@ -247,6 +248,8 @@ label.lbl { display: block; font-size: 0.6875rem; color: var(--muted); letter-sp
 /* (It hides on a phone: see the rule under the 1250 px block.) */
 .cc-pro-mark { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; line-height: 1.4; letter-spacing: .02em; background: #6d28d9; color: #fff; vertical-align: 1px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; font-size: 0.6875rem; background: #16202f; border: 1px solid #243044; color: #c7d0dd; font-family: var(--mono); }
+/* 0.4.36 (panel 0434 item 8): free AI status chips use the welcome page font. */
+.welcome #cc-free-setup .chip { font-family: inherit; }
 .chip.green { color: var(--green); border-color: #1d4d3b; }
 .chip.amber { color: var(--amber); border-color: #5a4616; }
 .chip.red { color: var(--red); border-color: #5a2a2a; }

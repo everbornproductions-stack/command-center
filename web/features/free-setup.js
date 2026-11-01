@@ -7,6 +7,7 @@
 //  - Antigravity: Get it opens Google's download page
 //  - a free key (Gemini, Groq, OpenRouter): Get key opens the key page in the browser, and the paste box saves the key
 //    straight to the vault (POST /keys); the key is never kept in the page
+// 0.4.36 (panel 0434 item 6): stop bulk setup on the first missing Node.js result and restore its status after repaint.
 // "Set up all free AIs" installs every missing one, then opens each sign-in in turn and waits for it to finish.
 const { api, toast, esc } = window.CC;
 
@@ -28,6 +29,7 @@ export function appAction(w) {
   if (w.status === "missing" && CAN_INSTALL.has(w.id)) return { kind: "install", label: "Install" };
   if (w.status === "missing" && (w.page || PAGE[w.id])) return { kind: "page", label: "Get it", url: w.page || PAGE[w.id] };
   if (w.status === "signin" && CAN_SIGNIN.has(w.id)) return { kind: "signin", label: "Sign in" };
+  if (w.id === "antigravity" && w.status === "signin") return { kind: "page", label: "Open Antigravity", url: w.page || PAGE.antigravity };
   return null;
 }
 const chip = (w) => w?.status === "ready" ? `<span class="chip green">Ready</span>` : w?.status === "signin" ? `<span class="chip amber">Needs sign-in</span>` : w?.status === "resting" ? `<span class="chip amber">Resting</span>` : `<span class="chip">Not installed</span>`;
@@ -46,15 +48,15 @@ function appRow(w) {
   const a = appAction(w);
   return `<div class="row cc-fs-row" data-fs-app="${esc(w.id)}" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
     <b style="min-width:120px">${esc(w.label)}</b>${chip(w)}<span class="dim small" style="flex:1;min-width:10rem">${esc(PLAN_NOTE[w.id] || w.good || "")}</span>
-    ${a ? `<button type="button" class="btn sm primary" data-fs-act="${a.kind}" data-fs-id="${esc(w.id)}"${a.url ? ` data-url="${esc(a.url)}"` : ""} aria-label="${esc(a.label)} ${esc(w.label)}">${esc(a.label)}</button>` : ""}
+    ${a ? `<button type="button" class="btn sm primary"${a.kind === "install" ? ` title="Installs ${esc(w.label)} with npm. Needs Node.js. About a minute."` : ""} data-fs-act="${a.kind}" data-fs-id="${esc(w.id)}"${a.url ? ` data-url="${esc(a.url)}"` : ""} aria-label="${esc(a.label)} ${esc(w.label)}">${esc(a.label)}</button>` : ""}
   </div>`;
 }
 function keyRow(p) {
   if (p.catalogStatus === "retired") return `<div class="row cc-fs-row"><b style="min-width:120px">${esc(p.name)}</b><span class="chip">Retired</span><span class="dim small" style="flex:1">${esc(p.retiredNote || "")}</span>${p.replacedBy && p.replacementPage ? `<button type="button" class="btn sm" data-fs-page="${esc(p.replacementPage)}">Get ${esc(p.replacedBy)}</button>` : ""}</div>`;
   return `<div class="row cc-fs-row" data-fs-key="${esc(p.provider)}" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
     <b style="min-width:120px">${esc(p.name)}</b>${p.connected ? `<span class="chip green">Connected</span>` : `<span class="chip">No key yet</span>`}<span class="dim small" style="flex:1;min-width:10rem">${esc(p.what || "")}</span>
-    ${p.connected ? "" : `<button type="button" class="btn sm" data-fs-page="${esc(p.url)}">Get key</button>${p.connectable === false ? "" : `
-    <input type="password" autocomplete="off" spellcheck="false" class="cc-fs-key" data-provider="${esc(p.provider)}" placeholder="Paste key" aria-label="Paste the ${esc(p.name)} key" style="width:12rem">
+    ${p.connected ? "" : `<button type="button" class="btn sm" data-fs-page="${esc(p.url)}">${esc(p.buttonLabel || "Get key")}</button>${p.connectable === false ? "" : `
+    <input type="password" autocomplete="off" spellcheck="false" class="cc-fs-key" data-provider="${esc(p.provider)}" placeholder="${esc(p.placeholder || "Paste it here")}" aria-label="Paste the ${esc(p.name)} key" style="width:12rem">
     <button type="button" class="btn sm primary" data-fs-save="${esc(p.provider)}">Save</button>`}`}
   </div>`;
 }
@@ -75,11 +77,11 @@ export function mountFreeSetup(box, { title = "Save money with free AIs", keys: 
       .filter((w) => w.status !== "retired" && !(catalog.apps || []).some((e) => e.id === w.id && e.status === "retired"));
     const keys = (catalog.keys?.length ? catalog.keys : pages).map((e) => { const p = pages.find((row) => row.provider === (e.provider || e.id) || row.id === e.id); const replacement = [...(catalog.keys || []), ...(catalog.apps || [])].find((row) => row.id === e.replacedBy); return p ? { ...p, name: e.label || p.name, what: e.good || p.what, url: e.page || p.url, catalogStatus: e.status, retiredNote: e.retiredNote, replacedBy: e.replacedBy, replacementPage: replacement?.page, connectable: e.connectable } : { id: e.id, provider: e.provider || e.id, name: e.label, what: e.good, url: e.page, catalogStatus: e.status, retiredNote: e.retiredNote, replacedBy: e.replacedBy, replacementPage: replacement?.page, connectable: e.connectable }; }).filter((e) => e.url);
     const todo = apps.filter((w) => appAction(w) && appAction(w).kind !== "page").length;
-    box.innerHTML = `<div class="welcome-block" id="cc-free-setup"><h3>${esc(title)}</h3>
+    box.innerHTML = `<div class="welcome-block" id="cc-free-setup" style="grid-column:1/-1"><h3>${esc(title)}</h3>
       <div class="dim small">Free AIs do the work first, so a job keeps going when a paid AI runs out. Each button opens the right window: an install, the app's own sign-in, or the page for a free key.</div>
       <div class="lbl" style="margin-top:10px">Apps on this PC</div>
       ${apps.map(appRow).join("") || `<div class="dim small">Checking this PC...</div>`}
-      ${showKeys ? `<div class="lbl" style="margin-top:12px">Free keys</div>${keys.map(keyRow).join("")}` : ""}
+      ${showKeys ? `<div class="lbl" style="margin-top:12px">Free sign-up (Gemini, Groq, OpenRouter)</div>${keys.map((p) => keyRow({ ...p, buttonLabel: "Get it", placeholder: "Paste it here" })).join("")}` : ""}
       <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
         <button type="button" class="btn primary" id="cc-fs-all" ${todo && !busy ? "" : "disabled"}>${todo ? `Set up all free AIs (${todo})` : "All apps are set up"}</button>
         <button type="button" class="btn sm" id="cc-fs-again">Check again</button>
@@ -94,11 +96,11 @@ export function mountFreeSetup(box, { title = "Save money with free AIs", keys: 
       const r = await api(`/workers/${encodeURIComponent(id)}/install`, { method: "POST" }).catch((e) => ({ ok: false, message: e.message }));
       if (r.page && !r.ok) openPage(r.page);
       toast(r.message, !r.ok);
-      return r.ok;
+      return r;
     }
     const r = await api(`/workers/${encodeURIComponent(id)}/signin`, { method: "POST" }).catch((e) => ({ ok: false, message: e.message }));
     toast(r.message, !r.ok);
-    return r.ok;
+    return r;
   }
   // after a sign-in window opens, look every 5 seconds until the helper is Ready (or 10 minutes pass)
   async function waitReady(id) {
@@ -127,19 +129,26 @@ export function mountFreeSetup(box, { title = "Save money with free AIs", keys: 
     box.querySelector("#cc-fs-again")?.addEventListener("click", () => paint(true));
     box.querySelector("#cc-fs-all")?.addEventListener("click", async () => {
       if (busy) return; busy = true;
+      let stoppedForNode = false;
       try {
-        for (const w of apps.filter((x) => appAction(x)?.kind === "install")) await act(w.id, "install");
-        const fresh = ((await api("/workers?refresh=1")).workers || []).filter((w) => APPS.includes(w.id) && appAction(w)?.kind === "signin");
-        for (const w of fresh) {
-          line(`Sign in to ${w.label} in the window that opened. Meldmind waits here.`);
-          if (await act(w.id, "signin")) line((await waitReady(w.id)) ? `${w.label} is ready.` : `${w.label} is not signed in yet. You can do it later.`);
+        for (const w of apps.filter((x) => appAction(x)?.kind === "install")) {
+          const result = await act(w.id, "install");
+          if (result?.code === "no-node") { stoppedForNode = true; break; }
         }
-        line("Done. Free AIs go first from now on.");
+        if (!stoppedForNode) {
+          const fresh = ((await api("/workers?refresh=1")).workers || []).filter((w) => APPS.includes(w.id) && appAction(w)?.kind === "signin");
+          for (const w of fresh) {
+            line(`Sign in to ${w.label} in the window that opened. Meldmind waits here.`);
+            if ((await act(w.id, "signin")).ok) line((await waitReady(w.id)) ? `${w.label} is ready.` : `${w.label} is not signed in yet. You can do it later.`);
+          }
+        }
       } finally { busy = false; await paint(true); }
+      line(stoppedForNode ? "Install Node.js first (the page just opened), then press Set up all again." : "Done. Free AIs go first from now on.");
     });
   }
   paint(false);
 }
 
 window.CC.freeSetup = { mount: mountFreeSetup };
+// 0.4.36 (panel 0434 items 7 and 8): signed-out Antigravity has a path forward; free keys and setup span the welcome page.
 window.CC.register({ id: "free-setup", welcome: { order: 5, render: (el) => { const box = document.createElement("div"); el.appendChild(box); mountFreeSetup(box); } } });

@@ -3020,6 +3020,7 @@ function renderSimpleBasics(v) {
       ${outAis.length ? `<div class="row" style="gap:8px;margin:0 0 10px;flex-wrap:wrap">${outAis.map((p) => `<span class="chip red">${esc(p.name)}: ${esc(pauseLabel(p))}</span>${recheckHtml(p)}`).join("")}</div>` : ""}
       <button type="button" class="btn primary" id="basics-ai-go">${keyed.length ? "Fix an AI" : "Add an AI"}</button>
     </div>
+    <div id="basics-free-setup"></div>
     <div class="panel basics-card" id="basics-reading"><h3>Text and reading</h3><div id="basics-reading-body"></div></div>
     <div class="panel basics-card" id="basics-privacy"><h3>Privacy</h3>
       <label class="row small" style="gap:8px"><input type="checkbox" id="basics-private" ${on ? "checked" : ""}> Private mode</label>
@@ -3044,6 +3045,9 @@ function renderSimpleBasics(v) {
     <p style="margin:0"><button type="button" class="btn" id="basics-more">More options</button></p>
   </div>`;
   bindRecheck(v);
+  // 0.4.36 (panel 0434 item 7d): Simple Settings has no Your AI helpers panel, so the free AI setup goes here
+  // (Expert has the helpers panel, with the same Install and Sign in buttons)
+  { const fs = $("#basics-free-setup"); if (fs) window.CC.freeSetup?.mount?.(fs, { title: "Free AIs on this PC" }); }
   $("#basics-ai-go").addEventListener("click", () => openSettingsMore("#settings-keys"));
   $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
   $("#basics-more").addEventListener("click", () => openSettingsMore(""));
@@ -3866,9 +3870,9 @@ function renderWelcome(v, st) {
       <div class="welcome-grid">
         ${welcomeLookHtml()}
         ${welcomeAiHtml(st)}
-        ${welcomeAppsHtml()}
         <!-- Reserved slot: 0.4.16 adds "Backup when credits run out" here with CC.register({ welcome: { order, render(el) } }). -->
         <section class="welcome-slot" id="su-backup-slot" data-slot="credit-backup" aria-label="More setup"></section>
+        ${welcomeAppsHtml()}
       </div>
       <div class="welcome-block" id="su-privacy-box" style="margin-top:14px">
         <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start">

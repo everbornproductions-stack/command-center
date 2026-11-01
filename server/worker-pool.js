@@ -41,7 +41,7 @@ export const DEFAULT_WORKERS = [
   { id: "opencode", label: "OpenCode", kind: "cli", free: true, cooldownHours: 12, providers: ["opencode"],
     good: "Code and answers with free models", needs: "Install OpenCode" },
   { id: "freebuff", label: "Freebuff", kind: "agent", free: true, cooldownHours: 3, providers: ["freebuff"],
-    good: "Free coding help", needs: "Set it up once under Free coder (Freebuff)." },
+    good: "Free coding help", needs: "Use Install Freebuff under Your AI helpers." }, // 0.4.36 (panel 0434 item 7c)
   { id: "grokbot", label: "Grok Bot", kind: "agent", free: false, cooldownHours: 1, providers: ["grokbot", "grok-bot"],
     good: "Signed-in browsing, Gmail, Drive and Calendar", needs: "Add its webhook and sender key under Integrations." },
   { id: "browser-helper", label: "Browser helper", kind: "agent", free: true, cooldownHours: 1, providers: ["browser-helper", "browser"],

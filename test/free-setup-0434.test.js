@@ -7,6 +7,7 @@ import { plainCliError } from "../server/sub-routes.js";
 import { installArgs, HELPERS } from "../server/helper-install.js";
 import { bootMac } from "./mac-helpers.js";
 import { findBrowser } from "./pw-helpers.js";
+import { findFreebuff } from "../server/freebuff-agent.js";
 
 const skip = findBrowser() ? false : "no Chrome installed";
 
@@ -17,6 +18,39 @@ test("Google's Gemini CLI rejection sits the app out with a plain reason", () =>
   assert.equal(r.message, "Gemini CLI was retired by Google for personal accounts. Meldmind uses Antigravity and your Gemini key instead.");
   assert.equal(installArgs("gemini-cli"), null, "Gemini CLI is not installed from Meldmind any more");
   assert.match(HELPERS["gemini-cli"].page, /antigravity\.google/);
+});
+
+test("bulk setup stops on missing Node.js, opens one page, and keeps its status after repaint", { skip }, async () => {
+  const t = await bootMac({ width: 1366, height: 800, mode: "simple" });
+  try {
+    const workers = { workers: ["codex", "opencode"].map((id) => ({ id, label: id, kind: "cli", status: "missing", light: "grey", good: "" })) };
+    await t.page.route(/\/api\/workers(\?.*)?$/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(workers) }));
+    await t.page.route(/\/api\/free-ais(\?.*)?$/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ pages: [] }) }));
+    // no catalog lists: the block falls back to its own app list, so Codex and OpenCode show with Install
+    await t.page.route(/\/api\/free-catalog$/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
+    await t.page.route(/\/api\/workers\/codex\/install$/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: false, code: "no-node", page: "https://nodejs.org/en/download", message: "Node needed" }) }));
+    await t.page.evaluate(async () => {
+      window.openedPages = [];
+      window.open = (url) => { window.openedPages.push(url); return null; };
+      const box = document.createElement("div"); box.id = "test-fs-no-node"; document.body.appendChild(box);
+      await import("/features/free-setup.js"); window.CC.freeSetup.mount(box);
+    });
+    // the test box sits under the Mac window, so it is pressed from the page, as layout2-0428 presses Help
+    await t.page.waitForFunction(() => { const b = document.querySelector("#test-fs-no-node #cc-fs-all"); return b && !b.disabled; });
+    await t.page.evaluate(() => document.querySelector("#test-fs-no-node #cc-fs-all").click());
+    await t.page.waitForFunction(() => document.querySelector("#cc-fs-line")?.textContent.includes("Install Node.js first"));
+    const result = await t.page.evaluate(() => ({ line: document.querySelector("#cc-fs-line")?.textContent, opened: window.openedPages }));
+    assert.equal(result.opened.length, 1);
+    assert.match(result.line, /page just opened.*press Set up all again/);
+  } finally { await t.close(); }
+});
+
+// 0.4.36 (panel 0434 item 18a): the test-only PATH guard and explicit binary both control Freebuff detection.
+test("Freebuff detection honors test isolation and an explicit binary", () => {
+  const exists = (p) => p === "C:/fake/freebuff";
+  assert.equal(findFreebuff({ env: { PATH: "C:/elsewhere", CC_SUBCLI_NO_PATH: "1" }, exists }), null);
+  assert.equal(findFreebuff({ env: { PATH: "C:/elsewhere", CC_FREEBUFF_BIN: "C:/missing" }, exists }), null);
+  assert.equal(findFreebuff({ env: { PATH: "C:/elsewhere", CC_FREEBUFF_BIN: "C:/fake/freebuff" }, exists }), "C:/fake/freebuff");
 });
 
 test("the setup step: Install, Sign in, Get it and Get key, in the right places, with no Gemini CLI", { skip }, async () => {
@@ -53,6 +87,15 @@ test("the step is registered for the welcome screen and loads with the shell", a
   assert.match(reg, /\{ id: "free-setup", shell: true \}/);
   const src = fs.readFileSync(new URL("../web/features/free-setup.js", import.meta.url), "utf8");
   assert.match(src, /welcome: \{ order: 5, render:/);
+  assert.match(src, /Free sign-up \(Gemini, Groq, OpenRouter\)/);
+  assert.match(src, /title="Installs \$\{esc\(w\.label\)\} with npm\. Needs Node\.js\. About a minute\./);
+  // 0.4.36 (panel 0434 item 7d): Simple Settings mounts it; Expert keeps Your AI helpers only (no second copy)
+  assert.doesNotMatch(src, /settings: \{/);
+  const ui = fs.readFileSync(new URL("../web/app.js", import.meta.url), "utf8");
+  assert.match(ui, /freeSetup\?\.mount\?\.\(fs, \{ title: "Free AIs on this PC" \}\)/);
+  assert.doesNotMatch(ui, /settings-free-setup/);
+  const workers = fs.readFileSync(new URL("../web/features/workers.js", import.meta.url), "utf8");
+  assert.match(workers, /Open Antigravity/);
   const card = fs.readFileSync(new URL("../web/features/free-ais.js", import.meta.url), "utf8");
   assert.match(card, /freeSetup\?\.mount\?\.\(wrap\.querySelector\("#cc-fa-apps"\), \{ title: "Free AI apps on this PC", keys: false \}\)/);
 });

@@ -278,7 +278,7 @@ test("no terminal: the plain message is shown, and no driver is invented", async
 
 test("freebuff not installed gives a plain install line", async () => {
   const { m } = manager(fakeFreebuff(), { installed: () => false });
-  await assert.rejects(m.start({}), (e) => e.code === "not-installed" && /npm install -g freebuff/.test(e.message));
+  await assert.rejects(m.start({}), (e) => e.code === "not-installed" && /Install Freebuff under Your AI helpers/.test(e.message));
 });
 
 test("tmux driver uses argument arrays (no shell string) and keeps secrets out of the Freebuff process", async () => {
