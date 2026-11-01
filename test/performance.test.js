@@ -107,7 +107,7 @@ test("startup files do not require a heavy module, and the installer budget hold
   const pkg = JSON.parse(read("package.json"));
   const names = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
   assert.deepEqual(heavySpecifiers(names), []);
-  assert.equal(pkg.version, "0.4.30");
+  assert.equal(pkg.version, "0.4.31");
 
   const yml = read("electron-builder.yml");
   assert.match(yml, /!addons\/\*\*/);
@@ -164,7 +164,7 @@ test("the feature loader imports on demand, and the help page is plain", () => {
   const loader = read("web", "features", "index.js");
   const imports = [...loader.matchAll(/^import\s+.+from\s+["']([^"']+)["']/gm)].map((m) => m[1]);
   assert.deepEqual(imports, ["/perf/registry.js"]);
-  assert.match(loader, /import\(`\/features\/\$\{fileOf\(id\)\}\.js`\)/);
+  assert.match(loader, /import\(`\/features\/\$\{fileOf\(id\)\}\.js/); // 0.4.31: a retry adds ?retry=N after .js
 
   const pack = loadHelp();
   const article = pack.articles.find((a) => a.id === "stay-light");

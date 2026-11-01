@@ -29,7 +29,9 @@ export const LOOKS = {
 };
 // The default look since 0.4.17 (Chris, 2026-10-21): dark, cyan accent, pine background colour,
 // and the built-in stage picture. It paints the same way as any picture wallpaper.
-export const DEFAULTS = { mode: "dark", accent: ACCENTS.cyan, background: BACKGROUNDS.pine, wallpaper: "image:stage", photo: null };
+// 0.4.31 (Chris, 2026-10-31: "for first time users start in light mode"): a new install starts light. Everyone who
+// already has a look keeps it (their mode is stored), and DEFAULT_VERSION is unchanged so nobody is moved.
+export const DEFAULTS = { mode: "light", accent: ACCENTS.cyan, background: BACKGROUNDS.pine, wallpaper: "image:stage", photo: null };
 // The look before 0.4.17, kept so tests and the migration can name it.
 export const OLD_DEFAULTS = { mode: "dark", accent: ACCENTS.cyan, background: null, wallpaper: null, photo: null };
 // Bump to move everyone to a new default once more.

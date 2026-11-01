@@ -382,6 +382,11 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 .pcard { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; cursor: pointer; border-top: 3px solid var(--c); transition: transform .15s, border-color .2s; }
 .pcard:hover { transform: translateY(-2px); border-color: var(--line-2); }
 .pcard h4 { margin: 0 0 4px; font-size: 1rem; }
+/* 0.4.31: one line of the description until More is clicked */
+.pcard-sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pcard-sum.open { white-space: normal; overflow: visible; }
+.pcard-sum-more { background: none; border: 0; padding: 2px 0; margin: 0; color: inherit; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.pcard-sum-more[hidden] { display: none; }
 .pcard .cats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .links { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
 .linkt { display: flex; align-items: center; gap: 10px; background: var(--card-bg, #0d1420); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; color: var(--text); transition: border-color .2s, background .2s; }

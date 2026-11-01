@@ -24,6 +24,7 @@ import { isDesktopOnly } from "./desktop-only.js";
 import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
 import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable, liveSync } from "./live-ops.js";
 import { installClickTracking, noteToast, trackBusy, withBusy } from "./busy.js";
+import { installTips } from "./tips.js";
 import { renderProjectTeam, wireEmployeeHint } from "./employees-ui.js";
 import { ENGINE_BOX_MS, STARTING_LINE, engineWaitView } from "./engine-wait.js";
 import { projectModeNote, projectsWithOwnMode } from "./project-mode-note.js";
@@ -1012,6 +1013,23 @@ if (typeof window !== "undefined") {
     render();
   });
 }
+// 0.4.31 (panel item 10): while a page's module downloads the page says "Loading...", and after 8 seconds
+// "This page did not load" with Try again, instead of the last page or a "Loading..." that never ends.
+const PAGE_SHOW_LOADING_MS = 400, PAGE_GIVE_UP_MS = 8000;
+const PAGE_LOADING_HTML = `<div class="empty" role="status" data-page-wait="loading">Loading...</div>`;
+function pageWait(view, html) {
+  const v = $("#view");
+  if (!v || S.view !== view) return null;
+  // the last page's typing is kept first, then #view no longer shows that page
+  if (S.renderedView && isNavStateEnabled(S)) captureViewDraft(S.renderedView, v);
+  S.renderedView = "";
+  v.innerHTML = html;
+  return v;
+}
+function pageFailed(view) {
+  const v = pageWait(view, `<div class="empty" role="alert" data-page-wait="failed">This page did not load. <button type="button" class="btn sm" id="page-retry" style="margin-left:8px">Try again</button></div>`);
+  if (v) $("#page-retry", v)?.addEventListener("click", () => { pageWait(view, PAGE_LOADING_HTML); render(); });
+}
 function render() {
   if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
   document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
@@ -1019,11 +1037,19 @@ function render() {
   const light = !!S.settings?.lightMode;
   if (cc?.viewReady && !cc.viewReady(S.view, { light })) {
     const token = (cc._paintToken = (cc._paintToken || 0) + 1);
-    cc.ensureView(S.view, { light }).then(() => {
-      if (cc._paintToken === token) render();
-    }).catch((e) => console.warn("[features]", e));
+    const view = S.view;
+    const still = () => cc._paintToken === token && S.view === view && !cc.viewReady(view, { light });
+    clearTimeout(cc._pageShow); clearTimeout(cc._pageGiveUp);
+    cc._pageShow = setTimeout(() => { if (still() && !$("#view [data-page-wait]")) pageWait(view, PAGE_LOADING_HTML); }, PAGE_SHOW_LOADING_MS);
+    cc._pageGiveUp = setTimeout(() => { if (still()) pageFailed(view); }, PAGE_GIVE_UP_MS);
+    cc.ensureView(view, { light }).then(() => {
+      if (cc._paintToken !== token) return;
+      // the module did not arrive (a failed download): say so now instead of asking again in a loop
+      if (cc.viewReady(view, { light })) render(); else pageFailed(view);
+    }).catch((e) => { console.warn("[features]", e); if (cc._paintToken === token) pageFailed(view); });
     return;
   }
+  clearTimeout(cc?._pageShow); clearTimeout(cc?._pageGiveUp);
   syncChrome();
   renderAsk();
   markTabs();
@@ -1604,8 +1630,8 @@ function foldSimpleBox(on) {
   const c = document.querySelector("#view .cmd.simple-chat");
   if (c) { if (on) c.dataset.fold = "1"; else delete c.dataset.fold; }
 }
-// 0.4.28 (panel item 3a): when an answer finishes, bring its action buttons into view above the docked chat box. Only
-// when the answer, from its top to those buttons, fits on one screen; a long answer stays at its start for reading.
+// 0.4.28 (panel item 3a): when an answer finishes, bring its action buttons into view above the docked chat box (0.4.31:
+// a long answer too, as long as the first button row stays on screen).
 // It only ever scrolls down, once per answer. A slow PC draws the buttons, the answer line and the folded box over a
 // few seconds, so it checks again every quarter second for 6 seconds and stops as soon as the person scrolls or clicks.
 function revealAnswer(id) {
@@ -1622,17 +1648,19 @@ function revealAnswer(id) {
     const scroller = card.closest(".cmd.simple-chat");
     const box = scroller?.querySelector(".orders");
     if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 2) return;
-    const acts = [...card.querySelectorAll(".answer-main, #cc-v-again")].filter((e) => e.getBoundingClientRect().height > 0);
+    // 0.4.31 (panel 0428 item 1b): Copy, Double-check, Try again and Finish (the Next bar and the finish pair) count too.
+    const acts = [...card.querySelectorAll(".answer-main, #cc-v-again, [data-feature='next-actions'] .na-bar, [data-feature='finishpath'] > *")].filter((e) => e.getBoundingClientRect().height > 0);
     if (!acts.length) return;
     const sr = scroller.getBoundingClientRect();
     const boxTop = box && getComputedStyle(box).position === "sticky" ? Math.min(box.getBoundingClientRect().top, sr.bottom) : sr.bottom;
     const bottom = Math.max(...acts.map((e) => e.getBoundingClientRect().bottom)) + 12;
-    const top = card.getBoundingClientRect().top;
-    // buttons already clear, or still far below the screen (a long answer stays at its start): nothing to do. Buttons that
-    // are on screen but under the chat box are lifted just enough (CI 0.4.28: Copy sat under the box's Mic at 1366 x 800).
+    // 0.4.31 (panel 0428 item 1b): a long answer used to stay at its start, so at 1366 x 800 and 1024 x 768 the buttons
+    // were never brought up. Now the button rows always end just above the chat box (the person scrolls up to read),
+    // but never so far that the first row (Copy) goes off the top. Buttons already clear: nothing to do.
     const actsTop = Math.min(...acts.map((e) => e.getBoundingClientRect().top));
-    if (bottom <= boxTop || (actsTop > sr.bottom && bottom - top > sr.height)) return;
-    scroller.scrollBy({ top: bottom - boxTop, behavior: "auto" });
+    const lift = Math.min(bottom - boxTop, actsTop - sr.top - 8);
+    if (lift <= 1) return;
+    scroller.scrollBy({ top: lift, behavior: "auto" });
   };
   const started = Date.now();
   const tick = () => {
@@ -2471,6 +2499,15 @@ function wireRunRows(v) {
     } catch (err) { toast(err.message, true); }
   }));
 }
+// 0.4.31 (Chris: "in project view it shouldn't have the whole description unless you click on it to expand"): the
+// card shows one line of the description; More opens the rest in place (it does not open the project), Less folds it.
+// The More button is drawn for every description and hidden again after paint when the line is not cut off.
+function projectSummaryHtml(p) {
+  const text = String(p.summary || "").trim();
+  if (!text) return "";
+  const open = !!S.openSummaries?.has?.(p.id);
+  return `<div class="muted small pcard-sum${open ? " open" : ""}" id="psum-${esc(p.id)}">${esc(text)}</div><button type="button" class="linklike small pcard-sum-more" data-psum="${esc(p.id)}" aria-expanded="${open}" aria-controls="psum-${esc(p.id)}">${open ? "Less" : "More"}</button>`;
+}
 function renderProjects(v) {
   if (S.openProject) return renderProjectDetail(v, S.projects.find((p) => p.id === S.openProject));
   const hq = S.hq;
@@ -2486,7 +2523,7 @@ function renderProjects(v) {
         const expanded = flowOn && S.expandedProjects?.has?.(p.id);
         const expData = flowOn ? S.projectExpansions?.[p.id] : null;
         return `<div class="pcard" style="--c:${p.color}" data-id="${p.id}" role="button" tabindex="0" aria-label="Open project ${esc(p.name)}">
-          <h4>${esc(p.name)} ${statusChip(p)}</h4><div class="muted small">${esc(p.summary || "")}</div>
+          <h4>${esc(p.name)} ${statusChip(p)}</h4>${projectSummaryHtml(p)}
           <div class="small dim" data-inside="${esc(p.id)}" style="margin-top:4px">${insideLine(p, runs)}</div>
           <div class="cats">${p.categories.map((c) => `<span class="chip">${esc(c.name)} · ${c.links.length}</span>`).join("")}</div>
           <div class="row small dim" style="margin-top:10px;gap:14px"><span>${runs.length} AI run${runs.length === 1 ? "" : "s"}</span>${tasks.length ? `<span>${tasks.length} open HQ task${tasks.length === 1 ? "" : "s"}</span>` : ""}${flowOn && subProjects.length ? `<span>${subProjects.length} sub-project${subProjects.length === 1 ? "" : "s"}</span>` : ""}${parentProj ? `<span>Sub-project of ${esc(parentProj.name)}</span>` : ""}<span style="margin-left:auto">${runs[0] ? ago(runs[0].startedAt) + " ago" : ""}</span></div>
@@ -2509,7 +2546,19 @@ function renderProjects(v) {
         <div id="run-list">${recentRunRows(S.missions.slice(0, 12))}</div>
       </div>
     </div></div>`;
-  $$(".pcard", v).forEach((c) => c.addEventListener("click", (e) => { if (e.target.closest("[data-pcard-expand],[data-subproject-add],[data-subproject-open],[data-continue],[data-del]")) return; S.openProject = c.dataset.id; render(); }));
+  $$(".pcard", v).forEach((c) => c.addEventListener("click", (e) => { if (e.target.closest("[data-pcard-expand],[data-subproject-add],[data-subproject-open],[data-continue],[data-del],[data-psum]")) return; S.openProject = c.dataset.id; render(); }));
+  requestAnimationFrame(() => $$("[data-psum]", v).forEach((b) => {
+    const sum = document.getElementById(`psum-${b.dataset.psum}`);
+    if (sum && !sum.classList.contains("open") && sum.scrollWidth <= sum.clientWidth + 1) b.hidden = true;
+  }));
+  $$("[data-psum]", v).forEach((b) => b.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!S.openSummaries) S.openSummaries = new Set();
+    const id = b.dataset.psum; const open = !S.openSummaries.has(id);
+    if (open) S.openSummaries.add(id); else S.openSummaries.delete(id);
+    document.getElementById(`psum-${id}`)?.classList.toggle("open", open);
+    b.textContent = open ? "Less" : "More"; b.setAttribute("aria-expanded", String(open));
+  }));
   $$("[data-continue]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); continueProject(b.dataset.continue); }));
   $$(".pcard [data-del]", v).forEach((b) => b.addEventListener("click", (e) => { e.stopPropagation(); const p = S.projects.find((x) => x.id === b.dataset.del); if (p) deleteProjectSoft(p); }));
   wireRecentlyDeleted(v);
@@ -3553,6 +3602,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
+installTips(document); // 0.4.31: hover or Tab to a button and a small box says what it does
 // 0.4.21: a run on screen is re-read when the window comes back and every few seconds, so Live ops is never stale.
 liveSync({ getLive: () => S.live, fetchRun: (id) => api(`/missions/${encodeURIComponent(id)}`), apply: (run) => { if (run.kind === "council") onCouncil(run); else onMission(run); } });
 window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, projectChanged: () => projectSettled(), go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };

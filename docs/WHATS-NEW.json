@@ -1,4 +1,21 @@
 {
+  "0.4.31": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Hover tips: point at a button, or reach it with Tab, and a small box says what it does. Single, Council, Mission, the priority and timing choices, and every page in the sidebar have one.",
+      "Simple chat: after you send, the box folds to one line, so the answer has more room and Copy, Try again and Finish stay in view.",
+      "Simple shows all ten choices on a wide screen, including Spreadsheet, Document, Slides, App or script, and List or data.",
+      "Use this in Prompts puts the words in the chat box in Simple, ready to send.",
+      "Messages that pop up no longer cover your answer. On a phone the dock scrolls, with Chat first.",
+      "The Saved this month pill is easier to read in light mode, and the savings card updates when a job finishes.",
+      "Expert gives the answer the full width when the side column would be too narrow.",
+      "A page that does not load says so after 8 seconds and offers Try again.",
+      "Practice mode now makes real spreadsheets and lists, so you can try those choices without a key.",
+      "Live view shows every AI that is working, even when the job runs outside the project in the top bar.",
+      "Project cards show one line of the description. More opens the rest without opening the project.",
+      "New installs start in light mode. If you already picked a look, it stays."
+    ]
+  },
   "0.4.30": {
     "title": "What's new in Meldmind",
     "bullets": [

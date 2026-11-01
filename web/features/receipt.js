@@ -7,6 +7,7 @@ const LABEL = "Estimated, based on token counts and list prices.";
 const SAVED_TIP = "Estimate. For each run, saved is what the same input and output tokens would have cost on the reference model, minus what the run actually cost. This month and all time add those differences. The reference model defaults to the most expensive flagship you have a key for. You can change it in Settings. New runs use the new reference. Older runs keep the baseline they stored. A free or local run costs $0, so the reference price counts as saved. A prompt-cache read is priced at the cache rate when the provider reports it, which lowers the actual cost. A cheaper seller for the same model lowers the actual cost. Batch half price counts only when that call was billed as a batch. A run you send now pays the live price. When the provider reports an exact bill, that bill is the actual cost. Otherwise the actual cost is estimated from token counts and list prices.";
 let creditsCache = null;
 let barAt = 0;
+let barTrail = 0;
 
 const css = `
 .cc-money-saved { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 1px; margin-right: 2px; padding: 3px 8px; border: 1px solid var(--line, #1f2937); border-radius: 10px; background: var(--card-bg, #0a0f18); line-height: 1.15; max-width: 240px; min-width: 0; flex: 0 1 240px; cursor: help; }
@@ -116,8 +117,11 @@ function mountMacSaved() {
   if (!document.getElementById("cc-ms-mac-css")) {
     const st = document.createElement("style");
     st.id = "cc-ms-mac-css";
-    st.textContent = `#cc-money-saved-mac{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:4px 10px;min-height:26px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;background:rgba(22,163,74,.14);color:#15803d}
-body[data-theme="dark"] #cc-money-saved-mac{background:rgba(74,222,128,.14);color:#86efac}
+    // 0.4.31 (panel 0428 item 3): green #15803d on a see-through pale green measured 3.4 to 3.8 : 1 in light, and
+    // Simple's 16 px rule for buttons made it big. Solid pill colours (6.5 : 1 light, 7.5 : 1 dark) and 12.5 px always.
+    st.textContent = `#cc-money-saved-mac{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:4px 10px;min-height:26px;font:inherit;font-size:12.5px;font-weight:650;cursor:pointer;white-space:nowrap;background:#dcfce7;color:#166534}
+html body #cc-money-saved-mac{font-size:12.5px!important;line-height:1.2}
+body[data-theme="dark"] #cc-money-saved-mac,html[data-theme="dark"] body:not([data-theme="light"]) #cc-money-saved-mac{background-color:#14532d;color:#bbf7d0}
 #cc-money-saved-mac:focus-visible{outline:2px solid var(--mac-acc,#0a84ff);outline-offset:2px}
 @media (max-width:1280px){#cc-money-saved-mac .cc-msm-when{display:none}}
 @media (max-width:1100px){#cc-money-saved-mac .cc-msm-ic{display:none}}
@@ -171,7 +175,11 @@ async function refreshBar() {
   mountBar();
   mountMacSaved();
   const now = Date.now();
-  if (now - barAt < 4000 && document.getElementById("cc-money-saved")?.dataset.ready === "1") return;
+  if (now - barAt < 4000 && document.getElementById("cc-money-saved")?.dataset.ready === "1") {
+    // 0.4.31: a call that lands inside the 4 s gap (the last cost of an answer) is not dropped: one trailing refresh.
+    if (!barTrail) barTrail = setTimeout(() => { barTrail = 0; refreshBar(); }, 4000 - (now - barAt) + 50);
+    return;
+  }
   barAt = now;
   try {
     const t = await api("/receipt/totals");
@@ -287,6 +295,28 @@ function bindReference(el, onSaved) {
   });
 }
 
+// 0.4.31 (panel 0428 item 11b): the Command card was drawn before the answer was counted ("All time $0.0005 over
+// 0 runs" while the title bar said $0.0010). It now repaints when a run's cost lands, and a plain chat with no run id
+// yet says "Estimate" instead of "over 0 runs".
+let cmdCardEl = null;
+let cmdCardTimer = 0;
+function savingsCardHtml(t) {
+  const runs = Number(t?.runs) || 0;
+  const all = `All time ${savedMoney(t?.allTime?.saved)}${runs > 0 ? ` over ${runs} ${runs === 1 ? "run" : "runs"}` : ""}`;
+  return `<div class="route" style="margin-top:8px" title="${esc(SAVED_TIP)}" data-cc-saved-card><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="small">You saved</span><b style="color:var(--green)">${savedMoney(t?.month?.saved)}</b><span class="small">this month</span><span class="dim small" data-cc-saved-all>${all}</span><span class="cc-ms-est">Estimate</span></div><div class="cc-ms-label">${esc(LABEL)}</div></div>`;
+}
+async function paintCommandCard(el) {
+  try {
+    const t = await api("/receipt/totals");
+    el.innerHTML = savingsCardHtml(t);
+  } catch { el.innerHTML = ""; }
+}
+function refreshCommandCard() {
+  if (!cmdCardEl || !cmdCardEl.isConnected) return;
+  clearTimeout(cmdCardTimer);
+  cmdCardTimer = setTimeout(() => { if (cmdCardEl?.isConnected) paintCommandCard(cmdCardEl); }, 400);
+}
+
 mountBar();
 // The socket hello can arrive before this module registers, and later ticks do not call onState.
 // Fetch the total now, and keep trying until the first answer paints, so the bar is not stuck on $0.00.
@@ -306,7 +336,7 @@ mountMacSaved();
 CC.register({
   id: "receipt",
   onState() { mountBar(); refreshBar(); },
-  onEvent(ev) { if (ev?.type === "ledger.entry" || ev?.type === "mission.update") refreshBar(); },
+  onEvent(ev) { if (ev?.type === "ledger.entry" || ev?.type === "mission.update") { refreshBar(); refreshCommandCard(); } },
   deliverable: { order: 10, async render(el, run) {
     if (!run?.id) { el.innerHTML = ""; return; }
     try {
@@ -359,10 +389,5 @@ CC.register({
     </div>`;
     bindReference(el);
   } },
-  command: { order: 30, async render(el) {
-    try {
-      const t = await api("/receipt/totals");
-      el.innerHTML = `<div class="route" style="margin-top:8px" title="${esc(SAVED_TIP)}"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="small">You saved</span><b style="color:var(--green)">${savedMoney(t.month.saved)}</b><span class="small">this month</span><span class="dim small">All time ${savedMoney(t.allTime.saved)} over ${t.runs} runs</span><span class="cc-ms-est">Estimate</span></div><div class="cc-ms-label">${esc(LABEL)}</div></div>`;
-    } catch { el.innerHTML = ""; }
-  } },
+  command: { order: 30, async render(el) { cmdCardEl = el; await paintCommandCard(el); } },
 });

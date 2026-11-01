@@ -147,7 +147,7 @@ function render() {
 function renderHome(body) {
   const ideas = CC.layout?.IDEAS ? [...CC.layout.IDEAS, ...F.EXTRA_IDEAS].filter((i) => F.isPath(i.chip)) : [];
   homeIdeas = !!CC.layout?.IDEAS;
-  body.innerHTML = `<div class="mf-subrow"><p class="mf-sub">Pick what to make. Swipe, drag, or use the arrow keys.</p><span class="mf-scrollbtns"><button type="button" class="mf-scroll" id="mf-prev" aria-label="Earlier choices" aria-controls="mf-paths">&lsaquo;</button><button type="button" class="mf-scroll" id="mf-more-paths" aria-label="More choices" aria-controls="mf-paths">&rsaquo;</button></span></div>
+  body.innerHTML = `<div class="mf-subrow"><p class="mf-sub">Pick what to make.<span class="mf-swipe"> Swipe, drag, or use the arrow keys.</span></p><span class="mf-scrollbtns"><button type="button" class="mf-scroll" id="mf-prev" aria-label="Earlier choices" aria-controls="mf-paths">&lsaquo;</button><button type="button" class="mf-scroll" id="mf-more-paths" aria-label="More choices" aria-controls="mf-paths">&rsaquo;</button></span></div>
     ${stepsHtml()}
     <div class="mf-paths" id="mf-paths" role="list" aria-label="What to make" tabindex="0">${F.PATHS.map((p) => `<button type="button" role="listitem" class="mf-path" data-path="${p}" aria-label="${esc(F.PATH_LABEL[p])}. ${esc(PATH_BLURB[p])}"><span class="mf-art ${PATH_ART[p]}" aria-hidden="true"></span><b>${esc(F.PATH_LABEL[p])}</b><small>${esc(PATH_BLURB[p])}</small></button>`).join("")}</div>
     <div class="mf-box"><input id="mf-ask" type="text" aria-label="What do you want to make?" placeholder="Or just say it: a website for my bakery" autocomplete="off">${costHtml()}<button type="button" class="mf-go" id="mf-next">Next</button></div>
@@ -226,7 +226,8 @@ function wireRow(row, prev, next) {
   row.addEventListener("scroll", paintEnds, { passive: true });
   // a mouse drag scrolls the row (touch scrolls by itself); a real drag is not a click on the card under it
   let x0 = null, s0 = 0;
-  row.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse" || e.button !== 0) return; x0 = e.clientX; s0 = row.scrollLeft; dragged = false; });
+  // 0.4.31: on a wide window the cards wrap and the row does not scroll, so a mouse drag is just a click.
+  row.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse" || e.button !== 0 || row.scrollWidth - row.clientWidth <= 2) return; x0 = e.clientX; s0 = row.scrollLeft; dragged = false; });
   row.addEventListener("pointermove", (e) => { if (x0 === null) return; const dx = e.clientX - x0; if (Math.abs(dx) > 6) { dragged = true; row.scrollLeft = s0 - dx; } });
   row.addEventListener("pointerup", () => { x0 = null; if (dragged) setTimeout(() => { dragged = false; }, 50); });
   row.addEventListener("pointerleave", () => { x0 = null; });
