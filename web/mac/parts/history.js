@@ -1,5 +1,11 @@
 // 0.4.23 Mac-style GUI: History sidebar (drawer) part
-import { groupByDay, filterChats, titleOf } from "../data/history.js";
+import { filterChats, titleOf, groupForDrawer, filterChips, agoWord, SHOW_FIRST } from "../data/history.js";
+
+// 0.4.34: grouped by project (the one in use first) and by kind of work, newest group first; each group folds and
+// shows its newest few. Which groups are folded is remembered on this computer.
+const CLOSED_KEY = "cc.hist.closed";
+const readClosed = () => { try { return new Set(JSON.parse(localStorage.getItem(CLOSED_KEY) || "[]")); } catch { return new Set(); } };
+const saveClosed = (set) => { try { localStorage.setItem(CLOSED_KEY, JSON.stringify([...set].slice(0, 200))); } catch {} };
 
 export default {
   id: "history",
@@ -18,6 +24,9 @@ export default {
     let query = "";
     let isOpen = false;
     let selectedIndex = -1;
+    const closed = readClosed();
+    const showAll = new Set();
+    let filter = "all";
 
     async function fetchChats() {
       try {
@@ -58,7 +67,10 @@ export default {
 
     function render() {
       const filtered = filterChats(chats, query);
-      const groups = groupByDay(filtered, Date.now());
+      const chips = filterChips(filtered, CC.S?.projects || []);
+      if (!chips.some((c) => c.id === filter)) filter = "all";
+      const groups = groupForDrawer(filtered, { projects: CC.S?.projects || [], current: CC.S?.project || "", filter });
+      const e = (s) => (CC.esc ? CC.esc(s) : String(s));
 
       let itemFlatIndex = 0;
 
@@ -70,12 +82,18 @@ export default {
         <div class="mac-hist-search-box">
           <input type="text" class="mac-hist-search" placeholder="Search chats..." value="${CC.esc ? CC.esc(query) : query}" aria-label="Search chats">
         </div>
+        <div class="mac-hist-chips" role="group" aria-label="Show only">${chips.map((c) => `<button type="button" class="mac-hist-chip${c.id === filter ? " on" : ""}" data-chip="${e(c.id)}" aria-pressed="${c.id === filter}">${e(c.label)}${c.id === "all" ? "" : ` ${c.n}`}</button>`).join("")}</div>
         <div class="mac-hist-content" role="list">
           ${groups.length === 0 ? `<div class="mac-hist-empty">Nothing here yet. Your chats show up here.</div>` : ""}
-          ${groups.map((g) => `
-            <div class="mac-hist-group">
-              <div class="mac-hist-group-label">${g.label}</div>
-              ${g.items.map((item) => {
+          ${groups.map((g) => {
+            // a search opens every group so no match is hidden
+            const open = !!query || !closed.has(g.key);
+            const all = !!query || showAll.has(g.key);
+            const shown = open ? (all ? g.items : g.items.slice(0, SHOW_FIRST)) : [];
+            return `
+            <div class="mac-hist-group" data-group="${e(g.key)}">
+              <button type="button" class="mac-hist-group-label mac-hist-group-toggle" data-toggle="${e(g.key)}" aria-expanded="${open}">${open ? "&#9662;" : "&#9656;"} ${e(g.label)}${g.current ? " (current project)" : ""} <span class="mac-hist-count">${g.items.length} · ${agoWord(g.latest)}</span></button>
+              ${shown.map((item) => {
                 const idx = itemFlatIndex++;
                 const title = titleOf(item);
                 const isFocused = idx === selectedIndex;
@@ -86,8 +104,9 @@ export default {
                   </button>
                 `;
               }).join("")}
-            </div>
-          `).join("")}
+              ${open && !all && g.items.length > SHOW_FIRST ? `<button type="button" class="mac-hist-more" data-more="${e(g.key)}">Show all ${g.items.length}</button>` : ""}
+            </div>`;
+          }).join("")}
         </div>
       `;
 
@@ -106,6 +125,14 @@ export default {
       if (isOpen && searchInput && document.activeElement !== searchInput && !container.querySelector(".mac-hist-redo-btn:focus")) {
         // Only focus search on initial open or when query changes without losing input focus
       }
+
+      container.querySelectorAll("[data-toggle]").forEach((b) => b.addEventListener("click", () => {
+        const k = b.dataset.toggle;
+        if (closed.has(k)) closed.delete(k); else closed.add(k);
+        saveClosed(closed); render();
+      }));
+      container.querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => { filter = b.dataset.chip; selectedIndex = -1; render(); }));
+      container.querySelectorAll("[data-more]").forEach((b) => b.addEventListener("click", () => { showAll.add(b.dataset.more); render(); }));
 
       container.querySelectorAll(".mac-hist-item").forEach((el) => {
         el.addEventListener("click", (e) => {
