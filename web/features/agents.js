@@ -236,6 +236,29 @@ function wireCards(root) {
 // Name, job, when it runs (the same day buttons and time box as the Schedules form), a monthly spend
 // limit and the "Never send or post" switch. Saving goes through the existing routes: one for the agent,
 // and one more for the schedule when a day and time are picked.
+// 0.4.36 (Chris: "using agents is kind of confusing? what do they actually do and work on? when using them what
+// happens?"): a plain explanation at the top of the page. Open on the first visit; folding it is remembered.
+const EXPLAIN_KEY = "cc.agents.explained";
+export function agentsExplainerHtml(open = true) {
+  return `<details class="panel" id="ag-explain"${open ? " open" : ""}><summary><b>What agents do, and what happens when you use one</b></summary>
+    <p class="small" style="margin:8px 0 4px">An agent is a helper with one job. You describe the job once, for example "Write my weekly posts in my bakery's voice". Each time you use it, it does that job the same way.</p>
+    <ol class="small" style="margin:4px 0 6px;padding-left:18px">
+      <li>You press Use or Run and say what you need this time.</li>
+      <li>Meldmind sends it to the AI the agent uses, together with the agent's job and any documents it may read.</li>
+      <li>The answer comes back in Chat and is saved in History, like any other answer.</li>
+      <li>Nothing is sent, posted or bought without your click. It costs what one chat costs, from your own AI accounts.</li>
+    </ol>
+    <p class="small" style="margin:4px 0 2px"><b>Three kinds:</b></p>
+    <ul class="small" style="margin:2px 0 6px;padding-left:18px">
+      <li><b>Your AI employees:</b> ready-made helpers, such as a social writer, a bookkeeper or a researcher. Press Use.</li>
+      <li><b>My agents:</b> ones you make yourself with Create your own agent.</li>
+      <li><b>Outside agents</b> (in Settings): Grok Bot for signed-in browsing, Gmail and Drive; the browser helper for reading web pages; Claude Code and Codex for code on this PC. Meldmind hands them a step and waits for the result.</li>
+    </ul>
+    <p class="small dim" style="margin:2px 0 0">Example: Social writer, Use, "posts for Valentine's week". Five posts in your voice appear in Chat. Copy them, or press Finish.</p>
+  </details>`;
+}
+function explainOpen() { try { return localStorage.getItem(EXPLAIN_KEY) !== "folded"; } catch { return true; } }
+
 function createBox() {
   return `<div class="panel" id="ag-create"><h3>Create your own agent</h3>
     <div class="small muted">Give it a name and a job. It runs with your own AI keys, and every call goes to your spend limit.</div>
@@ -312,7 +335,7 @@ async function renderTab(view) {
   const d = st.data;
   const jumpHere = !!S().openAgentCreate;
   if (jumpHere) S().openAgentCreate = false;
-  view.innerHTML = `${createBox()}${employeesPanel()}<div id="ag-root" class="grid" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr);margin-top:12px">
+  view.innerHTML = `${agentsExplainerHtml(explainOpen())}${createBox()}${employeesPanel()}<div id="ag-root" class="grid" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr);margin-top:12px">
     <div class="grid" style="align-content:start">
       ${st.edit ? agentEditor(st.edit) : ""}
       <div class="panel"><h3>My agents <span class="right"><button class="btn sm primary" id="ag-new">+ New agent</button></span></h3>
@@ -335,6 +358,7 @@ async function renderTab(view) {
     </div></div>`;
   wireEmployees(view);
   wireCreate(view);
+  view.querySelector("#ag-explain")?.addEventListener("toggle", (e) => { try { localStorage.setItem(EXPLAIN_KEY, e.target.open ? "open" : "folded"); } catch { /* the choice is only kept on this computer */ } });
   const $v = (s) => view.querySelector(s);
   if (jumpHere) { const n = $v("#ac-name"); n?.focus(); n?.scrollIntoView({ block: "center" }); }
   const findA = (id) => d.agents.find((x) => x.id === id), findP = (id) => d.prompts.find((x) => x.id === id);
