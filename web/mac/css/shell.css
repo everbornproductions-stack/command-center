@@ -562,6 +562,23 @@ body[data-style="mac"] #mac-dock > * {
 body[data-style="mac"] #mac-dock:empty {
   display: none;
 }
+/* 0.4.31 (panel 0428 item 4): at 390 the dock was 470 px wide and centred, so Chat sat off the left edge and could
+   not be tapped. On a phone the dock fits the window width, starts at the left with Chat first, and swipes sideways.
+   It stays in its own band below the window (--mac-win-b), so it does not cover the window's content. */
+@media (max-width: 760px) {
+  body[data-style="mac"] #mac-dock {
+    left: var(--mac-win-x);
+    right: var(--mac-win-x);
+    justify-content: flex-start;
+    pointer-events: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  body[data-style="mac"] #mac-dock::-webkit-scrollbar { display: none; }
+}
 
 /* ---------- small screens: keep every target tappable ---------- */
 @media (max-width: 760px) {
@@ -704,9 +721,46 @@ body[data-style="mac"] #vt-bar[data-talk="off"] #vt-stop { display: none; }
   body[data-style="mac"][data-ui="expert"] #mobile-nav:has([data-more]:not([hidden])) :is([data-view="subscriptions"], [data-feed], [data-view="help"]) { display: none; }
   body[data-style="mac"][data-ui="expert"] #mobile-nav button { min-width: 0; flex: 1 1 0; }
 }
-/* 0.4.28 (panel item 7): "Answer done · Free" sat on the Talk bar's Hands-free box. Toasts rise above the Talk bar
-   (and, on a phone, above the Talk bar, the bottom tabs and the dock). */
-body[data-style="mac"] .toasts { bottom: 168px; }
+/* 0.4.28 (panel item 7): "Answer done · Free" sat on the Talk bar's Hands-free box, so toasts rose to 168 px (280 px
+   on a phone). 0.4.31 (panel 0428 item 2): up there they sat on the Expert Deliverable and, on a phone, mid-screen over
+   the "That is a Pro feature" box. Toasts now sit at the top right, just under the title bar (and the notice strip),
+   so they stay clear of the Talk bar, the bottom tabs and the dock too. In Expert that is over the Live feed column,
+   not the page; narrow enough (300 px) to stay inside it. They still close on their own (app.js toast()). */
+body[data-style="mac"] .toasts {
+  top: calc(var(--mac-win-t) + var(--mac-title-h) + var(--mac-note-h, 0px) + 8px);
+  right: calc(var(--mac-win-x) + 12px);
+  bottom: auto;
+  left: auto;
+  align-items: flex-end;
+  pointer-events: none;
+}
+body[data-style="mac"] .toasts .toast {
+  max-width: min(300px, calc(100vw - 2 * var(--mac-win-x) - 24px));
+  pointer-events: auto;
+}
+/* Simple has no Live feed column, and "Just chat instead" sits at the top right of the page: there the toast is
+   centred in the empty band above the page title instead. */
+@media (min-width: 761px) {
+  body[data-style="mac"][data-ui="simple"] .toasts {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    align-items: center;
+  }
+}
+/* The Pro box covers the middle of the window: toasts move below it, and the box leaves them room. */
+body[data-style="mac"]:has(#cc-upgrade) .toasts {
+  top: auto;
+  bottom: 10px;
+}
+body[data-style="mac"] #cc-upgrade .card {
+  max-height: calc(100vh - 2 * 78px);
+}
 @media (max-width: 760px) {
-  body[data-style="mac"] .toasts { bottom: 280px; }
+  body[data-style="mac"] .toasts {
+    left: calc(var(--mac-win-x) + 8px);
+    right: calc(var(--mac-win-x) + 8px);
+    align-items: stretch;
+  }
+  body[data-style="mac"] .toasts .toast { max-width: none; }
 }

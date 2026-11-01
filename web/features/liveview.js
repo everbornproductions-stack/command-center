@@ -15,10 +15,11 @@ const css = `
 .lv-node.lv-ghost { opacity: .28; }
 .lv-node.lv-gone { opacity: .16; }
 .lv-node text { font-family: var(--sans, Inter, sans-serif); text-anchor: middle; pointer-events: none; }
-.lv-node .lv-name { font-size: 11px; font-weight: 600; transition: opacity .35s ease; }
+.lv-node .lv-name { font-size: 12px; font-weight: 600; transition: opacity .35s ease; }
 .lv-node.lv-tiny .lv-name { opacity: 0; }
 .lv-node.lv-tiny:hover .lv-name, .lv-node.lv-tiny:focus .lv-name { opacity: 1; }
-.lv-node .lv-init { font-size: 11px; font-weight: 700; }
+/* 0.4.31 (panel 0428 item 11c): the last two 11 px labels on Live view are 12 px now. */
+.lv-node .lv-init { font-size: 12px; font-weight: 700; }
 .lv-halo { opacity: 0; transition: opacity .7s ease; transform-box: fill-box; transform-origin: center; }
 .lv-node.lv-live .lv-halo { opacity: .9; animation: lv-pulse 2.4s ease-in-out infinite; }
 .lv-node.lv-hub { opacity: .92; }
@@ -68,7 +69,7 @@ const css = `
 .lv-free-bubble.down { opacity: .6; }
 .lv-free-empty { margin: 0; }
 .lv-idle-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.lv-node .lv-badge { font-size: 9.5px; font-weight: 700; text-anchor: middle; pointer-events: none; }
+.lv-node .lv-badge { font-size: 12px; font-weight: 700; text-anchor: middle; pointer-events: none; }
 .lv-ops-foot { display: flex; justify-content: flex-end; margin-top: 12px; }
 .lv-ops-foot .btn { font-weight: 600; }
 `;
@@ -147,7 +148,7 @@ function paintGeom(g, geom) {
   spin.setAttribute("cx", x); spin.setAttribute("cy", y); spin.setAttribute("r", r + 7);
   const init = g.querySelector(".lv-init");
   init.setAttribute("x", x); init.setAttribute("y", y + 4);
-  init.setAttribute("font-size", r < 14 ? "8" : "11");
+  init.setAttribute("font-size", "12");
   const name = g.querySelector(".lv-name");
   name.setAttribute("x", x); name.setAttribute("y", y + r + 16);
 }
@@ -292,7 +293,7 @@ function syncMap(map, flow) {
     const bd = g.querySelector(".lv-badge");
     bd.textContent = n.badge || "";
     bd.setAttribute("fill", n.viaMcp ? "#67e8f9" : "#fbbf24");
-    bd.setAttribute("x", n.x); bd.setAttribute("y", n.y + r + 28);
+    bd.setAttribute("x", n.x); bd.setAttribute("y", n.y + r + 31);
     aimNode(g, n.x, n.y, r, reduced);
   }
   nodeG.querySelectorAll("[data-id]").forEach((g) => {
