@@ -55,6 +55,13 @@ export function panelHtml(view = {}, { esc = plainEsc, setup = false } = {}) {
 }
 
 // The waiting box inside a chat answer, a council seat, or a side-by-side column.
+// 0.4.30: "3:40 PM" today, "Sat 3:40 PM" on another day.
+export function retryClock(at, now = Date.now()) {
+  const d = new Date(Number(at) || now);
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return d.toDateString() === new Date(now).toDateString() ? time : `${d.toLocaleDateString("en-US", { weekday: "short" })} ${time}`;
+}
+
 export function waitBoxHtml(w = {}, { esc = plainEsc, now = Date.now() } = {}) {
   if (!w?.jobId) return "";
   const steps = ["apps", "website", "copy"];
@@ -65,6 +72,7 @@ export function waitBoxHtml(w = {}, { esc = plainEsc, now = Date.now() } = {}) {
     <div><b>${esc(head)}</b></div>
     <div class="small dim">Waiting <span data-aw-since="${Number(w.since) || now}">${esc(elapsed(now - (Number(w.since) || now)))}</span>. ${esc(WAIT_NOTE)}</div>
     <ol class="cc-aw-steps small">${list}</ol>
+    ${w.retryAt && w.step === "copy" ? `<div class="small cc-aw-retry">Your apps ran out of usage. Meldmind tries them again by itself at ${esc(retryClock(w.retryAt, now))}, so you can leave this and come back.</div>` : ""}
     ${w.website ? `<div class="small">Website mode is on: Meldmind tries the website in its own window and asks you before it sends.</div>` : ""}
     <div class="row cc-aw-btns" style="gap:6px;flex-wrap:wrap;margin-top:6px">
       <button type="button" class="btn sm primary" data-aw-continue="${esc(w.jobId)}">Continue in ${esc(w.ai || "the AI")}</button>

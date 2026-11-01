@@ -42,6 +42,7 @@ import { runCouncil, summaryOf } from "./council.js";
 import { beginFollowup } from "./followup.js";
 import { autoRemember, warm as warmMemories } from "./memories.js";
 import { withMemory, carriesMemory, MARKER as MEMORY_MARKER } from "./project-memory.js";
+import { finishLaterAt } from "./worker-pool.js";
 import { runMission, abortMission, pauseMission, editPausedMission, beginResume, publicMission, scheduleMission, scheduledMissions, restoreScheduled, missionSummary } from "./mission.js";
 import { rememberBackground } from "./background.js";
 import { loadProjects, listProjects, saveProject, ensureSampleProject, addLink, removeLink, hqSnapshot, trashProject, listDeleted, deletedProject, restoreProject, expiredDeleted, listSubProjects, projectTree, expandProject } from "./projects.js";
@@ -868,13 +869,19 @@ async function api(req, res, url) {
       const gate = requireResearch("proSearch");
       if (!gate.ok) { restoreTone(tone); return json(res, gate.status || 402, { error: gate.message, code: gate.code }); }
     }
-    try { guardMaxQuality(missionMode); guard("missions"); if (job.runAt === "offpeak") guard("scheduler"); }
+    try { guardMaxQuality(missionMode); guard("missions"); if (job.runAt === "offpeak" || job.runAt === "when-back") guard("scheduler"); }
     catch (e) { restoreTone(tone); return json(res, e.status || 402, { error: e.message, code: e.code }); }
     const opts = { goal: job.goal, mode: missionMode, projectId: job.projectId, qa: job.qa !== false, budgetUsd: Number(job.budgetUsd) || s.missionBudget, context: job.context || "", search: typeof job.search === "boolean" ? job.search : undefined, searchMode: job.searchMode, filter: job.filter, tools: typeof job.tools === "boolean" ? job.tools : undefined, grokbot: typeof job.grokbot === "boolean" ? job.grokbot : undefined, browser: typeof job.browser === "boolean" ? job.browser : undefined, libraries: Array.isArray(job.libraries) ? job.libraries : undefined, private: !!job.private, skip: cleanSkip(job.skip), tone: tone?.instruction || "", toneId: tone?.id || "", getItDone: job.getItDone === true, sendMessages: job.sendMessages === true, employees: Array.isArray(job.employees) ? job.employees.map(String).slice(0, 12) : undefined };
     if (job.runAt === "offpeak") {
       const win = nextDiscountWindow();
       if (win) { const m = scheduleMission(opts, win.at, `${win.rule.name}, ${win.rule.pct}% off`); return json(res, 202, { ok: true, scheduled: m }); }
       emit("log", { text: "A discount window is already open (or none is configured): running now." });
+    }
+    // 0.4.30 "Finish it later": a job that stopped because the AIs were out runs again by itself when the first one is back
+    if (job.runAt === "when-back") {
+      const { at, helperBack } = finishLaterAt();
+      const m = scheduleMission(opts, new Date(at), helperBack ? "when your AIs are back" : "after a short rest for your AIs");
+      return json(res, 202, { ok: true, scheduled: m, at });
     }
     const missionId = job.background ? ("m-" + Date.now().toString(36)) : undefined;
     if (missionId) opts.id = missionId;

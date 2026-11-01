@@ -168,6 +168,16 @@ export function clearRest(id) {
   return true;
 }
 export const noteProviderRest = (provider, opts = {}) => noteRest(workerIdFor(provider), opts);
+
+// 0.4.30 "Finish it later": the time to run a stopped job again. A minute after the first switched-on helper is back,
+// or in 30 minutes when none is resting (an API's short cool-down), never sooner than 5 minutes from now.
+export const FINISH_LATER_MIN_MS = 5 * 60 * 1000;
+export const FINISH_LATER_DEFAULT_MS = 30 * 60 * 1000;
+export function finishLaterAt(now = Date.now()) {
+  const backs = Object.keys(poolState().workers).filter((id) => isEnabled(id)).map((id) => restingUntil(id, now)).filter((u) => u > now);
+  const at = backs.length ? Math.min(...backs) + 60 * 1000 : now + FINISH_LATER_DEFAULT_MS;
+  return { at: Math.max(at, now + FINISH_LATER_MIN_MS), helperBack: backs.length > 0 };
+}
 export const clearProviderRest = (provider) => clearRest(workerIdFor(provider));
 
 // ---------- picking ----------

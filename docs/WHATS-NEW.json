@@ -1,4 +1,12 @@
 {
+  "0.4.30": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Work while you wait: when your AI apps run out of usage, a waiting answer now tries them again by itself at the time they said they reset, and the box shows that time. Continue in and Paste reply still work meanwhile.",
+      "Finish it later: when a job stops because an AI is out of credit or usage, one click queues it to run again by itself when your first AI is back, so you can close Meldmind's window and come back.",
+      "Point at the ready pill at the top to see which AIs are resting and the time each one is back."
+    ]
+  },
   "0.4.29": {
     "title": "What's new in Meldmind",
     "bullets": [

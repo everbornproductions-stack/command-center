@@ -1,0 +1,10 @@
+{
+  "bullets": [
+    "Work while you wait: when your AI apps run out of usage, a waiting answer now tries them again by itself at the time they said they reset, and the box shows that time. Continue in and Paste reply still work meanwhile.",
+    "Finish it later: when a job stops because an AI is out of credit or usage, one click queues it to run again by itself when your first AI is back, so you can close Meldmind's window and come back.",
+    "Point at the ready pill at the top to see which AIs are resting and the time each one is back."
+  ],
+  "article": "docs/help/getting-started.md",
+  "heading": "Work while you wait and Finish it later",
+  "body": "Work while you wait: when your AI apps run out of usage, a waiting answer now tries them again by itself at the time they said they reset, and the box shows that time. Continue in and Paste reply still work meanwhile. Meldmind tries up to 16 times and never sends anything for you. Finish it later: when a job stops because an AI is out of credit or usage, the card offers Finish it later. One click queues the same job to run again by itself a minute after your first AI is back (or in 30 minutes when none is resting). It shows with your running jobs until then, and you can cancel it there. Point at the ready pill at the top to see which AIs are resting and the time each one is back."
+}

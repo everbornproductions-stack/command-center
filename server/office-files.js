@@ -403,8 +403,16 @@ export function markdownBlocks(md) {
       blocks.push({ type: "item", ordered: level === 0 ? inList.ordered : ordered, level, list: inList.id, text });
       continue;
     }
-    const quote = /^>\s?(.*)$/.exec(t);
-    if (quote) { flush(); inList = null; blocks.push({ type: "quote", text: quote[1] }); continue; }
+    // 0.4.30 (dogfood church-docx): a quoted block ("> ### Welcome", "> **Dear Volunteer,**", "> - item") is read as
+    // markdown too, so its headings and lists come out as headings and lists, and its paragraphs as quotes
+    if (/^>/.test(t)) {
+      flush(); inList = null;
+      const inner = [];
+      for (; i < lines.length && /^\s*>/.test(lines[i]); i++) inner.push(lines[i].replace(/^\s*>\s?/, ""));
+      i--;
+      for (const b of markdownBlocks(inner.join("\n"))) blocks.push(b.type === "para" ? { type: "quote", text: b.text } : b);
+      continue;
+    }
     if (inList && /^\s{2,}\S/.test(line)) { const prev = blocks[blocks.length - 1]; if (prev?.type === "item") { prev.text += " " + t; continue; } }
     inList = null;
     paraBuf.push(t);
@@ -529,7 +537,7 @@ export function markdownSlides(md, { title = "" } = {}) {
   const target = () => cur || pre;
   const start = (kind, t) => { cur = { kind, title: slideTitle(t), items: [], tables: [], notes: [] }; slides.push(cur); notes = null; };
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i].replace(/^\s*>\s?/, ""); // 0.4.30: a quoted line is read like any other line
     const t = line.trim();
     const fence = /^(```|~~~)/.exec(t);
     if (fence) {

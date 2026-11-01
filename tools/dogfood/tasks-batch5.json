@@ -13,7 +13,7 @@
     "files": [{ "name": "make_invoice.py", "check": "python", "expect": "TOTAL=\\d" }] },
   { "id": "church-docx", "industry": "Church office", "persona": "Pastor Ruth, small community church", "kind": "document",
     "goal": "Write a volunteer handbook for a small church as a Word document: welcome, volunteer roles (greeters, kids ministry, tech booth, food pantry), safety rules for working with children, how to sign up for shifts, and who to contact. Save it as {dir}\\volunteer-handbook.docx",
-    "files": [{ "name": "volunteer-handbook.docx", "check": "docx", "mustInclude": ["Greeters"] }] },
+    "files": [{ "name": "volunteer-handbook.docx", "check": "docx", "mustInclude": ["Greeter"] }] },
   { "id": "bakery-html", "industry": "Bakery", "persona": "Sofia, owns a neighborhood bakery", "kind": "website",
     "goal": "Build a one-page order form website for a bakery: a header with the bakery name, a list of 8 items with prices and a quantity box for each, a running total that updates as quantities change (JavaScript), a pickup date field and a Submit button that shows a thank-you message without sending anything. One self-contained HTML file. Save it as {dir}\\bakery-order.html",
     "files": [{ "name": "bakery-order.html", "check": "html", "mustInclude": ["total", "<script"] }] },

@@ -31,10 +31,27 @@ export const END = "END MELDMIND ANSWER";
 export const PLACEHOLDER = "(your full answer here)";
 export const ID_RE = /^ans-[A-Za-z0-9_-]{6,64}$/;
 export const KINDS = ["single", "council", "compare"];
+// 0.4.30 "Work while you wait" (Chris 2026-10-22): while a slot waits on You copy it over, Meldmind also tries the
+// official apps again by itself, at the time the first one said its limit resets (else every 30 minutes), so a job
+// finishes on its own once usage comes back. The copy and paste buttons keep working the whole time.
+export const RETRY_MIN_MS = 5 * 60 * 1000;
+export const RETRY_EVERY_MS = 30 * 60 * 1000;
+export const MAX_AUTO_TRIES = 16;
 
 const bad = (status, message, code) => Object.assign(new Error(message), { status, code });
 const oneLine = (s, n) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 const SUB_NAME = { anthropic: "Claude", openai: "ChatGPT", xai: "Grok", google: "Gemini" };
+
+/** When to try the apps again: a minute after the earliest reset an app gave, never sooner than RETRY_MIN_MS. */
+export function nextRetryAt(job, now = Date.now()) {
+  if (!job || (job.autoTries || 0) >= MAX_AUTO_TRIES) return null;
+  // only an app that ran out of its plan comes back by itself; a missing or signed-out app does not
+  const out = (job.tried || []).filter((t) => t.code === "quota" && t.route !== "website");
+  if (!out.length) return null;
+  const backs = out.map((t) => Number(t.until) || 0).filter((u) => u > now);
+  const at = backs.length ? Math.min(...backs) + 60 * 1000 : now + RETRY_EVERY_MS;
+  return Math.max(at, now + RETRY_MIN_MS);
+}
 
 // ---------- when does a slot wait ----------
 export const waitOn = () => fallbackSettings().subscriptions !== false;
@@ -151,6 +168,7 @@ function patch(id, fields) {
 export function headline(job) {
   if (job.step === "website" && job.trying) return `Out of API credits. Answering through the ${job.aiName} website in the Meldmind window.`;
   if (job.step === "apps" && job.trying) return `Out of API credits. Answering through ${job.trying} on this PC.`;
+  if (job.retryAt) return `Out of API credits. Answering through your ${job.aiName} subscription. Meldmind tries your apps again by itself.`;
   return `Out of API credits. Answering through your ${job.aiName} subscription.`;
 }
 export function publicJob(j) {
@@ -160,10 +178,11 @@ export function publicJob(j) {
     status: j.status, step: j.step, trying: j.trying || null, tried: j.tried || [], website: !!j.website, websiteNote: j.website ? WEBSITE_NOTE : null,
     headline: headline(j), page: j.page || null, hub: !!j.hub, createdAt: j.createdAt, updatedAt: j.updatedAt || j.createdAt,
     answeredAt: j.answeredAt || null, answeredBy: j.answeredBy || null, tag: j.tag || null,
+    retryAt: j.status === "waiting" ? j.retryAt || null : null, autoTries: j.autoTries || 0,
   };
 }
 // What a run keeps on its waiting slot (the box draws from this alone).
-export const slotInfo = (j) => ({ jobId: j.id, ai: j.aiName, provider: j.provider, since: j.createdAt, step: j.step, trying: j.trying || null, headline: headline(j), page: j.page || null, website: !!j.website });
+export const slotInfo = (j) => ({ jobId: j.id, ai: j.aiName, provider: j.provider, since: j.createdAt, step: j.step, trying: j.trying || null, headline: headline(j), page: j.page || null, website: !!j.website, retryAt: j.retryAt || null });
 export const listJobs = (n = 40) => jobs().slice(0, n).map(publicJob);
 export const waitingJobs = () => jobs().filter((j) => j.status === "waiting");
 
@@ -231,7 +250,7 @@ export async function advance(jobId) {
           return;
         }
         if (res.code === "signin") noteSignedOut(r.id);
-        job = patch(jobId, { tried: [...(job.tried || []), { route: r.id, name: r.name, code: res.code }] });
+        job = patch(jobId, { tried: [...(job.tried || []).filter((t) => t.route !== r.id), { route: r.id, name: r.name, code: res.code, ...(res.until ? { until: res.until } : {}) }] });
         note(job, `${r.id}-${res.code}`);
         emit("log", { text: `${res.message} Meldmind moves on to the next way to answer.`, missionId: job.runId });
       }
@@ -262,12 +281,37 @@ export async function advance(jobId) {
       if (hubOn()) { try { hub = await hubRoute({ jobId, kind: "answer", threadId: job.runId }); } catch { hub = null; } }
       job = findJob(jobId);
       if (!job || job.status !== "waiting") return;
-      job = patch(jobId, { trying: null, hub: !!hub?.hub, prompt: buildCopyPrompt(job, { hub: hub?.hub ? hub : null }) });
+      job = patch(jobId, { trying: null, hub: !!hub?.hub, prompt: buildCopyPrompt(job, { hub: hub?.hub ? hub : null }), retryAt: HOSTED ? null : nextRetryAt(job) });
       stepped(job);
-      return; // waits here until an answer comes back or Stop waiting
+      armRetry(job);
+      return; // waits here until an answer comes back, Stop waiting, or the next try of the apps
     }
   }
 }
+// The next try of the apps, kept as a timer here and as retryAt on the job (so a restart re-arms it).
+const retryTimers = new Map(); // job id -> timeout
+function clearRetry(jobId) { const t = retryTimers.get(jobId); if (t) clearTimeout(t); retryTimers.delete(jobId); }
+function armRetry(job) {
+  clearRetry(job.id);
+  if (!job?.retryAt || job.status !== "waiting") return;
+  const c = ctx();
+  const t = setTimeout(() => {
+    retryTimers.delete(job.id);
+    runAs(c, () => retryNow(job.id)).catch((e) => console.error("[answer-wait] retry:", e.message));
+  }, Math.max(0, Math.min(job.retryAt - Date.now(), 2 ** 31 - 1)));
+  t.unref?.();
+  retryTimers.set(job.id, t);
+}
+export async function retryNow(jobId) {
+  const job = findJob(jobId);
+  if (!job || job.status !== "waiting" || job.step !== "copy") return false;
+  const j = patch(jobId, { step: CHAIN[0].id, retryAt: null, autoTries: (job.autoTries || 0) + 1 });
+  note(j, "auto-retry");
+  emit("log", { text: `Meldmind is trying your ${job.aiName} apps again by itself (try ${j.autoTries}).`, missionId: job.runId });
+  await advance(jobId);
+  return true;
+}
+
 function stepped(job) {
   announce(job);
   try { steppers.get(job.kind)?.(job); } catch {}
@@ -288,7 +332,8 @@ export async function deliver(jobId, text, { route = "paste", by = "", tag = "",
   if (!body) throw bad(400, "The answer is empty.", "empty");
   if (body.length > ANSWER_MAX) throw bad(413, `That answer is too long (the limit is ${ANSWER_MAX} characters).`, "too_long");
   const via = tag || `via ${job.aiName} subscription`;
-  const done = patch(jobId, { status: "answered", answeredAt: Date.now(), answeredBy: route, tag: via, trying: null });
+  clearRetry(jobId);
+  const done = patch(jobId, { status: "answered", answeredAt: Date.now(), answeredBy: route, tag: via, trying: null, retryAt: null });
   // another route won: an app still working on it is stopped
   const app = appRuns.get(jobId); if (app) stopApp(app);
   note(done, `answered-${route}`);
@@ -306,7 +351,8 @@ export async function stopWait(jobId) {
   const job = findJob(jobId);
   if (!job) throw bad(404, "No waiting answer has that job id.", "unknown");
   if (job.status !== "waiting") return { ok: true, jobId, status: job.status };
-  const done = patch(jobId, { status: "stopped", trying: null, stoppedAt: Date.now() });
+  clearRetry(jobId);
+  const done = patch(jobId, { status: "stopped", trying: null, stoppedAt: Date.now(), retryAt: null });
   const app = appRuns.get(jobId); if (app) stopApp(app);
   note(done, "stopped");
   try { await handlers.get(job.kind)?.(done, { stopped: true }); } catch (e) { console.error("[answer-wait] stop:", e.message); }
@@ -337,6 +383,7 @@ export async function submitAnswer({ jobId, answer } = {}) {
 // After a restart: an app that was answering died with the old process, so the chain picks up from that step.
 export function resumeAll() {
   for (const j of waitingJobs()) {
+    if (j.step === "copy" && j.retryAt) { armRetry(j); continue; } // 0.4.30: a job waiting for its next try keeps that time
     const c = ctx();
     setImmediate(() => { runAs(c, () => advance(j.id)).catch(() => {}); });
   }
@@ -351,4 +398,4 @@ export async function fromHub(row) {
   catch (e) { return { jobId: job.id, status: job.status, error: e.message }; }
 }
 
-export const _test = { jobs, upsert, appRuns, setWebDeps: (d) => { webOverride = d; } };
+export const _test = { jobs, upsert, appRuns, retryTimers, setWebDeps: (d) => { webOverride = d; } };
