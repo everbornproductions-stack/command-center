@@ -34,3 +34,10 @@ export function modeBanner(mode) {
     ? "Expert: every tool, Live Ops and settings"
     : "Simple: pick, describe, done";
 }
+
+// 0.4.30: the ready pill's hover words. "Your AIs right now" plus who is resting and when each is back.
+export function restingTitle(workers) {
+  const resting = (Array.isArray(workers) ? workers : []).filter((w) => w && w.status === "resting" && w.backLabel);
+  if (!resting.length) return "Your AIs right now";
+  return `Your AIs right now. Resting: ${resting.map((w) => `${w.label} back at ${w.backLabel}`).join(", ")}. Meldmind uses the others meanwhile.`;
+}

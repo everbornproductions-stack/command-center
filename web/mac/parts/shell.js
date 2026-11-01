@@ -4,7 +4,7 @@
 // Everything runs only while body[data-style="mac"] is set by /mac/index.js, and it all lives
 // inside #mac-root, so turning the Mac style off puts the page back the way it was.
 import { LABELS } from "/nav.js";
-import { readyLine, crumbFor, modeBanner } from "/mac/data/shell.js";
+import { readyLine, crumbFor, modeBanner, restingTitle } from "/mac/data/shell.js";
 
 const THEME_KEY = "cc.mac.theme";
 
@@ -229,6 +229,17 @@ export default {
 
     // Parts talk through the bus too: a view or mode another part announces repaints the bar.
     CLEANUPS.push(bus.on("view", paintCrumb), bus.on("mode", () => paintMode(CC.uiMode?.() || "simple")));
+
+    // 0.4.30 (Work while you wait): hovering the ready pill says which AIs are resting and when each is back.
+    async function paintResting() {
+      const pill = document.getElementById("mac-ready");
+      if (!pill || document.hidden || !CC.api) return;
+      try { pill.title = restingTitle((await CC.api("/workers"))?.workers); }
+      catch { /* the pill keeps its last words */ }
+    }
+    const restTimer = setInterval(paintResting, 120000);
+    CLEANUPS.push(() => clearInterval(restTimer));
+    setTimeout(paintResting, 4000);
 
     paintMode(CC.uiMode?.() || "simple");
     paintCrumb();

@@ -101,3 +101,11 @@ test("retryClock: today shows the time, another day shows the weekday", () => {
   assert.match(retryClock(new Date(2026, 9, 31, 15, 40).getTime(), now), /^3:40\s?PM$/);
   assert.match(retryClock(new Date(2026, 10, 1, 9, 5).getTime(), now), /^Sun 9:05\s?AM$/);
 });
+
+test("the ready pill's hover words name the resting AIs and when each is back", async () => {
+  const { restingTitle } = await import("../web/mac/data/shell.js");
+  assert.equal(restingTitle([]), "Your AIs right now");
+  assert.equal(restingTitle([{ label: "Codex", status: "ready" }]), "Your AIs right now");
+  assert.equal(restingTitle([{ label: "Claude Code", status: "resting", backLabel: "3:40 PM" }, { label: "Gemini CLI", status: "resting", backLabel: "9:00 PM" }, { label: "Codex", status: "ready" }]),
+    "Your AIs right now. Resting: Claude Code back at 3:40 PM, Gemini CLI back at 9:00 PM. Meldmind uses the others meanwhile.");
+});
