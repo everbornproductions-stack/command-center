@@ -68,6 +68,13 @@ test("registry defaults: the prototype's field shapes, the apps Chris uses, and 
   for (const id of ids) { assert.equal(WP.isEnabled(id), true, id); assert.equal(WP.restingUntil(id), 0, id); }
 });
 
+// 0.4.36 (Chris: "if an AI is gone it shouldn't be just turned off, the AI should be removed"): even when the retired
+// Gemini CLI is still installed on the PC, it is not listed
+test("retired Gemini CLI is never listed, installed or not", () => {
+  for (const installed of [false, true]) assert.equal(WP.listWorkers({ detected: { "gemini-cli": { installed, signedIn: installed } } }).find((w) => w.id === "gemini-cli"), undefined, String(installed));
+  assert.equal(WP.DEFAULT_WORKERS.find((w) => w.id === "freebuff").needs, "Use Install Freebuff under Your AI helpers.");
+});
+
 test("detection with fakes: ready, needs sign-in, not installed, and API AIs with a key", async () => {
   reset();
   const v = await WP.workersView({ detectors: FAKES, apiSource: () => [{ id: "groq", name: "Groq", keyed: true }, { id: "anthropic", name: "Claude", keyed: true }] });
@@ -78,8 +85,7 @@ test("detection with fakes: ready, needs sign-in, not installed, and API AIs wit
   assert.equal(by.codex.status, "signin");
   assert.equal(by.codex.statusLabel, "Needs sign-in");
   assert.ok(by.codex.needs, "says what it needs");
-  assert.equal(by["gemini-cli"].status, "retired");
-  assert.equal(by["gemini-cli"].light, "grey");
+  assert.equal(by["gemini-cli"], undefined, "0.4.36 (Chris): a retired helper is removed from the list, not shown as off");
   assert.equal(by.opencode.status, "missing");
   assert.equal(by.grokbot.status, "signin");
   assert.equal(by["api:groq"].kind, "api");
@@ -94,7 +100,7 @@ test("detection with fakes: ready, needs sign-in, not installed, and API AIs wit
   assert.equal(bad.opencode.installed, false);
   // the real detectors (no program on PATH in tests) give a full list too
   const real = await WP.workersView({ apiSource: () => [] });
-  assert.ok(real.workers.length >= WP.DEFAULT_WORKERS.length);
+  assert.ok(real.workers.length >= WP.DEFAULT_WORKERS.length - 1, "every helper except the retired Gemini CLI (0.4.36)");
   for (const w of real.workers) assert.ok(["ready", "resting", "signin", "off", "missing", "retired"].includes(w.status), `${w.id} ${w.status}`);
 });
 
@@ -313,7 +319,8 @@ test("the Your AI helpers panel in Expert Settings: lights, plain states, a work
       state: r.querySelector("[data-helper-state]").textContent.trim(), on: r.querySelector("[data-helper-switch]").checked, text: r.textContent,
     })));
     const by = Object.fromEntries(rows.map((r) => [r.id, r]));
-    for (const id of ["claude-code", "antigravity", "gemini-cli", "codex", "opencode"]) assert.ok(by[id], `${id} is listed`);
+    for (const id of ["claude-code", "antigravity", "codex", "opencode"]) assert.ok(by[id], `${id} is listed`);
+    assert.equal(by["gemini-cli"], undefined, "the retired Gemini CLI is not listed");
     assert.equal(by.codex.status, "off");
     assert.equal(by.codex.light, "grey");
     assert.equal(by.codex.on, false);

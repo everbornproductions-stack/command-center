@@ -1287,9 +1287,12 @@ $("#tabs")?.addEventListener("click", (e) => { if (e.target.closest("button[data
 function renderExtras(kind, sel, ...args) {
   const box = $(sel); if (!box) return;
   box.innerHTML = "";
-  if (S.settings?.lightMode && (kind === "command" || kind === "deliverable")) return;
+  // 0.4.36 (panel 0434 item 2): Light mode skips the answer's extra panels, but not the answer check
+  const light = !!S.settings?.lightMode && (kind === "command" || kind === "deliverable");
+  if (light && kind === "command") return;
   const simple = S.uiMode === "simple";
   for (const f of window.CC?.byKind?.(kind) || []) {
+    if (light && f.id !== "answer-check") continue;
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
     if (simple && kind === "command" && !SIMPLE_COMMAND.has(f.id)) continue;
     if (simple && kind === "settings" && EXPERT_SETTINGS.has(f.id)) continue;
@@ -3017,6 +3020,7 @@ function renderSimpleBasics(v) {
       ${outAis.length ? `<div class="row" style="gap:8px;margin:0 0 10px;flex-wrap:wrap">${outAis.map((p) => `<span class="chip red">${esc(p.name)}: ${esc(pauseLabel(p))}</span>${recheckHtml(p)}`).join("")}</div>` : ""}
       <button type="button" class="btn primary" id="basics-ai-go">${keyed.length ? "Fix an AI" : "Add an AI"}</button>
     </div>
+    <div id="basics-free-setup"></div>
     <div class="panel basics-card" id="basics-reading"><h3>Text and reading</h3><div id="basics-reading-body"></div></div>
     <div class="panel basics-card" id="basics-privacy"><h3>Privacy</h3>
       <label class="row small" style="gap:8px"><input type="checkbox" id="basics-private" ${on ? "checked" : ""}> Private mode</label>
@@ -3041,6 +3045,9 @@ function renderSimpleBasics(v) {
     <p style="margin:0"><button type="button" class="btn" id="basics-more">More options</button></p>
   </div>`;
   bindRecheck(v);
+  // 0.4.36 (panel 0434 item 7d): Simple Settings has no Your AI helpers panel, so the free AI setup goes here
+  // (Expert has the helpers panel, with the same Install and Sign in buttons)
+  { const fs = $("#basics-free-setup"); if (fs) window.CC.freeSetup?.mount?.(fs, { title: "Free AIs on this PC" }); }
   $("#basics-ai-go").addEventListener("click", () => openSettingsMore("#settings-keys"));
   $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
   $("#basics-more").addEventListener("click", () => openSettingsMore(""));
@@ -3513,6 +3520,26 @@ watchNavLayout((layout) => {
   ensureFeatureTabs();
 });
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
+// 0.4.36 (Chris: "you should be able to make the live feed area minimize to the side if you don't want to look at the feed
+// the entire time"): Hide tucks the feed into a thin tab with a count of new events; the tab brings it back. Remembered.
+const FEED_MIN_KEY = "cc.feed.min";
+let feedNew = 0;
+function setFeedMin(min) {
+  document.body.classList.toggle("feed-min", min);
+  $("#feed-tab").hidden = !min;
+  $("#feed-min").setAttribute("aria-expanded", String(!min));
+  if (!min) { feedNew = 0; $("#feed-new").hidden = true; }
+  try { localStorage.setItem(FEED_MIN_KEY, min ? "1" : "0"); } catch { /* kept for this window only */ }
+}
+$("#feed-min").addEventListener("click", () => { setFeedMin(true); $("#feed-tab").focus(); });
+$("#feed-tab").addEventListener("click", () => { setFeedMin(false); $("#feed-min").focus(); });
+new MutationObserver((list) => {
+  if (!document.body.classList.contains("feed-min")) return;
+  const added = list.reduce((n, m) => n + m.addedNodes.length, 0);
+  if (!added) return;
+  feedNew += added; const b = $("#feed-new"); b.textContent = feedNew > 99 ? "99+" : String(feedNew); b.hidden = false;
+}).observe($("#feed-list"), { childList: true });
+try { if (localStorage.getItem(FEED_MIN_KEY) === "1") setFeedMin(true); } catch { /* starts open */ }
 document.addEventListener("input", (e) => {
   const form = e.target.closest?.(".reply-box");
   if (!form || e.target.tagName !== "TEXTAREA" || !S.live?.id) return;
@@ -3843,9 +3870,9 @@ function renderWelcome(v, st) {
       <div class="welcome-grid">
         ${welcomeLookHtml()}
         ${welcomeAiHtml(st)}
-        ${welcomeAppsHtml()}
         <!-- Reserved slot: 0.4.16 adds "Backup when credits run out" here with CC.register({ welcome: { order, render(el) } }). -->
         <section class="welcome-slot" id="su-backup-slot" data-slot="credit-backup" aria-label="More setup"></section>
+        ${welcomeAppsHtml()}
       </div>
       <div class="welcome-block" id="su-privacy-box" style="margin-top:14px">
         <label class="row small" style="gap:8px;cursor:pointer;align-items:flex-start">

@@ -121,7 +121,6 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   let state = { phase: "idle", current: currentVersion, version: null, notes: "", percent: null, error: null, detail: null, downloadUrl: null, file: null, checkedAt: 0, offer: "launch", installOnQuit: false, manual: !!manualInstall };
   let dismissed = null;    // version the person said "Later" to (this launch only)
   let failureNoted = false; // the "Couldn't check" dialog is once per failure, until a check works
-  let providerReady = false; // electron-updater has updateInfo, so download can start without another check
   let pending = null;      // in-flight check
   let installing = false;
   let arming = null;       // running-prompt Later download, still in flight
@@ -148,9 +147,10 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
   catch (e) { log("updater feed failed:", cleanError(e)); }
 
   const latched = () => !!(state.version && newer(state.version, currentVersion));
+  let providerVersion = null; // the newest version electron-updater itself has seen: download can start without another look
   autoUpdater.on("update-available", (info) => {
     if (!newer(info.version, currentVersion)) return;
-    providerReady = true;
+    providerVersion = info.version;
     setState({ phase: busyPhase() ? state.phase : "available", version: info.version, notes: notes(info), error: null, downloadUrl: DOWNLOAD_PAGE });
     emit({ type: "available", version: info.version, notes: state.notes });
   });
@@ -260,10 +260,32 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     return state;
   }
 
+  // 0.4.34 (Nov 1 2026): the app's own check saw 0.4.32 while the updater's copy of latest.yml still said 0.4.31, so
+  // downloadUpdate refused ("Please check update first") and nothing installed. The updater looks again first, and
+  // waits for the release list to catch up (up to 3 looks, a minute apart).
+  // 0.4.36 (panel 0434 item 1): one helper for every path. "Update and restart" on the card, the tray item and the
+  // engine dialog used install(), which looked once; only Settings had the wait.
+  async function lookUntilCurrent() {
+    if (providerVersion && state.version && !newer(state.version, providerVersion)) return true;
+    for (let i = 0; i < 3; i++) {
+      let info = null;
+      try { info = (await runCheck())?.updateInfo || null; } catch (e) { log("update look before download failed:", cleanError(e)); }
+      if (info?.version && newer(info.version, currentVersion)) { if (state.waiting) setState({ waiting: false }); return true; }
+      if (i < 2) {
+        log("the release list has not caught up yet; looking again in a minute");
+        setState({ waiting: true });
+        await new Promise((r) => setTimeout(r, retryMs));
+      }
+    }
+    if (state.waiting) setState({ waiting: false });
+    return false;
+  }
+
   async function downloadForQuit() {
     autoUpdater.autoInstallOnAppQuit = false;
     setState({ installOnQuit: true, phase: "downloading", percent: state.percent || 0, error: null });
     log(`update v${state.version}: later, will install on quit`);
+    await lookUntilCurrent();
     try { await autoUpdater.downloadUpdate(); }
     catch (e) {
       const message = cleanError(e);
@@ -316,9 +338,9 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     if (installing) return state;
     if (!state.version) { const s = await check(); if (!s.version) throw Object.assign(new Error("No update to install."), { code: "no_update" }); }
     if (manualInstall) return openDownload();
-    if (!providerReady) { try { await runCheck(); } catch (e) { log("update feed before download:", cleanError(e)); } }
     installing = true;
     setState({ phase: "downloading", percent: state.percent || 0, error: null, downloadUrl: state.downloadUrl || DOWNLOAD_PAGE });
+    await lookUntilCurrent();
     log(`downloading update v${state.version}`);
     try { await autoUpdater.downloadUpdate(); }
     catch (e) { installing = false; const message = cleanError(e); log("update download failed:", message); setState({ phase: "available", error: message, downloadUrl: DOWNLOAD_PAGE }); emit({ type: "error", message }); throw e; }
@@ -342,15 +364,7 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
     },
     download: async () => {
       if (manualInstall) { openDownload(); throw Object.assign(new Error(MANUAL_NOTE), { code: "manual_install" }); }
-      // 0.4.34 (Nov 1 2026): the app's own check saw 0.4.32 while the updater's copy of latest.yml still said 0.4.31, so
-      // downloadUpdate refused ("Please check update first") and nothing installed. The updater looks again first, and
-      // waits for the release list to catch up (up to 3 looks, a minute apart).
-      for (let i = 0; i < 3; i++) {
-        let info = null;
-        try { info = (await runCheck())?.updateInfo || null; } catch (e) { log("update look before download failed:", cleanError(e)); }
-        if (info?.version && newer(info.version, currentVersion)) break;
-        if (i < 2) { log("the release list has not caught up yet; looking again in a minute"); await new Promise((r) => setTimeout(r, retryMs)); }
-      }
+      await lookUntilCurrent();
       return autoUpdater.downloadUpdate();
     },
     install() {

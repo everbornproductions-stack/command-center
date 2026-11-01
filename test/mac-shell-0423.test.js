@@ -82,6 +82,12 @@ test("with ?mac=0 nothing of the shell exists and the old buttons are untouched"
 test("Mac on: #mac-root holds all seven slots, the old top bar is hidden but still there", { skip }, async () => {
   const t = await bootMac({ mode: "simple" });
   try {
+    // 0.4.36: the default is now Fill the window (test/fullwin-0436.test.js). This test measures the 0.4.23 frame, so it
+    // switches to Window style Framed first; Fill the window starts the window body right under the title bar.
+    const fill = await t.page.evaluate(() => { const w = document.getElementById("app").getBoundingClientRect(); return { left: Math.round(w.left), top: Math.round(w.top), style: document.body.dataset.macwin }; });
+    assert.ok(fill.style === "fill" && fill.left === 0 && fill.top <= 60, `Fill the window is the default: ${JSON.stringify(fill)}`);
+    await t.page.evaluate(() => window.CC.mac.setWindowStyle("framed"));
+    await t.page.waitForFunction(() => document.getElementById("app").getBoundingClientRect().left >= 30, null, { timeout: 20000 });
     const r = await t.page.evaluate((slots) => {
       const win = document.getElementById("app").getBoundingClientRect();
       const view = document.getElementById("view").getBoundingClientRect();

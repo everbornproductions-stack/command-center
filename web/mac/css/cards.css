@@ -26,7 +26,9 @@ body[data-style="mac"] .track {
   }
 }
 
-body[data-style="mac"] .card {
+/* 0.4.36 (panel 0434 item 3): scoped to the style carousel. A bare .card rule squeezed every other .card in the Mac
+   look, like the Get free AIs card and the Council readers box, into a 240 x 260 tile. */
+body[data-style="mac"] .cards .card {
   position: relative;
   flex: 0 0 240px;
   min-width: 220px;
@@ -43,17 +45,17 @@ body[data-style="mac"] .card {
   box-sizing: border-box;
 }
 
-body[data-style="mac"] .card:hover {
+body[data-style="mac"] .cards .card:hover {
   border-color: var(--mac-acc, #007aff);
   transform: translateY(-2px);
 }
 
-body[data-style="mac"] .card.sel {
+body[data-style="mac"] .cards .card.sel {
   border: 2px solid var(--mac-acc, #007aff);
   box-shadow: 0 8px 24px rgba(0, 122, 255, 0.15);
 }
 
-body[data-style="mac"] .card .art {
+body[data-style="mac"] .cards .card .art {
   height: 120px;
   border-radius: 10px;
   margin-bottom: 12px;
@@ -70,7 +72,7 @@ body[data-style="mac"] .art.g7 { background: linear-gradient(135deg, #8e8e93, #a
 body[data-style="mac"] .art.g8 { background: linear-gradient(135deg, #ff2d55, #ff9500); }
 body[data-style="mac"] .art.g9 { background: linear-gradient(135deg, #5856d6, #af52de); }
 
-body[data-style="mac"] .card .badge {
+body[data-style="mac"] .cards .card .badge {
   position: absolute;
   top: 24px;
   right: 24px;
@@ -86,7 +88,7 @@ body[data-style="mac"] .card .badge {
   pointer-events: none;
 }
 
-body[data-style="mac"] .card .t {
+body[data-style="mac"] .cards .card .t {
   font-weight: 600;
   font-size: 14px;
   color: var(--mac-tx, #1d1d1f);
@@ -96,7 +98,7 @@ body[data-style="mac"] .card .t {
   white-space: nowrap;
 }
 
-body[data-style="mac"] .card .d {
+body[data-style="mac"] .cards .card .d {
   font-size: 12px;
   color: var(--mac-dim, #86868b);
   line-height: 1.35;

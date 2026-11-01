@@ -276,8 +276,32 @@ function showStartup() {
   return el;
 }
 
+// 0.4.36: Window style, only while the Mac look is on. "Fill the window" (the default) uses the whole app window;
+// "Framed" is the smaller window with a dock below it. The Mac shell part stores it (CC.mac.setWindowStyle).
+function windowRow() {
+  const mac = window.CC.mac;
+  if (document.body.dataset.style !== "mac" || typeof mac?.setWindowStyle !== "function") return "";
+  const cur = mac.windowStyle();
+  return `<label class="lbl">Window style</label>
+    <div class="seg" id="look-window" role="group" aria-label="Window style">${[["fill", "Fill the window"], ["framed", "Framed"]].map(([id, label]) => `<button type="button" data-macwin="${id}" class="${cur === id ? "on" : ""}" aria-pressed="${cur === id}">${label}</button>`).join("")}</div>
+    <div class="dim small">Fill the window uses the whole app window and the dock hides until you point at the bottom edge. Framed shows a smaller window with the dock below it.</div>`;
+}
+function wireWindowRow(el) {
+  el.querySelector("#look-window")?.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-macwin]");
+    if (!b) return;
+    window.CC.mac?.setWindowStyle?.(b.dataset.macwin);
+    for (const x of el.querySelectorAll("#look-window button")) { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-pressed", String(on)); }
+  });
+}
+
 function panel(el) {
-  if (!cfg?.flag) { el.innerHTML = ""; return; }
+  if (!cfg?.flag) {
+    const row = windowRow();
+    el.innerHTML = row ? `<div class="panel" id="cc-look-panel"><h3>Look</h3>${row}</div>` : "";
+    wireWindowRow(el);
+    return;
+  }
   const choice = currentChoice();
   const isGlass = document.documentElement.dataset.look === "glass";
   const chk = savedCheck();
@@ -290,6 +314,7 @@ function panel(el) {
     <label class="lbl">Choose a look</label>
     <div class="seg" id="look-seg" role="group" aria-label="Look">${[["auto", "Auto"], ["glass", "Full glass"], ["classic", "Classic"]].map(([id, label]) => `<button type="button" data-look="${id}" class="${choice === id ? "on" : ""}" aria-pressed="${choice === id}">${label}</button>`).join("")}</div>
     <div class="dim small">Auto picks for you. Classic is the look from before: solid panels, no blur, no moving light.</div>
+    ${windowRow()}
     <div class="row small" style="gap:8px;margin-top:8px"><span class="dim" id="look-speed">${speed}</span><button class="btn sm" type="button" id="look-retest">Test my graphics</button></div>
   </div>`;
   const change = async (next) => {
@@ -300,6 +325,7 @@ function panel(el) {
     toastUndo("Look changed.", async () => { await saveChoice(prev); apply(); panel(el); });
     panel(el);
   };
+  wireWindowRow(el);
   el.querySelector("#look-anyway")?.addEventListener("change", (e) => { if (e.target.checked) change("glass"); });
   el.querySelector("#look-switch").addEventListener("change", (e) => change(e.target.checked ? "glass" : "classic"));
   el.querySelector("#look-seg").addEventListener("click", (e) => { const b = e.target.closest("button[data-look]"); if (b) change(b.dataset.look); });

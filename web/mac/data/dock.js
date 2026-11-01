@@ -29,3 +29,16 @@ export function itemsFor(mode) {
     return true;
   });
 }
+
+// 0.4.36: in "Fill the window" the dock hides itself once the pointer has been away from it for DOCK_HIDE_MS and
+// comes back when the pointer reaches the bottom DOCK_EDGE_PX of the window or the keyboard moves focus into it.
+// It never hides in the Framed style, on a phone width or on a touch screen (there is no pointer to bring it back).
+export const DOCK_HIDE_MS = 2000;
+export const DOCK_EDGE_PX = 8;
+export function autoHideOk({ style = "fill", width = 0, touch = false } = {}) {
+  return style !== "framed" && width > 760 && !touch;
+}
+// The magnified size for an icon whose resting size is `base` px (54 in Framed, smaller in Fill the window).
+export function magnifyFor(distancePx, base = 54) {
+  return Math.round(magnifyScale(distancePx) * (base / 54) * 10) / 10;
+}

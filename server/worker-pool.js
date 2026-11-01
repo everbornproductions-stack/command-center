@@ -41,7 +41,7 @@ export const DEFAULT_WORKERS = [
   { id: "opencode", label: "OpenCode", kind: "cli", free: true, cooldownHours: 12, providers: ["opencode"],
     good: "Code and answers with free models", needs: "Install OpenCode" },
   { id: "freebuff", label: "Freebuff", kind: "agent", free: true, cooldownHours: 3, providers: ["freebuff"],
-    good: "Free coding help", needs: "Set it up once under Free coder (Freebuff)." },
+    good: "Free coding help", needs: "Use Install Freebuff under Your AI helpers." }, // 0.4.36 (panel 0434 item 7c)
   { id: "grokbot", label: "Grok Bot", kind: "agent", free: false, cooldownHours: 1, providers: ["grokbot", "grok-bot"],
     good: "Signed-in browsing, Gmail, Drive and Calendar", needs: "Add its webhook and sender key under Integrations." },
   { id: "browser-helper", label: "Browser helper", kind: "agent", free: true, cooldownHours: 1, providers: ["browser-helper", "browser"],
@@ -275,7 +275,8 @@ export function workerRow(spec, det = {}, now = Date.now()) {
  */
 export function listWorkers({ detected = {}, apiProviders = [], providers = null, now = Date.now() } = {}) {
   const rows = [];
-  for (const kind of ["cli", "agent"]) for (const w of DEFAULT_WORKERS) if (w.kind === kind) rows.push(workerRow(w, detected[w.id] || {}, now));
+  // 0.4.36 (Chris): a retired helper is removed from the list, not shown as off
+  for (const kind of ["cli", "agent"]) for (const w of DEFAULT_WORKERS) if (w.kind === kind) { const row = workerRow(w, detected[w.id] || {}, now); if (row.status !== "retired") rows.push(row); }
   const pmap = providers || Object.fromEntries((apiProviders || []).map((p) => [p.id, p]));
   for (const p of apiProviders || []) {
     if (!p?.id || byId.has(p.id) || providerToWorker.has(p.id)) continue;

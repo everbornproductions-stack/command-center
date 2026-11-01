@@ -9,7 +9,7 @@ import { bootMac } from "./mac-helpers.js";
 import { LABELS, VIEW_LOCKS, helpItems, CONNECT_LINKS, lockFor } from "../web/nav.js";
 import { FEATURES } from "../web/perf/registry.js";
 import { DESKTOP_ONLY } from "../web/desktop-only.js";
-import { GROUPS_MAC, ORDER, VIEW_GROUP, buildRegistry, groupsOf, pages, search, coverage, lockOf } from "../web/mac/data/expert.js";
+import { GROUPS_MAC, ORDER, VIEW_GROUP, buildRegistry, groupsOf, pages, search, coverage, lockOf, modeFromQuery } from "../web/mac/data/expert.js";
 
 const skip = findBrowser() ? false : "no Chrome installed";
 const ROOT = path.join(import.meta.dirname, "..");
@@ -152,6 +152,9 @@ test("search: finds by name, plain words and keywords; every word must match", (
   // their words still lead to the page that has them
   for (const w of ["second opinion", "council", "missions", "research"]) assert.ok(search(items, w).some((i) => i.id === "command"), w);
   assert.ok(search(items, "recent chats").some((i) => i.id === "history"));
+  // 0.4.36: the word picks the mode too
+  assert.deepEqual(["Councils", "council", "Missions", "Research", "Second opinion", "second opinions", "single", "Auto team", "Pipelines", ""].map(modeFromQuery), ["council", "council", "mission", "research", "opinion", "opinion", "single", "auto", "", ""]);
+  for (const w of ["Councils", "Second opinion", "Missions", "Research"]) assert.equal(search(items, w)[0]?.id, "command", `Enter on ${w} opens Chat`);
   assert.ok(search(items, "update").some((i) => i.open.action === "updates"));
   assert.equal(search(items, "pipelines banana").length, 0);
   assert.ok(search(items, "memory").length >= 2);
@@ -238,6 +241,16 @@ test("browser: sidebar items open runs modes, settings spots, help actions and p
     await page.fill("#mac-side .mx-srch", "Councils");
     await page.click('#mac-side .si[data-id="command"]');
     await until(page, () => window.CC.S.view === "command", null, "chat opens");
+    // 0.4.36 (panel 0432 item 5): Enter on a mode word picks that mode, and Chat stays lit in every mode
+    await until(page, () => !!document.querySelector('#run-mode [data-m="council"].on'), null, "Councils picks Council");
+    await page.fill("#mac-side .mx-srch", "");
+    await until(page, () => !!document.querySelector('#mac-side .si.on[data-id="command"]'), null, "Chat lit in Council mode");
+    await page.evaluate(() => document.querySelector('#run-mode [data-m="research"]').click());
+    await until(page, () => window.CC.S.cmdMode === "research" && !!document.querySelector('#mac-side .si.on[data-id="command"]'), null, "Chat lit in Research mode");
+    if (await page.$("#mac-rb-modes")) await until(page, () => !!document.querySelector('#mac-rb-modes [data-m="research"].on') && !document.querySelector('#mac-rb-modes [data-m="council"].on'), null, "run bar follows the page");
+    await page.fill("#mac-side .mx-srch", "Second opinion");
+    await page.press("#mac-side .mx-srch", "Enter");
+    await until(page, () => !!document.querySelector('#run-mode [data-m="opinion"].on'), null, "Enter on Second opinion");
     await page.fill("#mac-side .mx-srch", "Live Ops");
     await page.click('#mac-side .si[data-id="liveops"]');
     await page.fill("#mac-side .mx-srch", "Cost and speed");

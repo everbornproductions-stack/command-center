@@ -151,7 +151,10 @@ export default {
       lastSig = s;
     }
 
-    offs = [bus.on("mode", () => paint(false)), bus.on("view", () => paint(false))];
+    // 0.4.36 (panel 0432 item 5): a mode picked on the page lights the same mode here at once, not up to a second later
+    const onPageMode = (e) => { if (e.target.closest?.("#run-mode button")) setTimeout(() => paint(false), 0); };
+    document.addEventListener("click", onPageMode);
+    offs = [bus.on("mode", () => paint(false)), bus.on("view", () => paint(false)), () => document.removeEventListener("click", onPageMode)];
     paint(false);
     timer = setInterval(() => paint(false), 1000);
   },

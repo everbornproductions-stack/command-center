@@ -12,7 +12,7 @@ const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 test("every project type has plain steps for the live map", () => {
   const list = mapTutorials();
   assert.deepEqual(list.map((t) => t.id), TYPES.map((t) => t.id));
-  assert.equal(list.length, 6);
+  assert.equal(list.length, TYPES.length, "0.4.36: 14 kinds of project");
   for (const t of list) {
     assert.equal(t.steps.length, 4);
     assert.match(t.steps[2], /No AI is called/);

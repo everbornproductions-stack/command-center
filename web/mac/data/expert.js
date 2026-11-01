@@ -53,6 +53,21 @@ export const VIEW_KEYWORDS = {
   history: "recent chats past jobs",
 };
 
+// 0.4.36 (panel 0432 item 5): a search for a mode word opens Chat in that mode, not only the page.
+const MODE_WORDS = [
+  ["opinion", /\bsecond\s+opinions?\b/],
+  ["council", /\bcouncils?\b/],
+  ["mission", /\bmissions?\b/],
+  ["research", /\bresearch\b/],
+  ["single", /\bsingle\b/],
+  ["auto", /\bauto(?:\s+team)?\b/],
+];
+/** The run mode a search names ("Councils" gives council), or "" when it names none. */
+export function modeFromQuery(q) {
+  const s = String(q || "").toLowerCase();
+  return MODE_WORDS.find(([, re]) => re.test(s))?.[0] || "";
+}
+
 // Items that are not a page of their own: they open a panel, or a Settings spot.
 // open: {view, runMode?, focus?} | {panel, section?} | {action}
 export const EXTRAS = [

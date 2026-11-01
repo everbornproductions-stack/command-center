@@ -6,6 +6,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { startServer, ROOT } from "./helpers.js";
+import { TYPES } from "../server/walkthroughs.js";
 
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), "utf8");
 const hidden = (text, secret) => !String(text || "").includes(secret);
@@ -133,7 +134,7 @@ test("webhooks and HighLevel wait for Send, and saved secrets stay out of the re
     const log = s.log;
     assert.equal(hidden(log, hookSecret) && hidden(log, mcpSecret) && hidden(log, ghlSecret), true);
     const live = await s.api("/liveview");
-    assert.equal(live.json.tutorials.length, 6);
+    assert.equal(live.json.tutorials.length, TYPES.length, "one tutorial per kind of project (14 since 0.4.36)");
   } finally {
     await s.stop();
     await m.close();

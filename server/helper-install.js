@@ -25,7 +25,8 @@ export const HELPERS = {
   "claude-code": { pkg: "@anthropic-ai/claude-code", bin: "claude", signIn: [], words: "A window opens with Claude Code: type /login, finish in your browser, then close the window and press Check again." },
   opencode: { pkg: "opencode-ai", bin: "opencode", allowScripts: true, signIn: null, words: "" },
   freebuff: { pkg: "freebuff", bin: "freebuff", signIn: [], words: "A window opens with Freebuff: follow its sign-in link in your browser, then close the window and press Check again." },
-  antigravity: { page: "https://antigravity.google/download", words: "Download Antigravity from Google, install it, sign in once, then press Check again." },
+  // 0.4.36 (panel 0434 item 7): Antigravity sign-in happens in its own app, then the helper list can check it again.
+  antigravity: { page: "https://antigravity.google/download", words: "Download Antigravity from Google, install it, sign in there, then press Check again." },
 };
 
 export const canInstall = (id) => !!HELPERS[id]?.pkg;

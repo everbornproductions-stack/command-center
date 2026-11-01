@@ -57,6 +57,8 @@ export function cleanTemplate(input, base = {}) {
   return out;
 }
 
+export const normalizeTemplate = cleanTemplate;
+
 export function publicTemplate(t) {
   return {
     id: t.id, name: t.name, type: t.type, typeName: typeById(t.type)?.name || t.type, color: typeById(t.type)?.color || "#22d3ee",

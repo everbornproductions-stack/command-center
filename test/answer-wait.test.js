@@ -216,7 +216,7 @@ test("routes: one ordered chain, status rows from detection, per-route switches,
   SR.clearStatusCache();
   let v = await SR.routesView({ refresh: true });
   const by = Object.fromEntries(v.routes.map((r) => [r.id, r]));
-  assert.deepEqual(Object.keys(by), ["claude-code", "codex", "gemini-cli", "antigravity"]);
+  assert.deepEqual(Object.keys(by), ["claude-code", "codex", "antigravity"], "0.4.36: the retired Gemini CLI is left out");
   assert.equal(by["claude-code"].label, "Installed and signed in"); assert.equal(by["claude-code"].on, true);
   assert.equal(by.codex.label, "Not installed");
   assert.match(by.codex.setupUrl, /^https:\/\//);

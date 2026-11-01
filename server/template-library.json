@@ -1,0 +1,104 @@
+[
+  {
+    "name": "Bakery website",
+    "type": "website",
+    "idea": "Plan a bakery website with clear pages and a simple way to get in touch.",
+    "answers": {
+      "audience": "People nearby looking for baked goods",
+      "action": "See the menu and contact the bakery",
+      "pages": "Home, menu, about, contact"
+    }
+  },
+  {
+    "name": "Realtor listing campaign",
+    "type": "marketing",
+    "idea": "Draft a listing campaign from facts supplied by the agent.",
+    "answers": {
+      "offer": "A home listing",
+      "audience": "People considering this area",
+      "channels": "Listing page and social posts",
+      "result": "Share accurate details"
+    }
+  },
+  {
+    "name": "Contractor quote and invoice spreadsheet",
+    "type": "spreadsheet",
+    "idea": "Plan a workbook for quotes and invoices using details the contractor provides.",
+    "answers": {
+      "focus": "Job details supplied by the contractor",
+      "audience": "The contractor",
+      "extra": "Review totals before sharing"
+    }
+  },
+  {
+    "name": "Salon booking page",
+    "type": "website",
+    "idea": "Plan a salon booking page with service details and contact options.",
+    "answers": {
+      "audience": "People looking for salon services",
+      "action": "Review services and ask about booking",
+      "pages": "Home, services, contact"
+    }
+  },
+  {
+    "name": "Insurance agent client letter",
+    "type": "document",
+    "idea": "Draft a client letter using only verified details supplied by the agent.",
+    "answers": {
+      "focus": "Share an update with a client",
+      "audience": "An existing client",
+      "extra": "Details verified by the agent"
+    }
+  },
+  {
+    "name": "Food truck social reels",
+    "type": "reels",
+    "idea": "Plan short social video drafts for a food truck.",
+    "answers": {
+      "brand": "A local food truck",
+      "count": "Four",
+      "platform": "Social channels chosen by the owner",
+      "next": "Check the menu or visit"
+    }
+  },
+  {
+    "name": "Nonprofit event",
+    "type": "event",
+    "idea": "Plan a nonprofit community event and its preparation.",
+    "answers": {
+      "focus": "A community gathering",
+      "audience": "Local supporters",
+      "extra": "Venue, helpers, and supplies"
+    }
+  },
+  {
+    "name": "YouTube cooking channel",
+    "type": "channel",
+    "idea": "Create a cooking channel concept and ten episode starters.",
+    "answers": {
+      "focus": "Home cooking",
+      "audience": "People learning to cook",
+      "extra": "Clear, welcoming demonstrations"
+    }
+  },
+  {
+    "name": "Small online candle store",
+    "type": "online-store",
+    "idea": "Plan a small candle shop with product and policy pages.",
+    "answers": {
+      "focus": "Candle designs supplied by the owner",
+      "audience": "People shopping for home gifts",
+      "extra": "Home, shop, about, policies"
+    }
+  },
+  {
+    "name": "Onboarding training course",
+    "type": "course",
+    "idea": "Plan an onboarding course with lessons and a short quiz.",
+    "answers": {
+      "focus": "Tasks and practices supplied by the team",
+      "audience": "New team members",
+      "extra": "Short lessons and a knowledge check"
+    }
+  }
+]
