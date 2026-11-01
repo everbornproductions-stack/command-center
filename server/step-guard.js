@@ -131,8 +131,19 @@ function bodyTruncation(t, ext = "") {
 // the last good chunk to hand back to the AI so it can carry on
 export function continuePrompt(text, ext = "") {
   const tail = clean(text).slice(-1200);
+  // 0.4.37 (dogfood 0434): code files continue as code inside the existing fence.
+  if (["json", "js", "mjs", "ts", "css", "py", "sql"].includes(String(ext).toLowerCase())) return `Your ${ext} file was cut off. Continue the code only from the exact next character. Do not repeat any code, add prose, or open or close a code fence.\n\n--- END OF WHAT YOU WROTE ---\n${tail}\n--- CONTINUE FROM HERE ---`;
   return `Your answer was cut off. Carry on from exactly where it stopped. Output ONLY the missing rest${ext ? ` of the ${ext} file` : ""}, starting with the very next character after this ending, with no repeats, no explanation and no new code fence unless you are inside one:\n\n--- END OF WHAT YOU WROTE ---\n${tail}\n--- CONTINUE FROM HERE ---`;
 }
+// 0.4.37 (dogfood 0434 catalog-json): the JSON to check in an answer: a ```json (or bare ```) block, or the whole answer
+// when it is only JSON. null when there is nothing that looks like JSON, so no extra AI call is made for it.
+export function jsonBody(text) {
+  const s = String(text || "");
+  const fence = /```(?:json)?[^\n]*\n([\s\S]*?)(?:\n```|$)/i.exec(s);
+  if (fence && /^\s*[[{]/.test(fence[1])) return fence[1];
+  return /^\s*[[{]/.test(s) ? s.trim() : null;
+}
+export const validJson = (body) => { try { JSON.parse(body); return true; } catch { return false; } };
 // ---- 0.4.28 (dogfood catalog-json): "The JSON was not cut off" is not a continuation ----
 // Asked to carry on, the AI answered "The JSON was not cut off. The previous response ends with the closing ] and
 // code fence ..." and that sentence was glued right after the closing fence, so catalog.json was no longer JSON.
