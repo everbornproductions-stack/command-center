@@ -17,3 +17,6 @@ Goal: the Simple / Expert window in `docs/design-0423/mockup-v2.html` (frosted w
 - Tests: `node --test test/mac-<part>-0423.test.js` plus `node --test test/user-facing-words.test.js`. Browser tests use `test/mac-helpers.js` (`bootMac`), real waits with deadlines (20 to 30 s), always close the browser and server. No network, no real keys, no money.
 - The whole suite must stay at 0 fail with the Mac style OFF (that is the default during the build).
 - Commit after each item with a message ending `[skip ci]`, `git add <named paths>` only. Never push, never `git stash`, never check out another branch.
+
+## Window style (0.4.36)
+`body[data-macwin]` is `fill` (default for new and existing installs) or `framed`. Fill the window sets `--mac-win-x`, `--mac-win-t` and `--mac-radius` to 0, hides the pretend traffic lights and puts a 56 px dock on the bottom edge; dock.js auto-hides it after 2 s away (`body.mac-dock-away`, which also gives the window body the dock band back through `--mac-win-b`) and brings it back at the bottom 8 px or on keyboard focus. No auto-hide in Framed, under 760 px wide or on touch. Framed is the 0.4.23 frame unchanged. The choice is saved in localStorage `cc.mac.window` and the settings doc (`macWindow`), set from Settings > Look > Window style (`CC.mac.setWindowStyle`). Test: `test/fullwin-0436.test.js`.

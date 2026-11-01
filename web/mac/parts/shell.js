@@ -4,9 +4,10 @@
 // Everything runs only while body[data-style="mac"] is set by /mac/index.js, and it all lives
 // inside #mac-root, so turning the Mac style off puts the page back the way it was.
 import { LABELS } from "/nav.js";
-import { readyLine, crumbFor, modeBanner, restingTitle } from "/mac/data/shell.js";
+import { readyLine, crumbFor, modeBanner, restingTitle, windowStyle } from "/mac/data/shell.js";
 
 const THEME_KEY = "cc.mac.theme";
+const WINDOW_KEY = "cc.mac.window";
 
 const TITLEBAR = `
   <span class="mac-tl" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -166,6 +167,23 @@ export default {
       if (emit) { bus.emit("theme", theme); CC.api?.("/settings", { method: "POST", body: { theme } }).then(() => { if (CC.S?.settings) CC.S.settings.theme = theme; }).catch(() => {}); }
     }
 
+    // ---- 0.4.36: window style, "fill" (the whole app window, the default) or "framed" (the 0.4.23 inner window) ----
+    // Saved next to the theme: localStorage cc.mac.window and the settings doc (macWindow).
+    const storedWindow = () => { let local = null; try { local = localStorage.getItem(WINDOW_KEY); } catch { /* blocked */ } return windowStyle(CC.S?.settings?.macWindow, local); };
+    function applyWindow(value, save) {
+      const style = windowStyle(value, null);
+      document.body.dataset.macwin = style;
+      try { localStorage.setItem(WINDOW_KEY, style); } catch { /* private mode: the choice lives for this visit */ }
+      bus.emit("window", style);
+      if (save) { if (CC.S?.settings) CC.S.settings.macWindow = style; CC.api?.("/settings", { method: "POST", body: { macWindow: style } }).catch(() => {}); }
+      return style;
+    }
+    applyWindow(storedWindow(), false);
+    if (CC.mac) {
+      CC.mac.windowStyle = () => windowStyle(document.body.dataset.macwin, null);
+      CC.mac.setWindowStyle = (v) => applyWindow(v, true);
+    }
+
     // ---- the title bar paint jobs ----
     function paintMode(mode) {
       const expert = mode === "expert";
@@ -305,5 +323,7 @@ export default {
     clearTimeout(FLASH_TIMER);
     document.body.classList.remove("mac-sideopen", "mac-noblur");
     delete document.body.dataset.theme;
+    delete document.body.dataset.macwin;
+    if (window.CC?.mac) { delete window.CC.mac.windowStyle; delete window.CC.mac.setWindowStyle; }
   },
 };

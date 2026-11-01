@@ -764,3 +764,100 @@ body[data-style="mac"] #cc-upgrade .card {
   }
   body[data-style="mac"] .toasts .toast { max-width: none; }
 }
+
+/* ---------- 0.4.36: "Fill the window" (the default window style) ----------
+   Chris (2026-11-01): "like we have a window in a window basically? does it need to be like that?" The desktop app
+   already has its own title bar and window buttons, so the Mac window now takes the whole app window: no outer
+   margins, no rounded outer corners, no pretend traffic lights. The title bar row stays (Simple / Expert, the savings
+   and ready pills, theme, help) and the glass still lets the wallpaper show through. The dock is a slim bar on the
+   bottom edge (dock.js hides it after 2 s away and brings it back at the bottom 8 px or on keyboard focus); while it
+   shows, the window body ends above it (--mac-win-b), so nothing sits under it. Settings > Look > Window style >
+   Framed (body[data-macwin="framed"]) brings back the 0.4.23 frame exactly as it was. */
+body[data-style="mac"]:not([data-macwin="framed"]) {
+  --mac-win-x: 0px;
+  --mac-win-t: 0px;
+  --mac-radius: 0px;
+  --mac-dock-h: 56px;
+  --mac-di: 42px;
+  --mac-win-b: var(--mac-dock-h);
+}
+body[data-style="mac"]:not([data-macwin="framed"]).mac-dock-away {
+  --mac-win-b: 0px;
+}
+body[data-style="mac"]:not([data-macwin="framed"]) #app {
+  border: 0;
+  box-shadow: none;
+}
+body[data-style="mac"]:not([data-macwin="framed"]) #mac-titlebar {
+  border-width: 0 0 1px;
+}
+body[data-style="mac"]:not([data-macwin="framed"]) .mac-tl {
+  display: none;
+}
+body[data-style="mac"]:not([data-macwin="framed"]) #mac-notices {
+  border-left: 0;
+  border-right: 0;
+}
+body[data-style="mac"]:not([data-macwin="framed"]) #mac-dock {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  height: var(--mac-dock-h);
+  padding: 6px 10px 7px;
+  gap: 5px;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  box-shadow: 0 -4px 18px rgba(0, 0, 0, .08);
+  transition: transform .28s ease;
+}
+body[data-style="mac"]:not([data-macwin="framed"]).mac-dock-away #mac-dock {
+  transform: translateY(calc(100% + 2px));
+  box-shadow: none;
+}
+body[data-style="mac"]:not([data-macwin="framed"]) #mac-dock .di {
+  width: var(--mac-di);
+  height: var(--mac-di);
+  border-radius: 10px;
+  font-size: 21px;
+}
+body[data-style="mac"]:not([data-macwin="framed"]) #mac-dock .di.run::before {
+  bottom: -5px;
+}
+body[data-style="mac"]:not([data-macwin="framed"]) #mac-dock .sep {
+  margin: 4px 3px;
+}
+@media (max-width: 760px) {
+  body[data-style="mac"]:not([data-macwin="framed"]) #mac-dock {
+    left: 0;
+    right: 0;
+  }
+  body[data-style="mac"]:not([data-macwin="framed"]):has(#cc-asset-tray:not([hidden])) {
+    --mac-win-b: calc(var(--mac-dock-h) + 68px);
+  }
+  html body[data-style="mac"]:not([data-macwin="framed"]) #cc-asset-tray {
+    right: 6px;
+    bottom: calc(var(--mac-dock-h) + 2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  body[data-style="mac"] #mac-dock {
+    transition: none;
+  }
+}
+/* The closed Asset Tray sits in the dock's band at the right, as it did in Framed, and goes away and comes back with
+   the dock, so it never covers the page (Send, the Talk bar) while the dock is hidden. An open tray stays put. */
+@media (min-width: 761px) {
+  body[data-style="mac"]:not([data-macwin="framed"]) #cc-asset-tray.collapsed {
+    bottom: 6px;
+    transition: transform .28s ease;
+  }
+  body[data-style="mac"]:not([data-macwin="framed"]).mac-dock-away #cc-asset-tray.collapsed {
+    transform: translateY(calc(100% + 10px));
+  }
+}
+@media (min-width: 761px) and (prefers-reduced-motion: reduce) {
+  body[data-style="mac"] #cc-asset-tray.collapsed {
+    transition: none;
+  }
+}
