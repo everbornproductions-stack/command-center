@@ -1,4 +1,11 @@
 {
+  "0.4.33": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Install and Sign in buttons for your AI helpers: in Settings, a missing helper (Codex, OpenCode, Freebuff, Gemini CLI, Claude Code) has an Install button that sets it up for you, and a signed-out one has Sign in, which opens its own sign-in window. Antigravity gets a Get it button for its download page.",
+      "OpenCode works as a free helper: Meldmind starts OpenCode in the background when a step needs it, uses only its free models, and hands the step to the next helper when OpenCode's free allowance is used up."
+    ]
+  },
   "0.4.32": {
     "title": "What's new in Meldmind",
     "bullets": [
