@@ -47,6 +47,7 @@ import { saveEveryNamedFile, isCheckStep, fullReplacement } from "./save-named-f
 import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
 import { wantsSqlCheck, sqlCheck, sqlIssueLine } from "./sql-check.js";
+import { psTraps, psIssueLine } from "./ps-lint.js";
 import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE, findPythonCommand, runPython } from "./run-node-test.js";
 import { isLocalSaveStep, SAVE_LINE, savePost, splitPost, stripHelperNotes } from "./mindmedia-step.js";
 import { dryRunBanner, preflight, mediaStatus, neededMedia } from "./media-preflight.js";
@@ -1181,6 +1182,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         lines.push(`Wrote ${j.name} (${r.bytes} bytes)`);
         log(`Wrote ${j.name} (${r.bytes} bytes) in your project folder.`);
         // 0.4.32: a SQLite script is run once in memory; an error fails this step's check so the AI fixes it
+        // 0.4.32: known PowerShell traps are read from the text (AI-written scripts are never run to test them)
+        if (/\.ps1$/i.test(j.name)) { const traps = psTraps(j.code); t.psIssue = traps.length ? psIssueLine(j.name, traps) : null; if (traps.length) log(`Checked ${j.name}: ${traps[0]}`, { level: "error" }); }
         // (codeWrite is not async: the check is started here and the caller waits for sqlChecks before the step's check)
         if (wantsSqlCheck(j.name, goal, j.code)) {
           const name = j.name;
@@ -1203,6 +1206,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (t.save || t.run || t.media || t.agent) return null;
       let issue = t.exportLoss?.length ? exportLossLine(t.exportLoss) : "";
       if (!issue && t.sqlIssue) issue = t.sqlIssue;
+      if (!issue && t.psIssue) issue = t.psIssue;
       if (!issue) issue = removedApiNotes(t.output)[0] || "";
       // 0.4.21 (dogfood 14): a step that names files is checked against the disk, not against its own words
       if (Array.isArray(t.wantFiles) && t.wantFiles.length) {

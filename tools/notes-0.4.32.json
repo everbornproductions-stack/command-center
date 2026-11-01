@@ -1,9 +1,10 @@
 {
   "bullets": [
     "SQLite scripts are checked before they count as done: Meldmind runs the file once in an empty practice database, and if it has an error the AI is asked to fix it.",
-    "A Google Apps Script (.gs) file is saved even when the AI marks the code as JavaScript."
+    "A Google Apps Script (.gs) file is saved even when the AI marks the code as JavaScript.",
+    "PowerShell scripts are read for a common trap (zip commands used without loading the zip library) and sent back to the AI to fix, without running them."
   ],
   "article": "docs/help/getting-started.md",
   "heading": "Checked SQLite scripts",
-  "body": "SQLite scripts are checked before they count as done: Meldmind runs the file once in an empty practice database that lives only in memory, and if it has an error the AI is asked to fix it. Scripts that would write other files are never run. A Google Apps Script (.gs) file is saved even when the AI marks the code as JavaScript."
+  "body": "SQLite scripts are checked before they count as done: Meldmind runs the file once in an empty practice database that lives only in memory, and if it has an error the AI is asked to fix it. Scripts that would write other files are never run. A Google Apps Script (.gs) file is saved even when the AI marks the code as JavaScript. PowerShell scripts are read for a common trap (zip commands used without loading the zip library) and sent back to the AI to fix, without running them."
 }

@@ -35,3 +35,14 @@ test("a .gs file takes the one ```javascript block (Apps Script is JavaScript), 
   assert.ok(b, "a block is found"); assert.match(b.body, /function onOpen/);
   assert.equal(bodyForFile("tool.py", ["```javascript\nlet a = 1\n```"]), null, "a .py file does not take a javascript block");
 });
+
+test("PowerShell: the zip types without Add-Type are caught from the text (the real dogfood script), and a fixed script passes", async () => {
+  const { psTraps, psIssueLine } = await import("../server/ps-lint.js");
+  const real = fs.readFileSync(new URL("./fixtures/backup-no-addtype.ps1", import.meta.url), "utf8");
+  const hits = psTraps(real);
+  assert.equal(hits.length, 1);
+  assert.match(psIssueLine("backup.ps1", hits), /^backup\.ps1 would stop on Windows PowerShell: it uses ZipArchive, ZipArchiveMode or CompressionLevel without Add-Type -AssemblyName System\.IO\.Compression /);
+  assert.deepEqual(psTraps("Add-Type -AssemblyName System.IO.Compression\n" + real), [], "with both assemblies loaded it passes");
+  assert.equal(psTraps("$z = [System.IO.Compression.ZipFile]::OpenRead($p)").length, 1, "ZipFile alone needs the FileSystem assembly");
+  assert.deepEqual(psTraps("Compress-Archive -Path $Source -DestinationPath $zip"), [], "Compress-Archive needs nothing");
+});
