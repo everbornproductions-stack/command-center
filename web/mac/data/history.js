@@ -65,11 +65,11 @@ export function groupByDay(chats, now = Date.now()) {
 // first, then every other group by its newest item. Pure, so tests import it.
 export const CATEGORIES = [
   { id: "web", label: "Websites", ext: /\.(?:html?|css)$/i, words: /\b(?:website|web ?page|landing page|site)\b/i },
-  { id: "docs", label: "Documents", ext: /\.(?:docx?|md|txt|pdf|rtf)$/i, words: /\b(?:letter|document|handbook|guide|policy|report|essay|checklist|menu|sop|plan)\b/i },
-  { id: "sheets", label: "Spreadsheets and data", ext: /\.(?:xlsx?|csv|json|sql|db)$/i, words: /\b(?:spreadsheet|excel|budget|tracker|csv|table|list of|database|payroll|invoice)\b/i },
+  { id: "docs", label: "Documents", ext: /\.(?:docx?|md|txt|pdf|rtf)$/i, words: /\b(?:letter|document|handbook|guide|policy|report|essay|checklist|menu|sop)\b/i },
+  { id: "sheets", label: "Spreadsheets and data", ext: /\.(?:xlsx?|csv|json|sql|db)$/i, words: /\b(?:spreadsheet|excel|tracker|csv|table|list of|database|payroll|invoice)\b/i },
   { id: "slides", label: "Slides", ext: /\.(?:pptx?|key)$/i, words: /\b(?:slides?|deck|powerpoint|presentation)\b/i },
-  { id: "media", label: "Pictures and video", ext: /\.(?:png|jpe?g|gif|webp|svg|mp4|mov|webm|mp3|wav)$/i, words: /\b(?:image|picture|photo|logo|video|clip|reel|thumbnail|song|music|voice)\b/i },
   { id: "code", label: "Code and apps", ext: /\.(?:js|mjs|cjs|ts|py|ps1|bat|cmd|sh|gs|java|cs|go|rs)$/i, words: /\b(?:script|app|code|program|function|python|powershell|node|bot|game|mod)\b/i },
+  { id: "media", label: "Pictures and video", ext: /\.(?:png|jpe?g|gif|webp|svg|mp4|mov|webm|mp3|wav)$/i, words: /\b(?:image|picture|photo|logo|video|clip|reel|thumbnail|song|music|voice)\b/i },
 ];
 export const CHATS = { id: "chats", label: "Chats" };
 export const SHOW_FIRST = 5;
@@ -79,7 +79,15 @@ export function categoryOf(row) {
   const file = String(row?.file || "");
   if (file) { const c = CATEGORIES.find((x) => x.ext.test(file)); if (c) return c; }
   const title = String(row?.title || "");
-  return CATEGORIES.find((x) => x.words.test(title)) || CHATS;
+  // 0.4.36 (panel 0434 item 10): chats default to Chats; only explicit create requests name a generated artifact.
+  const explicitCode = /\b(?:script|code|program)\b/i.test(title);
+  if (explicitCode) return CATEGORIES.find((x) => x.id === "code");
+  // A title that names the thing first counts too: "A website for my bakery" or "A 5 second video of waves" (the kind in
+  // its first three words after a/an/my/our), "deck for the board" (in its first two words).
+  const creating = /^(?:make|create|write|generate|draw|design|build|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+|my\s+|our\s+)?/i.exec(title);
+  const art = creating ? null : /^(?:a|an|my|our)\s+/i.exec(title);
+  const kind = creating ? title.slice(creating[0].length) : title.slice(art ? art[0].length : 0).trim().split(/\s+/).slice(0, art ? 3 : 2).join(" ");
+  return CATEGORIES.find((x) => x.words.test(kind)) || CHATS;
 }
 
 const timeOf = (r) => Number(r?.at || r?.updatedAt || r?.createdAt || 0);
