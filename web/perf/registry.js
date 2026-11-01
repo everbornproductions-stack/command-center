@@ -64,6 +64,7 @@ export const FEATURES = [
   { id: "next-actions", deliverable: true },
   { id: "finish-router", views: ["publish"] },
   { id: "finishpath", deliverable: true },
+  { id: "answer-check", deliverable: true }, // 0.4.34: Send-check rules on answers about credit, homes, loans, insurance
   { id: "momentum", deliverable: true },
   { id: "photo-editor", views: ["images"] },
   { id: "video-editor", views: ["media"] },

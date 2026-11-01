@@ -93,3 +93,14 @@ export function assertOutgoingOk({ text = "", channel = "email", creditRepair, c
 // Hide Social Security, card and account numbers wherever Meldmind shows or keeps a title, preview or history line.
 // The rules live in mask-private.js so every preview uses the same ones.
 export const maskSensitive = maskPrivate;
+
+// 0.4.34 (0.4.31 panel item 10, Ray and Tasha: "AI-written text is never checked"): the same rules run on an AI's answer
+// when it is about credit repair, real estate, loans or insurance, so a risky line is flagged before anyone copies it into
+// a message. Nothing is changed or blocked: the warnings are shown under the answer.
+const ANSWER_TOPIC = /\b(credit repair|credit score|credit report|dispute|tradeline|listing|for sale|open house|buyers?|tenants?|rent(?:al)?|mortgage|loan|apr|interest rate|down payment|refinanc\w*|insurance|policy|premium|coverage|claim)\b|\b\d{3}-\d{2}-\d{4}\b/i;
+export function checkAnswer(text = "") {
+  const body = String(text || "").slice(0, 20000);
+  if (!body.trim() || !ANSWER_TOPIC.test(body)) return { checked: false, warnings: [] };
+  const r = checkOutgoing({ text: body, channel: "answer" });
+  return { checked: true, warnings: r.warnings.filter((w) => w.level !== "info") };
+}
