@@ -68,6 +68,13 @@ test("registry defaults: the prototype's field shapes, the apps Chris uses, and 
   for (const id of ids) { assert.equal(WP.isEnabled(id), true, id); assert.equal(WP.restingUntil(id), 0, id); }
 });
 
+// 0.4.36 (Chris: "if an AI is gone it shouldn't be just turned off, the AI should be removed"): even when the retired
+// Gemini CLI is still installed on the PC, it is not listed
+test("retired Gemini CLI is never listed, installed or not", () => {
+  for (const installed of [false, true]) assert.equal(WP.listWorkers({ detected: { "gemini-cli": { installed, signedIn: installed } } }).find((w) => w.id === "gemini-cli"), undefined, String(installed));
+  assert.equal(WP.DEFAULT_WORKERS.find((w) => w.id === "freebuff").needs, "Use Install Freebuff under Your AI helpers.");
+});
+
 test("detection with fakes: ready, needs sign-in, not installed, and API AIs with a key", async () => {
   reset();
   const v = await WP.workersView({ detectors: FAKES, apiSource: () => [{ id: "groq", name: "Groq", keyed: true }, { id: "anthropic", name: "Claude", keyed: true }] });

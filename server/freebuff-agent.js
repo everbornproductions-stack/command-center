@@ -23,7 +23,8 @@ export const PROVIDER_ID = "freebuff";
 export const NAME = "Freebuff";
 export const WANT_MODEL = "MiMo v2.6 Flash Fast";
 export const NO_TERMINAL = "Freebuff needs the built-in terminal, which is not available on this computer yet.";
-export const NOT_INSTALLED = "Freebuff is not installed on this computer yet. Install it once with: npm install -g freebuff";
+// 0.4.36 (panel 0434 items 7 and 18a): point to the supported install button and honor isolated helper detection.
+export const NOT_INSTALLED = "Freebuff is not installed on this computer yet. Use Install Freebuff under Your AI helpers.";
 const STATE_DOC = "freebuff.state";
 
 // ---------- 1. pure functions on screen text ----------
@@ -219,8 +220,12 @@ export function findOnPath(names, { env = process.env, exists = fs.existsSync, e
   return null;
 }
 export function findFreebuff(opts = {}) {
+  const env = opts.env || process.env;
+  const exists = opts.exists || fs.existsSync;
+  if (env.CC_FREEBUFF_BIN) return exists(env.CC_FREEBUFF_BIN) ? env.CC_FREEBUFF_BIN : null;
+  if (env.CC_SUBCLI_NO_PATH === "1") return null;
   const names = process.platform === "win32" ? ["freebuff.cmd", "freebuff.exe", "freebuff.ps1"] : ["freebuff"];
-  return findOnPath(names, { extra: [path.join(os.homedir(), ".local", "bin"), path.join(os.homedir(), "AppData", "Roaming", "npm")], ...opts });
+  return findOnPath(names, { extra: [path.join(os.homedir(), ".local", "bin"), path.join(os.homedir(), "AppData", "Roaming", "npm")], ...opts, env, exists });
 }
 
 const KEYS = { Down: "Down", Up: "Up", Enter: "Enter", Escape: "Escape", "C-c": "C-c" };

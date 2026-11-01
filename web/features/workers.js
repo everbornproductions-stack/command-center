@@ -1,3 +1,4 @@
+// 0.4.36 (panel 0434 item 7): Antigravity's signed-out row opens the app page and tells the person how to sign in.
 // 0.4.29: "Your AI helpers", a panel in Settings (Expert). The server side is server/worker-pool.js and
 // server/plugins/workers.js. Each helper has a light (green ready, amber resting or needs sign-in, grey off or not
 // installed), a switch, and what it is good for. 0.4.33: a missing helper has Install (or Get it, for one that is not on
@@ -14,6 +15,7 @@ export function helperAction(w) {
   if (w.status === "missing" && CAN_INSTALL.has(w.id)) return { kind: "install", label: "Install" };
   if (w.status === "missing" && GET_PAGE[w.id]) return { kind: "page", label: "Get it", url: GET_PAGE[w.id] };
   if (w.status === "signin" && CAN_SIGNIN.has(w.id)) return { kind: "signin", label: "Sign in" };
+  if (w.id === "antigravity" && w.status === "signin") return { kind: "page", label: "Open Antigravity", url: GET_PAGE.antigravity };
   return null;
 }
 const STYLE_ID = "cc-helpers-style";
@@ -55,8 +57,8 @@ function rowHtml(w) {
       <div><span class="cc-h-name">${esc(w.label)}</span> <span class="dim small">${esc(tags)}</span></div>
       <div class="cc-h-state" data-helper-state>${retired ? `<span class="chip">Retired</span> ` : ""}${esc(stateLine(w))}</div>
       ${w.good ? `<div class="cc-h-good dim">Good for: ${esc(w.good)}</div>` : ""}
-      ${w.needs ? `<div class="cc-h-need dim">${esc(w.needs)}</div>` : ""}
-      ${(() => { const a = helperAction(w); return a || replacement ? `<div style="margin-top:6px">${a ? `<button type="button" class="btn sm primary" data-helper-act="${esc(a.kind)}" data-helper-id="${esc(w.id)}"${a.url ? ` data-url="${esc(a.url)}"` : ""} aria-label="${esc(a.label)} ${esc(w.label)}">${esc(a.label)}</button>` : ""}${replacement}</div>` : ""; })()}
+      ${w.needs ? `<div class="cc-h-need dim">${esc(w.id === "antigravity" && w.status === "signin" ? "Sign in in Antigravity, then press Check again." : w.needs)}</div>` : ""}
+      ${(() => { const a = helperAction(w); return a || replacement ? `<div style="margin-top:6px">${a ? `<button type="button" class="btn sm primary"${a.kind === "install" ? ` title="Installs ${esc(w.label)} with npm. Needs Node.js. About a minute."` : ""} data-helper-act="${esc(a.kind)}" data-helper-id="${esc(w.id)}"${a.url ? ` data-url="${esc(a.url)}"` : ""} aria-label="${esc(a.label)} ${esc(w.label)}">${esc(a.label)}</button>` : ""}${replacement}</div>` : ""; })()}
     </div>
     <label class="cc-h-switch"><input type="checkbox" role="switch" data-helper-switch="${esc(w.id)}" ${w.enabled ? "checked" : ""} ${retired ? "disabled" : ""} aria-label="Use ${esc(w.label)}"> ${retired ? "Retired" : w.enabled ? "On" : "Off"}</label>
   </div>`;

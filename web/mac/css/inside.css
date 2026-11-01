@@ -145,6 +145,8 @@ body[data-style="mac"][data-ui="expert"] #app #view {
 @media (min-width: 1200px) {
   body[data-style="mac"][data-ui="expert"] #app #view { padding: 28px 32px; }
 }
+/* 0.4.36 (panel 0434 item 7): leave room to scroll the last helper buttons above the chat dock. */
+body[data-style="mac"][data-ui="expert"] #app #view:has(#settings-helpers) { padding-bottom: 150px; scroll-padding-bottom: 150px; }
 /* Command: with the page header on top it becomes a column (0.4.27: the whole page scrolls, see the 0.4.27 block below). */
 body[data-style="mac"][data-ui="expert"] #app #view:has(> .cmd) {
   display: flex;
