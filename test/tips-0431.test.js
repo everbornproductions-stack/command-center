@@ -21,13 +21,15 @@ test("tipFor: run modes get plain sentences, pages get their purpose, icon butto
   for (const [k, v] of Object.entries(TIPS)) assert.ok(!v.includes(EM), `no em-dash in ${k}`);
 });
 
-async function hoverTip(page, sel) {
+async function hoverTip(page, sel, repick = null) {
   // a bar can redraw just after a page opens; move away and hover again until the tip shows (up to 4 tries)
   let ok = false;
   for (let i = 0; i < 4 && !ok; i++) {
+    if (i && repick) sel = (await repick()) || sel; // a redrawn bar has a new button: tag it again
     await page.mouse.move(5, 790);
     await page.hover(sel);
-    ok = await page.waitForFunction(() => { const b = document.getElementById("cc-tip"); return b && !b.hidden && b.classList.contains("on") && b.textContent.length > 3; }, null, { timeout: 4000 }).then(() => true, () => false);
+    // the tip must belong to this button (a slow runner can redraw the bar between the hover and the show)
+    ok = await page.waitForFunction((s) => { const b = document.getElementById("cc-tip"); const el = document.querySelector(s); return b && !b.hidden && b.classList.contains("on") && b.textContent.length > 3 && el?.getAttribute("aria-describedby") === "cc-tip"; }, sel, { timeout: 4000 }).then(() => true, () => false);
   }
   assert.ok(ok, `a tip shows when hovering ${sel}`);
   return page.evaluate((s) => {
@@ -55,7 +57,7 @@ for (const theme of ["dark", "light"]) {
       for (const [m, re] of [["single", /^Single: one AI answers/], ["council", /^Council:/], ["mission", /^Mission:/]]) {
         const sel = await pick(m);
         assert.ok(sel, `a visible ${m} button`);
-        const info = await hoverTip(t.page, sel);
+        const info = await hoverTip(t.page, sel, () => pick(m));
         assert.match(info.text, re);
         assert.ok(info.inView, "the tip is fully on screen");
         assert.equal(info.title, null, "the slow browser tooltip does not show as well");
