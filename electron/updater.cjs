@@ -116,7 +116,7 @@ function applyUpdateFeed(autoUpdater, which = "github") {
   return which;
 }
 
-function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0", manualInstall = false, readLatest = readPublicLatest }) {
+function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentVersion = "0.0.0", manualInstall = false, readLatest = readPublicLatest, retryMs = 60000 }) {
   const listeners = [];
   let state = { phase: "idle", current: currentVersion, version: null, notes: "", percent: null, error: null, detail: null, downloadUrl: null, file: null, checkedAt: 0, offer: "launch", installOnQuit: false, manual: !!manualInstall };
   let dismissed = null;    // version the person said "Later" to (this launch only)
@@ -340,7 +340,19 @@ function createUpdateController({ autoUpdater, log = () => {}, ui = {}, currentV
         ? { version: s.version, notes: s.notes || "", error, downloadUrl: s.downloadUrl || DOWNLOAD_PAGE }
         : { version: currentVersion, notes: "", error, downloadUrl: s.phase === "failed" ? (s.downloadUrl || DOWNLOAD_PAGE) : null };
     },
-    download: () => { if (!manualInstall) return autoUpdater.downloadUpdate(); openDownload(); return Promise.reject(Object.assign(new Error(MANUAL_NOTE), { code: "manual_install" })); },
+    download: async () => {
+      if (manualInstall) { openDownload(); throw Object.assign(new Error(MANUAL_NOTE), { code: "manual_install" }); }
+      // 0.4.34 (Nov 1 2026): the app's own check saw 0.4.32 while the updater's copy of latest.yml still said 0.4.31, so
+      // downloadUpdate refused ("Please check update first") and nothing installed. The updater looks again first, and
+      // waits for the release list to catch up (up to 3 looks, a minute apart).
+      for (let i = 0; i < 3; i++) {
+        let info = null;
+        try { info = (await runCheck())?.updateInfo || null; } catch (e) { log("update look before download failed:", cleanError(e)); }
+        if (info?.version && newer(info.version, currentVersion)) break;
+        if (i < 2) { log("the release list has not caught up yet; looking again in a minute"); await new Promise((r) => setTimeout(r, retryMs)); }
+      }
+      return autoUpdater.downloadUpdate();
+    },
     install() {
       if (manualInstall) return; installing = true; try { ui.beforeQuit && ui.beforeQuit(); } catch {} log("installing update and restarting"); setImmediate(() => autoUpdater.quitAndInstall(true, true)); },
   };
