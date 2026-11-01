@@ -125,9 +125,12 @@ body[data-style="mac"] .view-col > .view {
 /* Phone width: the Asset Tray head gets its own band between the window and the dock. The window's bottom
    edge moves up by the tray's height, so the tray never sits over the window's tab bar, Send or the 3 steps. */
 @media (max-width: 760px) {
-  body[data-style="mac"]:has(#cc-asset-tray:not([hidden])) {
+  body[data-style="mac"]:has(#cc-asset-tray:not([hidden])):not(:has(#mobile-nav)) {
     --mac-win-b: 164px;
   }
+  /* 0.4.35 (panel 0431 item 6): while the bottom tabs show, the floating Asset Tray pill (and the 68 px band it needed)
+     step aside, so the answer gets the room. MindMedia and Projects still open the same files. */
+  html body[data-style="mac"]:has(#mobile-nav) #cc-asset-tray { display: none !important; }
   html body[data-style="mac"] #cc-asset-tray {
     right: calc(var(--mac-win-x) + 6px);
     bottom: 94px;
@@ -748,6 +751,16 @@ body[data-style="mac"] .toasts .toast {
     align-items: center;
   }
 }
+/* 0.4.35 (panel 0431 item 3): the 0.4.31 Simple place (the band above the page title) was on the Next bar. app.js
+   placeToasts() measures the bars each time a toast shows: Simple toasts sit centred just below the Next bar; at
+   phone width and in Expert with no Live feed column they sit just above the Talk bar and the chat dock. */
+body[data-style="mac"][data-toast-at="top"] .toasts {
+  top: var(--cc-toast-top, calc(var(--mac-win-t) + var(--mac-title-h) + var(--mac-note-h, 0px) + 56px));
+}
+body[data-style="mac"][data-toast-at="bottom"] .toasts {
+  top: auto;
+  bottom: var(--cc-toast-bottom, 120px);
+}
 /* The Pro box covers the middle of the window: toasts move below it, and the box leaves them room. */
 body[data-style="mac"]:has(#cc-upgrade) .toasts {
   top: auto;
@@ -763,4 +776,33 @@ body[data-style="mac"] #cc-upgrade .card {
     align-items: stretch;
   }
   body[data-style="mac"] .toasts .toast { max-width: none; }
+}
+
+/* 0.4.35 (panel 0431 item 6): Simple at phone width, the Next bar and the Project tools row share one row that swipes
+   sideways (inside.js paintSwipe wraps them in .sx-swipe). */
+@media (max-width: 760px) {
+  body[data-style="mac"][data-ui="simple"] #app .view-col > .sx-swipe {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 8px;
+    flex: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    touch-action: pan-x pan-y;
+    overscroll-behavior-x: contain;
+    margin: 0 0 8px;
+  }
+  body[data-style="mac"][data-ui="simple"] #app .view-col > .sx-swipe::-webkit-scrollbar { display: none; }
+  body[data-style="mac"][data-ui="simple"] #app .sx-swipe > :is(.mm-bar, .projbar) {
+    flex: none;
+    flex-wrap: nowrap;
+    margin: 0;
+    overflow: visible;
+  }
+  body[data-style="mac"][data-ui="simple"] #app .sx-swipe > :is(.mm-bar, .projbar) > *,
+  body[data-style="mac"][data-ui="simple"] #app .sx-swipe .pb-tools > * { flex-shrink: 0; white-space: nowrap; }
+  body[data-style="mac"][data-ui="simple"] #app .sx-swipe .pb-tools { display: flex; flex-wrap: nowrap; }
+  body[data-style="mac"][data-ui="simple"] #app .sx-swipe .mm-why:not([hidden]) { white-space: normal; }
 }

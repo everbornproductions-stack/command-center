@@ -29,6 +29,11 @@ function collapsed() {
     const v = localStorage.getItem(COLLAPSE_KEY);
     if (v === "1" || v === "0") return v === "1";
   } catch { /* storage can be blocked */ }
+  // 0.4.35 (panel 0431 item 14): at 800 px tall the open dock and the Talk bar took about 190 px of History and Settings.
+  // In Expert, pages other than Command start with the dock collapsed up to 800 px tall (a click opens it, and that
+  // choice is kept).
+  const s = S() || {};
+  if (s.uiMode === "expert" && (s.view || "command") !== "command") return window.innerHeight <= 800;
   return window.innerHeight < 800;
 }
 function setCollapsed(on) {

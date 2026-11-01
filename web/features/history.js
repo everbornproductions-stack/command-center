@@ -12,6 +12,40 @@ const dateText = (t) => (t ? new Date(t).toLocaleDateString() : "?");
 
 async function load() {
   try { st.data = await api("/history"); } catch (e) { toast(e.message, true); st.data = st.data || { batches: [], imported: 0, sync: {}, limits: {} }; }
+  await loadChats();
+}
+// A failed ask keeps the last list. Just after a run finishes its file can be busy for a moment on Windows and the list
+// comes back empty although the app knows of past runs: ask once more a little later.
+async function loadChats() {
+  const ask = () => api("/desk/chats").then((r) => (Array.isArray(r?.chats) ? r.chats : null)).catch(() => null);
+  let list = await ask();
+  if (list && !list.length && (S().missions || []).length) { await new Promise((r) => setTimeout(r, 1500)); list = (await ask()) || list; }
+  if (list) st.chats = list;
+}
+
+// ---------- 0.4.35 (panel 0431 item 14): the chats come first ----------
+// History opened on Import and Sync, and past chats were not on the page at all (only in the History drawer). The page
+// now starts with your chats, newest first; a click opens the chat. Import and Sync follow below.
+const KIND_LABEL = { single: "Chat", council: "Council", mission: "Mission", imported: "Imported" };
+const CHATS_SHOWN = 12;
+if (!document.getElementById("hi-chats-style")) {
+  const el = document.createElement("style");
+  el.id = "hi-chats-style";
+  el.textContent = `#hi-chats .hi-chat-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+#hi-chats button.hi-chat { width: 100%; display: flex; gap: 8px; align-items: center; text-align: left; background: var(--bg-2); color: var(--text); border: 1px solid var(--line-2); border-radius: 10px; padding: 8px 10px; cursor: pointer; font-size: 0.875rem; }
+#hi-chats button.hi-chat:hover { border-color: var(--accent); }
+#hi-chats button.hi-chat:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#hi-chats .hi-chat-t { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#hi-chats .chip { background: var(--panel-solid); border-color: var(--line-2); color: var(--text); }`;
+  document.head.appendChild(el);
+}
+function chatsPanel() {
+  const rows = st.chats || [];
+  const shown = st.allChats ? rows : rows.slice(0, CHATS_SHOWN);
+  const list = shown.map((c) => `<button type="button" class="hi-chat" data-open-run="${esc(c.id)}"><span class="chip">${esc(KIND_LABEL[c.kind] || c.kind)}</span>${c.private ? `<span class="chip">Private</span>` : ""}<span class="hi-chat-t">${esc(c.title)}</span>${c.at ? `<span class="dim small">${esc(ago(c.at))}</span>` : ""}</button>`).join("");
+  return `<div class="panel" id="hi-chats"><h3>Your chats <span class="right small dim">${rows.length}</span></h3>
+    ${list ? `<div class="hi-chat-list">${list}</div>` : `<div class="small dim">No chats yet. Every chat you send is kept here.</div>`}
+    ${rows.length > shown.length ? `<div class="row" style="margin-top:8px"><button type="button" class="btn sm" id="hi-all">Show all ${rows.length}</button></div>` : ""}</div>`;
 }
 
 // ---------- import ----------
@@ -170,8 +204,10 @@ async function phonePush() {
 // ---------- render ----------
 function render(view) {
   if (!st.data) { view.innerHTML = `<div class="panel">Loading...</div>`; return; }
-  view.innerHTML = `${importPanel()}${syncPanel()}`;
+  view.innerHTML = `${chatsPanel()}${importPanel()}${syncPanel()}`;
   const on = (q, fn) => view.querySelector(q)?.addEventListener("click", fn);
+  on("#hi-all", () => { st.allChats = true; render(view); });
+  view.querySelectorAll("[data-open-run]").forEach((b) => b.addEventListener("click", () => window.CC.openRun?.(b.dataset.openRun)));
   on("#hi-read", () => readFile(view));
   on("#hi-go", () => doImport(view));
   on("#hi-cancel", () => { st.preview = null; render(view); });

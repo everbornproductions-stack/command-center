@@ -54,7 +54,8 @@ export function mountBar(el, opts = {}) {
   bar.className = "na-bar";
   bar.setAttribute("role", "group");
   bar.setAttribute("aria-label", "Next actions");
-  bar.innerHTML = `${NEXT_ACTIONS.map((a) => `<button type="button" class="btn sm" data-na="${a.id}">${esc(a.label)}</button>`).join("")}
+  const skip = new Set(Array.isArray(opts.skip) ? opts.skip : []);
+  bar.innerHTML = `${NEXT_ACTIONS.filter((a) => !skip.has(a.id)).map((a) => `<button type="button" class="btn sm" data-na="${a.id}">${esc(a.label)}</button>`).join("")}
     <details class="na-send"><summary class="btn sm" aria-label="${esc(MENU_LABEL)}">${esc(MENU_LABEL)}</summary>
     <div class="na-menu" role="menu">${sendRows(kind).map((r) => `<button type="button" class="btn sm" role="menuitem" data-send="${r.id}">${esc(r.label)}</button>`).join("")}</div></details>
     <div class="na-pick dim small" data-na-pick hidden></div>`;

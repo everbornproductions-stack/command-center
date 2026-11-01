@@ -37,6 +37,7 @@ export default {
         priorityNow(CC),
         CC.S?.whenMode || "now",
         CC.S?.freeOnly?.on ? "on" : "off",
+        CC.S?.license?.limits?.missions ? "m" : "free",
         costLine(CC.S?.estimateCost || 0)
       ].join("|");
     }
@@ -76,13 +77,15 @@ export default {
       const curPriority = priorityNow(CC);
       const curWhen = CC.S?.whenMode || "now";
       const freeOn = !!CC.S?.freeOnly?.on;
+      // 0.4.35 (panel 0431 item 2c): Mission is part of Pro, so the button says so before anyone presses Send.
+      const proMission = !CC.S?.license?.limits?.missions;
       const activeHelp = RUN_MODES.find((m) => m.id === curMode)?.help || RUN_MODES[0].help;
 
       bar.style.display = "flex";
       bar.innerHTML = `
         <div class="mac-runbar-row">
           <div class="mac-runbar-seg" id="mac-rb-modes" role="group" aria-label="How to run it">
-            ${RUN_MODES.map((m) => `<button type="button" data-m="${m.id}" class="${curMode === m.id ? "on" : ""}" title="${m.help}">${m.label}</button>`).join("")}
+            ${RUN_MODES.map((m) => `<button type="button" data-m="${m.id}" class="${curMode === m.id ? "on" : ""}" title="${m.help}">${m.label}${m.id === "mission" && proMission ? ' <span class="cc-pro-mark" aria-label="Part of Pro">Pro</span>' : ""}</button>`).join("")}
           </div>
           <select class="mac-runbar-select" id="mac-rb-priority" aria-label="Priority">
             ${PRIORITIES.map((p) => `<option value="${p.id}" ${curPriority === p.id ? "selected" : ""}>${p.label}</option>`).join("")}
