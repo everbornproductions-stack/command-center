@@ -322,9 +322,14 @@ function focusProject(view) {
   if (!view) return null;
   if (selected === "*") return null;
   if (selected && view.projects.some((p) => p.id === selected)) return view.projects.find((p) => p.id === selected);
+  // 0.4.31 (Chris: "I don't see live view showing the different AIs working, just has router"): the project in the bar
+  // is shown only when it is working or nothing else is. Work outside it (an unfiled job, another project) used to
+  // leave the map with only the Router; now the map shows everything that is running.
   const fromBar = S.project && view.projects.find((p) => p.id === S.project);
-  if (fromBar) return fromBar;
-  return view.projects.find((p) => p.working) || null;
+  if (fromBar && (fromBar.working || !view.working)) return fromBar;
+  const unfiledBusy = (view.unfiled?.runs || []).some((r) => r.working);
+  const busy = view.projects.filter((p) => p.working);
+  return busy.length === 1 && !unfiledBusy ? busy[0] : null;
 }
 function bits(view) {
   const focus = focusProject(view);
