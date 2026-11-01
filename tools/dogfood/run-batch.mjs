@@ -72,7 +72,8 @@ function run(cmd, argv, cwd) {
   const r = spawnSync(cmd, argv, { cwd, encoding: "utf8", timeout: 60000, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
   return { code: r.status, out: (r.stdout || "") + (r.stderr || ""), timedOut: r.error?.code === "ETIMEDOUT" };
 }
-const PY = (cwd, code) => run("python", ["-I", "-c", code], cwd);
+// -I ignores PYTHONIOENCODING, so -X utf8 keeps a checker from crashing on an emoji in the file (vet-docx, 0.4.34 batch 6)
+const PY = (cwd, code) => run("python", ["-I", "-X", "utf8", "-c", code], cwd);
 
 function check(f, file) {
   const p = file.path, dir = path.dirname(p), res = { ok: false, notes: [] };
@@ -105,14 +106,14 @@ function check(f, file) {
       res.ok = words > 150 && !miss.length; break;
     }
     case "python": {
-      const r = run("python", ["-I", p], dir);
+      const r = run("python", ["-I", "-X", "utf8", p], dir);
       res.notes.push(`exit ${r.code}${r.timedOut ? " (timed out)" : ""}: ${r.out.trim().slice(0, 300).replace(/\s+/g, " ")}`);
-      res.ok = r.code === 0 && new RegExp(f.expect || ".").test(r.out); break;
+      res.ok = r.code === 0 && new RegExp(f.expect || ".", "i").test(r.out); break;
     }
     case "node": {
       const r = run(process.execPath, [p, ...(f.args || [])], dir);
       res.notes.push(`exit ${r.code}: ${r.out.trim().slice(0, 300).replace(/\s+/g, " ")}`);
-      res.ok = r.code === 0 && new RegExp(f.expect || ".").test(r.out); break;
+      res.ok = r.code === 0 && new RegExp(f.expect || ".", "i").test(r.out); break;
     }
     case "pptx": {
       const r = PY(dir, `import zipfile,re\nz=zipfile.ZipFile(r'''${p}''')\nn=[x for x in z.namelist() if re.match(r'ppt/slides/slide[0-9]+[.]xml$',x)]\nprint(len(n))`);

@@ -159,20 +159,24 @@ test("item 3: Expert at 1024 x 768 (no Live feed column), an error toast does no
     // One step in the page, so a redraw of the view cannot drop the box between showing the toast and measuring it.
     const corner = await p.evaluate(async () => {
       document.querySelectorAll("#toasts .toast").forEach((e) => e.remove());
-      const at = parseFloat(getComputedStyle(document.body).getPropertyValue("--cc-toast-bottom")) || 120;
+      // where a toast goes before any nudge: just above the chat dock and the Talk bar (app.js placeToasts bottomAbove)
+      const tops = [".cc-dock", "#vt-bar"].map((s) => document.querySelector(s)?.getBoundingClientRect()).filter((r) => r && r.height && r.top > innerHeight * 0.45).map((r) => r.top);
+      const at = tops.length ? Math.round(innerHeight - Math.min(...tops) + 8) : 120;
       const b = document.createElement("input"); b.id = "t-corner";
       b.style.cssText = `position:fixed;right:16px;bottom:${at + 4}px;width:360px;height:40px;z-index:1`;
       document.getElementById("view").appendChild(b);
       window.CC.toast("Request failed (HTTP 402) for this test", true);
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      // placeToasts runs from a MutationObserver (a microtask after the toast is added); measure right after it, before
+      // the page has a chance to redraw and drop the box
+      await Promise.resolve(); await Promise.resolve();
       const t = document.querySelector("#toasts .toast")?.getBoundingClientRect();
       const c = b.getBoundingClientRect();
       b.remove();
-      return t ? { above: t.bottom <= c.top, overlap: t.left < c.right && c.left < t.right && t.top < c.bottom && c.top < t.bottom, at: document.body.dataset.toastAt } : null;
+      return t ? { above: t.bottom <= c.top, overlap: t.left < c.right && c.left < t.right && t.top < c.bottom && c.top < t.bottom, at: document.body.dataset.toastAt, t: [Math.round(t.left), Math.round(t.top), Math.round(t.right), Math.round(t.bottom)], c: [Math.round(c.left), Math.round(c.top), Math.round(c.right), Math.round(c.bottom)], base: at, v: getComputedStyle(document.body).getPropertyValue("--cc-toast-bottom") } : null;
     });
     assert.ok(corner, "a toast shows");
     assert.equal(corner.overlap, false, "the toast moved off the corner box");
-    assert.equal(corner.above, true, `just above the box (${corner.at})`);
+    assert.equal(corner.above, true, `just above the box ${JSON.stringify(corner)}`);
   } finally { await t.close(); }
 });
 

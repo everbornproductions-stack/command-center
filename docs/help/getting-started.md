@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.35
+lastUpdatedVersion: 0.4.36
 ---
 
 # Getting started
@@ -232,3 +232,7 @@ Save money with free AIs: the welcome screen and the Get free AIs card list ever
 ## Answers that fit the request (0.4.35)
 
 Practice answers fit what you asked: a review reply reads like a review reply, a website request gives a small web page with your business name, and "3 lines" gives 3 lines. Asking for title ideas, a script or captions for a video gives words, not a video. App or script follows the language you name: Node.js, PowerShell, Apps Script, SQL, HTML or Python. A restaurant menu that lists coffee or pastries is no longer thrown away as being about a cafe. The startup screen no longer says "Meldmind never just stops". Pressing Simple always opens the main screen with Website, Image, Video, Campaign and the other choices. A Just chat bar sits above the choices: ask anything and get an answer. Project cards are smaller: one line of description, Continue and Delete side by side, and no empty link counts.
+
+## More ways to start a project, and agents explained (0.4.36)
+
+Start a project has 8 more kinds: spreadsheet or budget, document or report, slide deck, online store, event, YouTube or podcast channel, course or training, and game mod. Ready-made templates for common businesses, such as a bakery website, a realtor listing campaign and a contractor quote sheet: use one as it is, or Save a copy to make it your own. Templates can be exported as a file and imported again, for example to share one with a teammate; files with keys or passwords in them are refused. The Agents page starts with a short explanation of what agents do and what happens when you use one. The Live feed can tuck away to the side: press Hide, and a thin tab counts new events until you open it again. Meldmind remembers your choice. An AI that has been shut down, like Gemini CLI, is removed from Settings and every list instead of showing as off. A .sql or PowerShell file saved at the end of a job is checked too. If it would not run, the Done card says so instead of saying Done. Fewer false alarms from the file checks: a query for your own existing database, and every normal way to load the zip parts in PowerShell, now pass. The Chat row in the sidebar stays lit whatever run mode you pick, and searching for Councils, Missions, Research or Second opinion opens Chat with that mode picked. The Meldmind window now fills the whole app window, and the dock hides until you point at the bottom edge. Prefer the old look? Settings, Look, Window style: Framed. Update and restart now waits for a new version to appear on the release list, instead of stopping with "Please check update first". The answer check (fair housing words, credit repair promises, a [Name] left in) now shows right under the answer, also in Light mode, and catches credit repair promises said in other words. The Get free AIs card opens full size at its top in the Mac look, and Set up all free AIs stops once with a clear line when Node.js is missing. Simple Settings has the free AI setup too, and History files chats under Chats instead of guessing from a word in the title.
