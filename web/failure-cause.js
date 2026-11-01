@@ -44,11 +44,15 @@ export function failureCopy(text) {
 
 // oneAI (0.4.21, dogfood 15): a failed Mission also offers "Get a one-AI answer" (one AI answers the same request).
 export const ONE_AI_LABEL = "Get a one-AI answer";
-export function failureHtml({ text = "", esc = (s) => String(s), retry = "Try again", other = "Try another AI", oneAI = false } = {}) {
+// 0.4.30 "Finish it later": when the AI was out of credit or usage, one click queues the same job to run by itself
+// when the first AI is back (server: POST /api/mission with runAt "when-back").
+export const LATER_LABEL = "Finish it later";
+export const laterFits = (kind) => kind === "credit" || kind === "rate";
+export function failureHtml({ text = "", esc = (s) => String(s), retry = "Try again", other = "Try another AI", oneAI = false, later = false } = {}) {
   const c = failureCopy(text);
   const buttons = c.kind === "budget"
     ? `<button class="btn sm primary" type="button" id="cc-limit-free">Continue free</button><button class="btn sm" type="button" id="cc-limit-plus">Add $1 and continue</button>`
-    : `<button class="btn sm primary" type="button" id="cc-fail-retry">${esc(retry)}</button><button class="btn sm" type="button" id="cc-fail-other">${esc(other)}</button>${oneAI ? `<button class="btn sm" type="button" id="cc-fail-oneai">${esc(ONE_AI_LABEL)}</button>` : ""}`;
+    : `<button class="btn sm primary" type="button" id="cc-fail-retry">${esc(retry)}</button><button class="btn sm" type="button" id="cc-fail-other">${esc(other)}</button>${oneAI ? `<button class="btn sm" type="button" id="cc-fail-oneai">${esc(ONE_AI_LABEL)}</button>` : ""}${later && laterFits(c.kind) ? `<button class="btn sm" type="button" id="cc-fail-later" title="Meldmind runs it again by itself when your first AI is back">${esc(LATER_LABEL)}</button>` : ""}`;
   return `<div class="route" id="cc-fail" data-cause="${c.kind}" style="margin-top:10px"><span class="chip ${c.kind === "budget" ? "amber" : ""}" data-cause-chip>${esc(c.chip)}</span> <b>${esc(c.title)}</b><div class="small dim" style="margin-top:4px">${esc(c.hint)}</div>${c.kind === "budget" ? `<div class="small" id="cc-still-works" style="margin-top:6px"><b>Still works when the budget is used up:</b> practice AIs, AIs running on this computer, your saved projects, files and notes, and everything you already made. Paid AI answers wait until next month or until you add to the limit.</div>` : ""}<div class="row" style="margin-top:8px;gap:8px">${buttons}</div></div>`;
 }
 

@@ -2057,7 +2057,16 @@ function paintFailure() {
     return;
   }
   if (S.uiMode === "expert" || !S.simpleFail) { slot.innerHTML = ""; return; }
-  slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other, oneAI: !!S.simpleFail.oneAI });
+  slot.innerHTML = failureHtml({ text: S.simpleFail.error, esc, retry: FAILURE.retry, other: FAILURE.other, oneAI: !!S.simpleFail.oneAI, later: !!S.simpleFail.text });
+  $("#cc-fail-later")?.addEventListener("click", async (e) => {
+    e.currentTarget.disabled = true;
+    try {
+      const r = await api("/mission", { method: "POST", body: { goal: S.simpleFail.text, mode: S.costMode || S.settings?.defaultMode, projectId: S.project || undefined, runAt: "when-back" } });
+      const when = new Date(r.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+      toast(`Queued. Meldmind runs it again by itself at ${when}, so you can close this. It shows with your running jobs until then.`);
+      S.simpleFail = null; paintFailure();
+    } catch (err) { e.currentTarget.disabled = false; toast(err.message, true); }
+  });
   $("#cc-fail-oneai")?.addEventListener("click", () => { S.pendingAvoid = ""; S.forceSingleOnce = true; sendOrders(); });
   $("#cc-fail-retry")?.addEventListener("click", () => { S.pendingAvoid = ""; sendOrders(); });
   wireLimitButtons(slot, { api, toast, rerun: () => sendOrders(), setFree: (f) => { S.forceFree = f; } });
