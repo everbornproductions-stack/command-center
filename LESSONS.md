@@ -113,3 +113,10 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 - What happened: the Nov 1 persona session (on 0.4.35) saved its 8 ideas as "Proposed" in the master feature list, where they would sit with no owner or date.
 - Fix: all 8 are committed items in docs/plan-0.4.36.md, each with a plain-words "Done when" check, labelled "Next round (0.4.36)".
 - Rule: a persona idea is either in the next round plan with acceptance checks, or dropped as a duplicate. Do not leave a "Proposed" label. The master feature list is not in this repo, so relabel it where it lives (see PERSONA-IDEAS-0436-REPORT.md).
+
+
+## 2026-11-01: Move every old persona idea into a dated round, and check the round is still open
+
+- What happened: 42 persona ideas from the Oct 21, 25 and 27 sessions sat as "Proposed" in the master feature list (30 rows), and 12 more never reached the list at all (they were only in the Oct 27 report table). While the job ran, v0.4.36 shipped, so the "Next round (0.4.36)" label in the open Nov 1 PR was already wrong.
+- Fix: every idea is a committed item with plain-words checks in docs/plan-0.4.37.md to docs/plan-0.4.40.md (about 12 to 13 per round). The Nov 1 items moved from 0.4.36 to 0.4.37. The master list copy has no "Proposed" left.
+- Rule: before labelling anything "next round", check the latest tag (git ls-remote --tags, gh release list). Count the ideas in the report files too, not only the rows in the master list. Keep one plan file per round and never put the same acceptance checks in two files.

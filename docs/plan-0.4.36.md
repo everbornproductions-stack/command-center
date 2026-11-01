@@ -1,8 +1,10 @@
-# Meldmind 0.4.36: persona ideas committed to this round
+# Meldmind 0.4.36 plan: Nov 1 persona ideas (now in the 0.4.37 round)
 
 Source: the Nov 1, 2026 persona ideas session on 0.4.35 (file `Meldmind-Persona-Ideas-2026-11-01.md`, kept in Chris's persona-ideas folder, not in this repo). Every persona reaction in it is simulated.
 
-Chris's rule (Nov 1, 2026): persona ideas always go into the NEXT build round. They are never parked as "Proposed". Status of every item below: **Next round (0.4.36)**.
+Chris's rule (Nov 1, 2026): persona ideas always go into the NEXT build round. They are never parked as "Proposed". Status of every item below: **Next round (0.4.37)**.
+
+**Moved to 0.4.37 (Nov 1, 2026):** v0.4.36 shipped (tag v0.4.36, published 20:54 UTC) without these eight, so they carry over to `docs/plan-0.4.37.md`. This file keeps their full "Done when" checks so there is one copy to edit.
 
 This file lists only the persona ideas. Other 0.4.36 work (start-a-project kinds, templates, dock and full-window fixes) is tracked in the integration/0.4.36 branch and `tools/notes-0.4.36.json`.
 
