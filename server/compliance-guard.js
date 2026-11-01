@@ -97,10 +97,13 @@ export const maskSensitive = maskPrivate;
 // 0.4.34 (0.4.31 panel item 10, Ray and Tasha: "AI-written text is never checked"): the same rules run on an AI's answer
 // when it is about credit repair, real estate, loans or insurance, so a risky line is flagged before anyone copies it into
 // a message. Nothing is changed or blocked: the warnings are shown under the answer.
-const ANSWER_TOPIC = /\b(credit repair|credit score|credit report|dispute|tradeline|listing|for sale|open house|buyers?|tenants?|rent(?:al)?|mortgage|loan|apr|interest rate|down payment|refinanc\w*|insurance|policy|premium|coverage|claim)\b|\b\d{3}-\d{2}-\d{4}\b/i;
+// 0.4.36 (panel 0434 item 9): include credit-repair shorthand, and keep policy/claim warnings tied to insurance or loans.
+const ANSWER_TOPIC = /\b(credit repair|credit score|credit report|(?:your|my|credit) score|negative items|collections|late payments|bureau|experian|equifax|transunion|dispute|tradeline|listing|for sale|open house|buyers?|tenants?|rent(?:al)?|mortgage|loan|apr|interest rate|down payment|refinanc\w*|insurance|premium|coverage)\b|\b\d{3}-\d{2}-\d{4}\b/i;
+const CREDIT_WORDS = /\b(?:negative items|collections?|late payments?|credit bureaus?|experian|equifax|transunion)\b/i;
 export function checkAnswer(text = "") {
   const body = String(text || "").slice(0, 20000);
   if (!body.trim() || !ANSWER_TOPIC.test(body)) return { checked: false, warnings: [] };
-  const r = checkOutgoing({ text: body, channel: "answer" });
+  // credit repair said in other words ("remove all negative items") still gets the credit repair rules
+  const r = checkOutgoing({ text: body, channel: "answer", creditRepair: CREDIT.test(body) || CREDIT_WORDS.test(body) });
   return { checked: true, warnings: r.warnings.filter((w) => w.level !== "info") };
 }

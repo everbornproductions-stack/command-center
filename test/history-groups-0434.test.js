@@ -27,8 +27,25 @@ test("categoryOf: the file's type first, else the words in the title, else Chats
   assert.equal(categoryOf(ROWS[1]).id, "media", "a picture with no file yet is still a picture");
   assert.equal(categoryOf(ROWS[2]).id, "sheets");
   assert.equal(categoryOf({ title: "deck for the board", file: "" }).id, "slides");
+  assert.equal(categoryOf({ title: "make a slide deck for the board", file: "" }).id, "slides");
   assert.equal(categoryOf({ title: "write a python script" }).id, "code");
   assert.equal(categoryOf(ROWS[4]).id, "chats");
+});
+
+// 0.4.36 (panel 0434 item 10): chats default to Chats and explicit artifacts use their kind.
+test("categoryOf keeps chat topics in Chats and recognizes explicit artifacts", () => {
+  for (const title of [
+    "How do I make a video call with my team?",
+    "YouTube title ideas for budget mics",
+    "Plan a game night",
+    "Post about our app launch party",
+  ]) assert.equal(categoryOf({ title }).id, "chats", title);
+  assert.equal(categoryOf({ title: "A Node.js script that renames every photo" }).id, "code");
+  assert.equal(categoryOf({ title: "make a video for our launch" }).id, "media");
+  assert.equal(categoryOf({ title: "make a picture of a cupcake" }).id, "media");
+  assert.equal(categoryOf({ title: "rent roll", file: "rent-roll.xlsx" }).id, "sheets");
+  assert.equal(categoryOf({ title: "A website for my bakery" }).id, "web", "a quick pick that names the thing first");
+  assert.equal(categoryOf({ title: "A 5 second video of waves rolling in" }).id, "media");
 });
 
 test("groups: pinned first, then the current project, then by newest; images drop down together", () => {
