@@ -1,0 +1,57 @@
+[
+  {
+    "id": "pro-2026-11-past-due-reminder",
+    "title": "Past-due reminder",
+    "category": "finance and accounting",
+    "industry": "accounting",
+    "prompt": "Write a polite but firm reminder to [client name] about an overdue invoice. Invoice number: [invoice number]. Amount due: [amount]. Original due date: [due date]. Pay link: [pay link]. Late-fee terms: [late-fee terms, or \"none\"]. Start friendly, state the facts, say what happens next, and end with the pay link and a clear next step. Keep it under [length, for example 120 words]. If I gave no late-fee terms, do not mention a fee. Do not threaten. Draft only. Do not send it.",
+    "source_name": "Meldmind",
+    "source_url": "",
+    "popularity_note": "",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "pro-2026-11-ask-for-a-review",
+    "title": "Ask for a review",
+    "category": "marketing and ads",
+    "industry": "any",
+    "prompt": "Write a short message asking [client name] for a Google review or a one or two sentence testimonial after [the job or result they were happy with]. Mention [one specific thing they said or liked]. Say it takes about a minute, include this link: [review link], and say a no is fine. Do not offer a gift or discount in return. Give me one text version and one email version, plus a tip on the best moment to send it: [when the job finished]. Draft only. Do not send it.",
+    "source_name": "Meldmind",
+    "source_url": "",
+    "popularity_note": "",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "pro-2026-11-referral-partner-pitch",
+    "title": "Referral partner pitch",
+    "category": "sales",
+    "industry": "real estate",
+    "prompt": "Write a friendly first message to [partner name], a [mortgage or real estate] broker, about referring clients to each other. About me: [my business and who I serve]. About them: [what I know about their business]. Explain what they get: [what they get]. Explain what I get: [what I get]. Suggest a simple next step, like a [15 minute call or coffee] on [dates]. Add one line saying we will follow the rules for referrals in [my state], and that I will check them first. Keep it under [length, for example 150 words]. Draft only. Do not send it.",
+    "source_name": "Meldmind",
+    "source_url": "",
+    "popularity_note": "",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "pro-2026-11-life-insurance-needs-check",
+    "title": "Life insurance needs check",
+    "category": "insurance",
+    "industry": "insurance",
+    "prompt": "Walk me through a plain-words life insurance needs check for a client conversation. Client: [age range and family situation]. Income: [income range]. Debts: [mortgage and other debts]. Goals: [goals, for example kids' college]. Cover: income to replace, debts to clear, final expense (funeral and end-of-life costs, use [a general figure the client gave me] and do not invent one), and what coverage they already have. End with five questions to ask the client. Do not name any carrier, rate, or price. Add this note at the end: \"This is general education, not a quote or advice. A licensed agent in [state] will review options with you.\" Draft only.",
+    "source_name": "Meldmind",
+    "source_url": "",
+    "popularity_note": "",
+    "added_week": "2026-W44"
+  },
+  {
+    "id": "pro-2026-11-local-weekend-roundup",
+    "title": "Local weekend roundup",
+    "category": "social media",
+    "industry": "local service",
+    "prompt": "Turn this list of local events into a ready-to-post \"things to do this weekend in [town]\" post. Events: [events with day, time, place, and cost]. Give me a caption under [length, for example 120 words] with an easy opening line, the events grouped by day, and a closing line asking people to share their plans. Then give a carousel outline: one cover slide plus one slide per event with a short headline and one line of detail, and a last slide with [my business name or call to action]. Use only the details I gave. Tell me to confirm times and prices before posting. Draft only. Do not post it.",
+    "source_name": "Meldmind",
+    "source_url": "",
+    "popularity_note": "",
+    "added_week": "2026-W44"
+  }
+]
