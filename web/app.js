@@ -1012,6 +1012,23 @@ if (typeof window !== "undefined") {
     render();
   });
 }
+// 0.4.31 (panel item 10): while a page's module downloads the page says "Loading...", and after 8 seconds
+// "This page did not load" with Try again, instead of the last page or a "Loading..." that never ends.
+const PAGE_SHOW_LOADING_MS = 400, PAGE_GIVE_UP_MS = 8000;
+const PAGE_LOADING_HTML = `<div class="empty" role="status" data-page-wait="loading">Loading...</div>`;
+function pageWait(view, html) {
+  const v = $("#view");
+  if (!v || S.view !== view) return null;
+  // the last page's typing is kept first, then #view no longer shows that page
+  if (S.renderedView && isNavStateEnabled(S)) captureViewDraft(S.renderedView, v);
+  S.renderedView = "";
+  v.innerHTML = html;
+  return v;
+}
+function pageFailed(view) {
+  const v = pageWait(view, `<div class="empty" role="alert" data-page-wait="failed">This page did not load. <button type="button" class="btn sm" id="page-retry" style="margin-left:8px">Try again</button></div>`);
+  if (v) $("#page-retry", v)?.addEventListener("click", () => { pageWait(view, PAGE_LOADING_HTML); render(); });
+}
 function render() {
   if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
   document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
@@ -1019,11 +1036,19 @@ function render() {
   const light = !!S.settings?.lightMode;
   if (cc?.viewReady && !cc.viewReady(S.view, { light })) {
     const token = (cc._paintToken = (cc._paintToken || 0) + 1);
-    cc.ensureView(S.view, { light }).then(() => {
-      if (cc._paintToken === token) render();
-    }).catch((e) => console.warn("[features]", e));
+    const view = S.view;
+    const still = () => cc._paintToken === token && S.view === view && !cc.viewReady(view, { light });
+    clearTimeout(cc._pageShow); clearTimeout(cc._pageGiveUp);
+    cc._pageShow = setTimeout(() => { if (still() && !$("#view [data-page-wait]")) pageWait(view, PAGE_LOADING_HTML); }, PAGE_SHOW_LOADING_MS);
+    cc._pageGiveUp = setTimeout(() => { if (still()) pageFailed(view); }, PAGE_GIVE_UP_MS);
+    cc.ensureView(view, { light }).then(() => {
+      if (cc._paintToken !== token) return;
+      // the module did not arrive (a failed download): say so now instead of asking again in a loop
+      if (cc.viewReady(view, { light })) render(); else pageFailed(view);
+    }).catch((e) => { console.warn("[features]", e); if (cc._paintToken === token) pageFailed(view); });
     return;
   }
+  clearTimeout(cc?._pageShow); clearTimeout(cc?._pageGiveUp);
   syncChrome();
   renderAsk();
   markTabs();

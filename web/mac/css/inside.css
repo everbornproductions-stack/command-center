@@ -905,3 +905,18 @@ body.light-mode[data-style="mac"][data-ui="expert"] #app #view[data-cx-enter] > 
 body[data-style="mac"][data-ui="expert"] #app .feed .ev .t { font-size: .75rem; }
 body[data-style="mac"][data-ui="expert"] #app #view #cc-desk-chats > .lbl { font-size: .8125rem; }
 body[data-style="mac"][data-ui="expert"] #app #view .panel > .row > h3 { font-size: var(--cx-fs-h2); }
+
+/* ---------- 0.4.31 (panel items 8 and 11d) ----------
+   Item 8: from 1251 to about 1530 px the side column was 260 px wide, so the answer card was 1,361 px tall and
+   the "Written by" line took four lines. When an answer is showing and the side column would be under
+   420 px, Command is one column and the Deliverable takes the full width under the order column (the page brings it
+   into view once, as at 1024). #view is the size container, so a closed sidebar or a wider window keeps two columns. */
+body[data-style="mac"][data-ui="expert"] #app #view:has(> .cmd) { container: cx-cmd / inline-size; }
+@container cx-cmd (max-width: 795px) {
+  body[data-style="mac"][data-ui="expert"] #app #view > .cmd:has(#deliv-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+  body[data-style="mac"][data-ui="expert"] #app #view > .cmd:has(#deliv-panel:not([hidden])) > :is(.orders, .cmd-side) { min-width: 0; }
+}
+/* Item 11d: at phone width the last thing on the page can scroll clear of the Talk bar under #view (up to 48 px tall). */
+@media (max-width: 760px) {
+  body[data-style="mac"][data-ui="expert"] #app #view { padding-bottom: calc(14px + 48px); scroll-padding-bottom: 48px; }
+}
