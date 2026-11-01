@@ -249,7 +249,31 @@ function placeToasts() {
   }
   const feed = shown(document.getElementById("feed"));
   if (feed && feed.width > 160 && feed.right > innerWidth - 80) { delete body.dataset.toastAt; return; }
-  if (!bottomAbove([".cc-dock", "#vt-bar"])) delete body.dataset.toastAt;
+  if (!bottomAbove([".cc-dock", "#vt-bar"])) { delete body.dataset.toastAt; return; }
+  // 0.4.36: a page with a box or button in that corner (Everyday inbox on a shorter screen): the toast moves up just
+  // above it, a few times if need be, while it stays in the lower half; else below the title bar if that spot is clear.
+  const start = body.style.getPropertyValue("--cc-toast-bottom");
+  for (let i = 0; i < 4; i++) {
+    const hit = coveredControls();
+    if (!hit.length) return;
+    const top = Math.min(...hit.map((r) => r.top));
+    if (top < innerHeight * 0.5) break;
+    body.style.setProperty("--cc-toast-bottom", `${Math.round(innerHeight - top + 8)}px`);
+  }
+  if (!coveredControls().length) return;
+  body.style.setProperty("--cc-toast-bottom", start);
+  const title = shown(document.getElementById("mac-titlebar"));
+  if (!title) return;
+  body.style.setProperty("--cc-toast-top", `${Math.round(title.bottom + 8)}px`);
+  body.dataset.toastAt = "top";
+  if (coveredControls().length) body.dataset.toastAt = "bottom";
+}
+/** The page controls on screen that a toast covers right now. */
+function coveredControls() {
+  const toasts = [...document.querySelectorAll("#toasts .toast")].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
+  if (!toasts.length) return [];
+  return [...document.querySelectorAll("#view button, #view a[href], #view select, #view input, #view textarea")].map((c) => c.getBoundingClientRect())
+    .filter((r) => r.width && r.height && r.bottom >= 0 && r.top <= innerHeight && toasts.some((s) => s.left < r.right && r.left < s.right && s.top < r.bottom && r.top < s.bottom));
 }
 {
   const box = document.getElementById("toasts");

@@ -149,8 +149,27 @@ test("item 3: Expert at 1024 x 768 (no Live feed column), an error toast does no
       await p.waitForFunction(() => [...document.querySelectorAll("#toasts .toast")].some((e) => e.getBoundingClientRect().height > 0), null, { timeout: WAIT });
       const r = await p.evaluate(OVERLAPS, ["#toasts .toast", "#view button, #view a[href], #view select, #view input"]);
       assert.deepEqual(r.out, [], `${view}: no toast covers a page control`);
-      assert.equal(await p.evaluate(() => document.body.dataset.toastAt), "bottom");
+      // bottom right above the dock (moved up past a box in that corner), or below the title bar if that is covered too
+      assert.ok(["bottom", "top"].includes(await p.evaluate(() => document.body.dataset.toastAt)), view);
     }
+    // a box in the bottom right corner (as on the CI runner's Everyday inbox): the toast moves up, just above it.
+    // One step in the page, so a redraw of the view cannot drop the box between showing the toast and measuring it.
+    const corner = await p.evaluate(async () => {
+      document.querySelectorAll("#toasts .toast").forEach((e) => e.remove());
+      const at = parseFloat(getComputedStyle(document.body).getPropertyValue("--cc-toast-bottom")) || 120;
+      const b = document.createElement("input"); b.id = "t-corner";
+      b.style.cssText = `position:fixed;right:16px;bottom:${at + 4}px;width:360px;height:40px;z-index:1`;
+      document.getElementById("view").appendChild(b);
+      window.CC.toast("Request failed (HTTP 402) for this test", true);
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const t = document.querySelector("#toasts .toast")?.getBoundingClientRect();
+      const c = b.getBoundingClientRect();
+      b.remove();
+      return t ? { above: t.bottom <= c.top, overlap: t.left < c.right && c.left < t.right && t.top < c.bottom && c.top < t.bottom, at: document.body.dataset.toastAt } : null;
+    });
+    assert.ok(corner, "a toast shows");
+    assert.equal(corner.overlap, false, "the toast moved off the corner box");
+    assert.equal(corner.above, true, `just above the box (${corner.at})`);
   } finally { await t.close(); }
 });
 
