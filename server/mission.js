@@ -44,6 +44,7 @@ import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuatio
 import { saveNamedFile, writeProjectFile, codeFor, fileBody, NOT_SAVED_LINE, wantedFile, officeNote } from "./named-file.js";
 import { bodyForFile, looksLikeCode } from "./code-files.js";
 import { saveEveryNamedFile, isCheckStep, fullReplacement } from "./save-named-files.js";
+import { checkSavedScripts } from "./saved-file-checks.js";
 import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
 import { wantsSqlCheck, sqlCheck, sqlIssueLine } from "./sql-check.js";
@@ -1835,7 +1836,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     else await assemble(plan, planner);
     if (finished.length && (mediaNote || pendingNote)) mission.deliverable = (mission.deliverable || "") + mediaNote + pendingNote;
     if (!String(mission.deliverable || "").trim() && !waiting.length && !waitingMedia.length) throw Object.assign(new Error("Nothing came back. The AIs finished with an empty result. Press Try again, or add credits in Settings."), { code: "empty" });
-    finishChecks();
+    await finishChecks();
     // a PDF task gets a real PDF made here, saved as .pdf and .md in the project folder (server/mission-pdf.js)
     try { await attachPdf(mission, { goal, log }); } catch (e) { mission.savedPdf = { ok: false, error: `Not saved: ${String(e.message || e).slice(0, 140)}` }; }
     mission.status = mission.tasks.some((t) => t.status === "failed" || (stepIsNotDone(t) && !mission.savedPdf?.ok)) || mission.limitReached || (mission.savedPdf && !mission.savedPdf.ok) || mission.incomplete || mission.banner ? "done-with-errors" : "done";
@@ -1936,7 +1937,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
   }
 
   // 0.4.21: the checks every finished mission goes through before it may say "done"
-  function finishChecks() {
+  async function finishChecks() {
     const noSources = !(mission.sources || []).length;
     if (noSources) {
       mission.deliverable = stripSearchLeaks(mission.deliverable || "");
@@ -1964,6 +1965,11 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       else log(r.ok ? `Saved ${r.name} in the project folder.` : String(r.error || `Not saved: ${r.name}.`), r.ok ? {} : { level: "error" });
     }
     mission.savedFiles = savedAll.length ? savedAll : null;
+    // 0.4.36: a .sql or .ps1 saved here gets the same check as one a code step wrote (those were checked when written)
+    const checkedFiles = await checkSavedScripts(savedAll, { goal, checked: wrote.map((w) => w.path) });
+    for (const c of checkedFiles) log(c.ok ? (c.kind === "sqlite" ? `Checked ${c.name} in SQLite: it runs.` : `Checked ${c.name} for known PowerShell traps: none found.`) :`Checked ${c.name}: ${c.issue}`, c.ok ? {} : { level: "error" });
+    const fileChecks = checkedFiles.filter((c) => !c.ok);
+    mission.fileChecks = fileChecks.length ? fileChecks : null;
     mission.savedFile = savedAll.find((r) => path.basename(String(r.requested || r.name)).toLowerCase() === path.basename(want).toLowerCase()) || savedAll[0] || null;
     // a step that could not save its file is not "not done" any more once that file was saved from another answer
     const okNames = new Set(savedAll.filter((r) => r.ok).map((r) => path.basename(String(r.requested || r.name)).toLowerCase()));
@@ -2015,6 +2021,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       for (const w of wrote) tail.push(`Wrote ${w.name} (${w.bytes} bytes)`);
       for (const t of unsaved) tail.push(t.notSaved.line);
       for (const t of mission.tasks) if (t.notRun) tail.push(t.notRun.line);
+      for (const c of fileChecks) tail.push(`${c.name}: ${c.issue}`);
       const add = [...new Set(tail)].filter((l) => !String(mission.deliverable || "").includes(l));
       if (add.length) mission.deliverable = `${String(mission.deliverable || "").trimEnd()}\n\n---\n${add.join("\n")}`.trim();
     }
@@ -2029,6 +2036,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
       if (t.status === "failed") reasons.push({ taskId: t.id, title: t.title, kind: t.guard?.kind || "failed", reason: t.error || "The step failed.", provider: t.provider });
       else if (t.qaFailed) reasons.push({ taskId: t.id, title: t.title, kind: t.review?.unchecked ? "qa-unchecked" : "qa-failed", reason: t.review?.unchecked ? "QA could not check this step, so it is not counted as passed." : `QA did not pass this step${t.review?.score != null ? ` (score ${t.review.score} of 10)` : ""}${t.review?.issues?.[0] ? `: ${t.review.issues[0]}` : ""}.`, provider: t.provider });
     }
+    for (const c of fileChecks) reasons.push({ taskId: null, title: c.name, kind: "file-check", reason: c.issue, provider: mission.assembler?.provider || null });
     if (mission.deliverableTruncated) reasons.push({ taskId: null, title: "Final answer", kind: "truncated", reason: `The final answer was cut off: ${tr.reason}`, provider: mission.assembler?.provider || null });
     mission.incomplete = reasons.length ? { reasons, retryAvoid: [...new Set(reasons.map((r) => r.provider).filter(Boolean))] } : null;
     if (mission.incomplete) log(`Incomplete: ${reasons.map((r) => `${r.title} (${r.reason})`).join(" ").slice(0, 400)}`, { level: "error" });
@@ -2053,7 +2061,7 @@ function pubTask(t) {
   return { notSaved: t.notSaved || null, savedLater: t.savedLater || null, notRun: t.notRun || null, toolRecords: t.toolRecords || [], wroteLine: t.wroteLine || null, run: !!t.run, notDone: stepIsNotDone(t) || !!t.practice, id: t.id, title: t.title, capability: t.capability, difficulty: t.difficulty, deps: t.deps, status: t.status, provider: t.provider, model: t.model, agentName: t.agentName, estCost: t.estCost, cost: t.cost, review: t.review, retried: !!t.retried, revised: !!t.revised, edited: !!t.edited, standIn: t.standIn || null, error: t.error || null, startedAt: t.startedAt || null, finishedAt: t.finishedAt || null, chars: t.output ? t.output.length : 0, output: t.output ? String(t.output).slice(0, 20000) : "", thread: Array.isArray(t.thread) ? t.thread : [], instructions: t.instructions || "", toolCalls: t.toolCalls || 0, agent: !!t.agent, save: !!t.save, app: !!t.app, appId: t.appId || null, needs: t.needs || null, agentJob: t.agentJob || null, artifacts: t.artifacts || null, late: !!t.late, followPending: !!t.followPending, media: t.media || null, employee: t.employee || null, workaround: t.workaround || null, requiresApproval: !!t.requiresApproval, approvalKind: t.approvalKind || null, guard: t.guard || null, truncated: !!t.truncated, continued: t.continued || 0, attempts: t.attempts || [], helper: helperFor(t, PROVIDERS), tries: (t.attempts || []).map((a, i) => ({ n: i + 1, line: tryLine(i + 1, a, PROVIDERS), kind: a.kind || null, output: a.output ? String(a.output).slice(0, 4000) : "" })), qaFailed: !!t.qaFailed, inputMissing: t.inputMissing || null, stepKind: t.media?.kind ? `media/${t.media.kind}` : (t.agent ? "agent" : t.app ? "app" : t.capability || null), ...(stepLine(t) || {}) };
 }
 export function publicMission(m) {
-  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, retry: m.retry || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, savedFiles: Array.isArray(m.savedFiles) ? m.savedFiles.map((f) => ({ ...f })) : null, planNote: m.planNote || null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
+  return { replanned: m.replanned || null, id: m.id, kind: m.kind, title: m.title || m.prompt?.slice(0, 90), prompt: m.prompt, projectId: m.projectId, private: !!m.private, mode: m.mode, qa: m.qa, status: m.status, startedAt: m.startedAt, finishedAt: m.finishedAt || null, pausedAt: m.pausedAt || null, cost: m.cost, estimatedCost: m.estimatedCost, budgetUsd: m.budgetUsd, limitReached: !!m.limitReached, planner: m.planner, assembler: m.assembler, plan: m.plan, classification: m.classification, tasks: (m.tasks || []).map(pubTask), deliverable: m.deliverable, thread: Array.isArray(m.thread) ? m.thread : [], doubleCheck: m.doubleCheck || null, tone: m.tone || null, error: m.error || null, retry: m.retry || null, log: m.log, sources: m.sources || [], searchEngine: m.searchEngine || null, searched: m.searched === true ? true : m.searched === false ? false : null, librarySources: m.librarySources || [], toolCalls: m.toolCalls || [], fallbacks: m.fallbacks || [], memory: !!m.memory, getDone: grantView(m.id), employees: m.employees || [], appliedDirections: m.appliedDirections || [], workaround: m.workaround || null, savedPdf: m.savedPdf || null, costText: totalCostText(m), steps: stepsReport(m), freeOnly: freeOnlyOn(), estimateFactor: m.estimateFactor || null, banner: m.banner || null, incomplete: m.incomplete || null, savedFile: m.savedFile ? { ...m.savedFile } : null, savedFiles: Array.isArray(m.savedFiles) ? m.savedFiles.map((f) => ({ ...f })) : null, planNote: m.planNote || null, preflight: m.preflight || null, deliverableTruncated: m.deliverableTruncated || null, fileChecks: m.fileChecks || null, searchAsked: m.searchAsked === true, attachedFiles: m.attachedFiles || [] };
 }
 // 0.4.21: which AI did each step, what it cost, and why it was handed off (shown on the result card)
 export function stepsReport(m) {

@@ -157,6 +157,10 @@ function code(req, v) {
   const t = req.toLowerCase();
   const py = /\bpython\b/.test(t);
   const sql = /\bsql\b/.test(t);
+  // 0.4.36 (panel 0432 item 3): a SQLite request gets a script that runs in SQLite (the sample below is PostgreSQL)
+  if (/\bsqlite\b|\.sql\b/.test(t)) {
+    return "```sql\n-- A small books table, two rows, and the list, newest first\nCREATE TABLE IF NOT EXISTS books (\n  id INTEGER PRIMARY KEY,\n  title TEXT NOT NULL,\n  author TEXT NOT NULL,\n  year INTEGER\n);\nINSERT INTO books (title, author, year) VALUES\n  ('Sample Book One', 'A. Writer', 1999),\n  ('Sample Book Two', 'B. Author', 2021);\nSELECT title, author, year FROM books ORDER BY year DESC;\n```" + (v === 1 ? "\n\n**Run it:** sqlite3 library.db < library.sql" : "");
+  }
   if (sql) {
     return "```sql\n-- Customers who ordered in the last 30 days, newest first\nSELECT c.name, MAX(o.created_at) AS last_order\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE o.created_at >= CURRENT_DATE - INTERVAL '30 days'\nGROUP BY c.name\nORDER BY last_order DESC;\n```" + (v === 1 ? "\n\n**Note:** add an index on orders(customer_id, created_at) if this is slow." : "");
   }
@@ -368,6 +372,7 @@ export function answerTitle(req, max = TITLE_MAX) {
 export function practiceBody(user, model) {
   const req = requestOf(user);
   const kind = kindOf(req);
+  if (kind === "code" && /\bsqlite\b|\.sql\b/i.test(req)) return code(req, voiceOf(model));
   if (kind === "code" && /\b(?:node(?:\.js)?|javascript|\bjs\b|powershell|apps script|google sheets script|sqlite|bash|shell)\b/i.test(req)) return fitAnswer(req, voiceOf(model), "code");
   return BUILDERS[kind] === fitAnswer ? BUILDERS[kind](req, voiceOf(model), kind) : BUILDERS[kind](req, voiceOf(model), user);
 }
