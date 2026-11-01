@@ -24,6 +24,7 @@ import { isDesktopOnly } from "./desktop-only.js";
 import { installPasswordTip, tipHtml } from "./sign-in-tip.js";
 import { IDLE_LINE, OPS_SHOWN, newestTasks, opsState, showDeliverable, liveSync } from "./live-ops.js";
 import { installClickTracking, noteToast, trackBusy, withBusy } from "./busy.js";
+import { installTips } from "./tips.js";
 import { renderProjectTeam, wireEmployeeHint } from "./employees-ui.js";
 import { ENGINE_BOX_MS, STARTING_LINE, engineWaitView } from "./engine-wait.js";
 import { projectModeNote, projectsWithOwnMode } from "./project-mode-note.js";
@@ -3553,6 +3554,7 @@ async function boot() {
 }
 // Feature plugins (web/features/*.js) get a small, stable API; see web/features/index.js.
 installClickTracking(document);
+installTips(document); // 0.4.31: hover or Tab to a button and a small box says what it does
 // 0.4.21: a run on screen is re-read when the window comes back and every few seconds, so Live ops is never stale.
 liveSync({ getLive: () => S.live, fetchRun: (id) => api(`/missions/${encodeURIComponent(id)}`), apply: (run) => { if (run.kind === "council") onCouncil(run); else onMission(run); } });
 window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, projectChanged: () => projectSettled(), go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
