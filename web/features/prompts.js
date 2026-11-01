@@ -213,6 +213,32 @@ function fillOrders(text) {
   window.CC.S.lastOrders = value;
 }
 
+// 0.4.31 (panel 0428 item 6): in Simple, going to Command showed the 3-step page with no chat box, so "In the orders
+// box" pointed at nothing. Open the chat the way the dock's Chat button does, then put the cursor in the box with the
+// words. Expert already shows the box; the cursor goes there too. Nothing is sent.
+function toChat() {
+  const CC = window.CC;
+  // Simple already on Command: going there again only redraws (the dock button skips it too)
+  if (S().view !== "command" || document.body.dataset.ui !== "simple") go("command");
+  const bus = CC.mac?.bus;
+  if (bus && document.body.dataset.ui === "simple") { bus.emit("view", "command"); bus.emit("chat", { open: true }); }
+  const want = String(S().lastOrders || "");
+  let tries = 0;
+  const place = () => {
+    const box = document.getElementById("orders");
+    if (box) {
+      if (want && box.value !== want) { box.value = want; box.dispatchEvent(new Event("input", { bubbles: true })); }
+      if (document.activeElement !== box) {
+        try { box.scrollIntoView({ block: "center" }); } catch { /* fine */ }
+        box.focus();
+      }
+    }
+    // the Command page and its extras draw over a moment on a slow PC: check again for about 1.5 seconds
+    if (++tries < 10) setTimeout(place, 150);
+  };
+  setTimeout(place, 60);
+}
+
 function featureIds() {
   return (window.CC.features || []).map((f) => f.id);
 }
@@ -250,7 +276,7 @@ function applyPlan(plan) {
   if (!plan || plan.kind === "chat") {
     fillOrders(text);
     toast("In the chat. Nothing is sent.");
-    go("command");
+    toChat();
     return;
   }
   try {
@@ -279,7 +305,7 @@ async function useListed(item) {
   }
   fillOrders(item.prompt || item.title || item.name || "");
   toast("In the orders box. Nothing is sent.");
-  go("command");
+  toChat();
 }
 
 function creditHtml(row) {
@@ -315,7 +341,7 @@ function openCustom(item) {
     if (orders) orders.value = text;
     window.CC.S.lastOrders = text;
     toast("In the orders box. Nothing is sent.");
-    go("command");
+    toChat();
   });
 }
 
@@ -504,7 +530,7 @@ async function openTemplate(data, id) {
         await api("/chat", { method: "POST", body: { prompt: brief, promptPack: { templateId: t.id, inputs: inputs() } } });
         toast("Running. Watch it in Command.");
         go("command");
-      } else { toast("In the orders box. Remove the chip if you do not want this prompt."); go("command"); }
+      } else { toast("In the orders box. Remove the chip if you do not want this prompt."); toChat(); }
     } catch (e) { box.querySelector("#pp-halt").textContent = [e.message, ...(e.questions || [])].join(" "); }
   };
   box.querySelector("#pp-run").addEventListener("click", () => run(true));
