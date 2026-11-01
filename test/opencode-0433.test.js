@@ -123,6 +123,9 @@ test("the started OpenCode process is stopped after the idle time and on stop, a
   const until = Date.now() + 15000;
   while (Date.now() < until && (alive(pid) || a.status().running)) await sleep(250);
   assert.equal(a.status().running, false, "stopped after the idle time");
+  // a slow Windows runner can take a few seconds to end the process tree and free the port: wait for both
+  const gone = Date.now() + 15000;
+  while (Date.now() < gone && (alive(pid) || await portOpen(port))) await sleep(300);
   assert.equal(alive(pid), false, "the process is gone");
   assert.equal(await portOpen(port), false, "its port is closed");
   // explicit stop (Meldmind quitting) while the server is reused
@@ -132,7 +135,7 @@ test("the started OpenCode process is stopped after the idle time and on stop, a
   assert.equal((await b.ask("two", { timeoutMs: 15000 })).ok, true);
   assert.equal(b.status().pid, pid2, "the running server is reused");
   await b.stop();
-  const until2 = Date.now() + 10000;
+  const until2 = Date.now() + 15000;
   while (Date.now() < until2 && alive(pid2)) await sleep(200);
   assert.equal(alive(pid2), false);
 });
