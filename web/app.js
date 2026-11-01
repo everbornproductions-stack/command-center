@@ -3063,7 +3063,7 @@ function renderSettings(v) {
         ${openRouterStartCard()}
         ${anyKeyHtml()}
         <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
-        ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, Aider, OpenCode, or a company gateway. Freebuff has its own card under Free AIs.</span></div><div id="cp-form"></div>`}</div>
+        ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, Aider, or a company gateway. Freebuff has its own card under Free AIs, and OpenCode works by itself under Your AI helpers.</span></div><div id="cp-form"></div>`}</div>
       <div id="settings-helpers"></div>
     </div>
     <div class="grid" style="align-content:start">
@@ -3377,7 +3377,7 @@ async function openCustomForm(editId, pre = {}) {
       <label class="small">API style<select id="cp-api" style="width:100%"><option value="openai" ${f.api !== "anthropic" ? "selected" : ""}>OpenAI-compatible (most providers)</option><option value="anthropic" ${f.api === "anthropic" ? "selected" : ""}>Anthropic-compatible</option></select></label>
       <label class="small" style="grid-column:1/3">Base URL<input type="text" id="cp-url" value="${esc(f.baseUrl || "")}" placeholder="https://api.example.com/v1" style="width:100%;font-family:var(--mono)"></label>
       <label class="small">API key<input type="password" id="cp-key" value="${esc(pre.key || "")}" placeholder="${existing?.keyed ? "saved (leave empty to keep)" : "API key"}" style="width:100%" autocomplete="off" ${f.noKey ? "disabled" : ""}></label>
-      <label class="row small" style="gap:6px;align-self:end"><input type="checkbox" id="cp-nokey" ${f.noKey ? "checked" : ""}> No key needed (Ollama, LM Studio, Aider, OpenCode)</label>
+      <label class="row small" style="gap:6px;align-self:end"><input type="checkbox" id="cp-nokey" ${f.noKey ? "checked" : ""}> No key needed (Ollama, LM Studio, Aider)</label>
       <label class="small" style="grid-column:1/3">Models (comma separated; leave empty to discover from /models)<div class="row"><input type="text" id="cp-models" value="${esc((f.models || []).join(", "))}" placeholder="e.g. llama-3.3-70b, qwen3-32b" style="flex:1;font-family:var(--mono)"><button class="btn sm" id="cp-discover">Discover models</button></div></label>
       <div class="small" style="grid-column:1/3">Good at <span class="dim">Leave none ticked to learn from the name. Tick the task types you know.</span><div class="row" id="cp-caps" style="flex-wrap:wrap;gap:8px;margin-top:4px">${["reasoning", "code", "writing", "research", "creative", "analysis", "math", "fast"].map((c) => `<label class="row small" style="gap:4px"><input type="checkbox" data-cap="${c}" ${(f.capabilities || []).includes(c) ? "checked" : ""}> ${c}</label>`).join("")}</div></div>
       <p class="small dim" style="grid-column:1/3;margin:0">Meldmind learns what this app or AI is good at and sends matching tasks to it. Scores from your jobs make the pick sharper.</p>
