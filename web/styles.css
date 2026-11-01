@@ -385,7 +385,7 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 /* 0.4.31: one line of the description until More is clicked */
 .pcard-sum { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pcard-sum.open { white-space: normal; overflow: visible; }
-.pcard-sum-more { background: none; border: 0; padding: 2px 0; margin: 0; color: inherit; font: inherit; font-size: 12.5px; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.pcard-sum-more { background: none; border: 0; padding: 2px 0; margin: 0; color: inherit; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
 .pcard-sum-more[hidden] { display: none; }
 .pcard .cats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .links { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }

@@ -164,7 +164,7 @@ test("the feature loader imports on demand, and the help page is plain", () => {
   const loader = read("web", "features", "index.js");
   const imports = [...loader.matchAll(/^import\s+.+from\s+["']([^"']+)["']/gm)].map((m) => m[1]);
   assert.deepEqual(imports, ["/perf/registry.js"]);
-  assert.match(loader, /import\(`\/features\/\$\{fileOf\(id\)\}\.js`\)/);
+  assert.match(loader, /import\(`\/features\/\$\{fileOf\(id\)\}\.js/); // 0.4.31: a retry adds ?retry=N after .js
 
   const pack = loadHelp();
   const article = pack.articles.find((a) => a.id === "stay-light");
