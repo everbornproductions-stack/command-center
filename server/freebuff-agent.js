@@ -17,6 +17,7 @@ import os from "node:os";
 import path from "node:path";
 import { maskPrivate } from "./mask-private.js";
 import { doc, putDoc } from "./store.js";
+import { noteRest } from "./worker-pool.js";
 
 export const PROVIDER_ID = "freebuff";
 export const NAME = "Freebuff";
@@ -526,6 +527,8 @@ export function createFreebuff({ driver = undefined, drivers = undefined, instal
           await closeTerm();
           Object.assign(st, { phase: "error", model: "", message: `Freebuff switched itself to ${other} after the request was sent, so Meldmind stopped it and did not use the answer.` });
           flag.mark("server", st.message);
+          // it rests in Your AI helpers for its cool-down, so the next steps go to other helpers instead of retrying it
+          try { noteRest("freebuff", { error: st.message }); } catch { /* the helper list is optional here */ }
           throw fail(409, st.message, "model-switched");
         }
         const snap = cleanTranscript(screen);
