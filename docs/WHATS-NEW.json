@@ -1,4 +1,17 @@
 {
+  "0.4.35": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Practice answers fit what you asked: a review reply reads like a review reply, a website request gives a small web page with your business name, and \"3 lines\" gives 3 lines.",
+      "Asking for title ideas, a script or captions for a video gives words, not a video.",
+      "App or script follows the language you name: Node.js, PowerShell, Apps Script, SQL, HTML or Python.",
+      "A restaurant menu that lists coffee or pastries is no longer thrown away as being about a cafe.",
+      "The startup screen no longer says \"Meldmind never just stops\".",
+      "Pressing Simple always opens the main screen with Website, Image, Video, Campaign and the other choices.",
+      "A Just chat bar sits above the choices: ask anything and get an answer.",
+      "Project cards are smaller: one line of description, Continue and Delete side by side, and no empty link counts."
+    ]
+  },
   "0.4.34": {
     "title": "What's new in Meldmind",
     "bullets": [
