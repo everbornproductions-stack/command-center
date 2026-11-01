@@ -91,11 +91,11 @@ function wireForm(root, after) {
       st.est = e;
       const can = e.ready != null ? e.ready : e.keyed;
       const warn = !can ? `<span class="chip amber">${esc(e.keyMessage)}</span>` : e.capped ? `<span class="chip red">at its spend cap</span>` : e.wouldExceed ? `<span class="chip red">would pass the spend cap ($${e.capLeft} left)</span>` : "";
-      $("#im-est-out").innerHTML = `about <b>${money(e.usd, 3)}</b> <span class="dim">${esc(e.note)}</span> ${warn}`;
+      $("#im-est-out").innerHTML = `about <b>${money(e.usd, 2)}</b> <span class="dim">${esc(e.note)}</span> ${warn}`;
       // a missing key keeps Generate pressable: the press says what is missing (audit A5)
       $("#im-go").disabled = !!(can && (e.capped || e.wouldExceed));
       $("#im-go").title = !can ? (e.keyMessage || "Add a key first") : $("#im-go").disabled ? "Over the spend cap" : "";
-      $("#im-go").textContent = can && !e.capped && !e.wouldExceed ? `Generate (about ${money(e.usd, 3)})` : "Generate";
+      $("#im-go").textContent = can && !e.capped && !e.wouldExceed ? `Generate (about ${money(e.usd, 2)})` : "Generate";
       return e;
     } catch (er) { toast(er.message, true); return null; }
   };
@@ -126,7 +126,7 @@ function wireForm(root, after) {
       if (window.CC.S?.flags?.finishpath) import("../finishpath-ui.js").then((m) => m.mountPair($("#im-na"), { kind: "image", text: $("#im-prompt").value, name: `Image: ${$("#im-prompt").value.trim().slice(0, 50)}`, onEdit: () => $("#im-prompt").focus() })).catch(() => {});
       after?.(row);
     } catch (er) { toast(er.message, true); }
-    finally { b.textContent = st.est ? `Generate (about ${money(st.est.usd, 3)})` : "Generate"; b.disabled = false; }
+    finally { b.textContent = st.est ? `Generate (about ${money(st.est.usd, 2)})` : "Generate"; b.disabled = false; }
   });
   showSrc();
   return { setOp };
@@ -192,7 +192,7 @@ CC.register({
     el.querySelector("#imc-prov").addEventListener("change", () => { est = null; el.querySelector("#imc-out").textContent = ""; });
     el.querySelector("#imc-est").addEventListener("click", async () => {
       if (!prompt()) return toast("Type the orders first", true);
-      try { est = await api("/images/estimate", { method: "POST", body: { provider: el.querySelector("#imc-prov").value } }); const can = est.ready != null ? est.ready : est.keyed; el.querySelector("#imc-out").innerHTML = can ? (est.capped || est.wouldExceed ? `<span class="chip red">spend cap</span>` : `about <b>${money(est.usd, 3)}</b>`) : `<span class="chip amber">${esc(est.keyMessage)}</span>`; el.querySelector("#imc-go").disabled = !!(can && (est.capped || est.wouldExceed)); }
+      try { est = await api("/images/estimate", { method: "POST", body: { provider: el.querySelector("#imc-prov").value } }); const can = est.ready != null ? est.ready : est.keyed; el.querySelector("#imc-out").innerHTML = can ? (est.capped || est.wouldExceed ? `<span class="chip red">spend cap</span>` : `about <b>${money(est.usd, 2)}</b>`) : `<span class="chip amber">${esc(est.keyMessage)}</span>`; el.querySelector("#imc-go").disabled = !!(can && (est.capped || est.wouldExceed)); }
       catch (e) { toast(e.message, true); }
     });
     el.querySelector("#imc-go").addEventListener("click", async () => {

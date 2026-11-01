@@ -920,3 +920,9 @@ body[data-style="mac"][data-ui="expert"] #app #view:has(> .cmd) { container: cx-
 @media (max-width: 760px) {
   body[data-style="mac"][data-ui="expert"] #app #view { padding-bottom: calc(14px + 48px); scroll-padding-bottom: 48px; }
 }
+
+/* 0.4.35 (panel 0431 item 9): on wide screens Expert text ran 178 to 412 characters per line (Credits, Projects, the
+   Command welcome). Paragraphs and list items keep a reading width; the cards themselves stay wide. */
+body[data-style="mac"][data-ui="expert"] #app #view :is(p, li) {
+  max-width: 75ch;
+}

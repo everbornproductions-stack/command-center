@@ -23,6 +23,9 @@ const STYLE = `
 #cc-suggest [role="option"] { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
 #cc-suggest [role="option"]:hover, #cc-suggest [role="option"].active { background: var(--accent-soft, #22d3ee22); outline: 1px solid var(--accent, #22d3ee); }
 #cc-suggest [role="option"][data-psg-action] { font-weight: 650; }
+/* 0.4.35 (panel 0431 item 12): after Use this with a long prompt the action row repeated the whole prompt (20 lines)
+   and pushed Send off the screen. A row shows two lines at most; the rest is in the box above. */
+#cc-suggest [role="option"] > span:first-child { flex: 1 1 auto; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 #cc-suggest .psg-tag { margin-left: auto; font-size: 0.75rem; color: var(--muted, #8b95a7); border: 1px solid var(--line, #1f2937); border-radius: 999px; padding: 0 8px; }
 #cc-suggest .psg-new { font-size: 0.75rem; color: var(--muted, #8b95a7); }
 #cc-suggest .psg-foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 8px 2px; }

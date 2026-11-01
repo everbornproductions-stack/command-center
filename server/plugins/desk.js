@@ -94,6 +94,9 @@ export async function routes(req, res, url, body, h) {
     const prompt = String(body?.prompt || "").trim();
     if (!mode) return fail(400, "Say whether this is a council or a mission.", "mode");
     if (!prompt) return fail(400, "Type the prompt first.", "prompt");
+    // 0.4.35 (panel 0431 item 2b): the page asks with check: true, so the plan is checked before the box opens. On
+    // Free a Mission (and a Council once the monthly ones are used) goes straight to the Pro box with nothing to fill in.
+    if (body?.check === true && typeof h.guard === "function") h.guard(mode === "mission" ? "missions" : "council");
     const picked = namesFor(mode, prompt.slice(0, 8000));
     const who = audienceFor(mode, prompt.slice(0, 8000));
     const view = readersFor({ mode, names: picked.names, planner: picked.planner, readers: picked.readers, tools: who.tools, services: who.services });

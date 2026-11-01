@@ -12,7 +12,7 @@ export const TIPS = {
   "mode:auto": "Auto: Meldmind picks the best way to run it (one AI, a team, or a plan) and tells you which.",
   "mode:single": "Single: one AI answers. Fastest and cheapest. Good for questions, emails and quick drafts.",
   "mode:council": "Council: several AIs answer the same question, check each other, and one writes the final answer. Good when you want more than one opinion.",
-  "mode:mission": "Mission: Meldmind plans the job, splits it into steps, gives each step to the best AI, checks the work and puts it together. Good for big jobs like a website, an app or a report.",
+  "mode:mission": "Mission: Meldmind plans the job, splits it into steps, gives each step to the best AI, checks the work and puts it together. Good for big jobs like a website, an app or a report. Part of Pro.",
   "mode:research": "Research: searches the web and answers with numbered sources you can check.",
   "mode:opinion": "Second opinion: two AIs answer the same request and Meldmind shows where they differ. Both answers stay.",
   "prio:max": "Max quality: the strongest AIs, whatever they cost. Your spending limit still applies.",
@@ -63,7 +63,7 @@ export const TIPS = {
 
 const GROUPS = [
   { re: /(^|-)(run-mode|simple-run-mode|mac-rb-modes)$/, prefix: "mode" },
-  { re: /(^|-)(cost-mode)$/, prefix: "prio" },
+  { re: /(^|-)(cost-mode|mac-rb-priority)$/, prefix: "prio" },
   { re: /(^|-)(when-mode|mac-rb-when)$/, prefix: "when" },
 ];
 
@@ -92,9 +92,12 @@ const SKIP = "#mac-dock, #mac-dock *, [data-no-tip], .cc-tip"; // the dock shows
 
 function factsOf(el) {
   const group = el.closest("[role=group], .seg, .mac-runbar-seg");
+  // 0.4.35 (panel 0431 item 5): the Mac run bar's Priority is a list box, not buttons; its tip is the chosen priority's
+  // (so "Max quality" has a tip on keyboard focus too).
+  const pick = el.tagName === "SELECT" && el.id === "mac-rb-priority";
   return {
     tip: el.dataset.tip || "", title: el.getAttribute("title") || "", label: el.getAttribute("aria-label") || "",
-    text: el.textContent || "", m: el.dataset.m || "", groupId: group?.id || "",
+    text: el.textContent || "", m: el.dataset.m || (pick ? el.value : ""), groupId: pick ? el.id : group?.id || "",
     view: el.dataset.view && !el.dataset.focus ? el.dataset.view : "",
   };
 }
@@ -113,9 +116,9 @@ export function installTips(doc = typeof document !== "undefined" ? document : n
   doc.head.appendChild(style);
   doc.body.appendChild(box);
 
-  let timer = null, cur = null;
+  let timer = null, cur = null, waitFor = null, movedWhileWaiting = false;
   const hide = () => {
-    clearTimeout(timer); timer = null;
+    clearTimeout(timer); timer = null; waitFor = null; movedWhileWaiting = false;
     if (cur) { if (cur.getAttribute("aria-describedby") === "cc-tip") cur.removeAttribute("aria-describedby"); cur = null; }
     box.classList.remove("on"); box.hidden = true;
   };
@@ -129,8 +132,12 @@ export function installTips(doc = typeof document !== "undefined" ? document : n
     left = Math.max(8, Math.min(left, vw - b.width - 8));
     box.style.top = `${Math.round(top)}px`; box.style.left = `${Math.round(left)}px`;
   };
-  const show = (el) => {
+  const show = (el, hover = false) => {
+    const moved = movedWhileWaiting;
+    timer = null; waitFor = null; movedWhileWaiting = false;
     if (!el.isConnected) return; // the bar redrew under the pointer; the next move finds the new button
+    // the page scrolled while the hover waited: show it only if the pointer is still on the button
+    if (hover && moved && !el.matches(":hover")) return;
     // the browser's own tooltip would show the same words a second later: keep the words, drop the title
     // (a title set again later, like the savings pill's, is newer than the copy, so it wins; screen readers keep the
     // words through aria-description)
@@ -155,7 +162,8 @@ export function installTips(doc = typeof document !== "undefined" ? document : n
     if (el === cur) return;
     hide();
     if (!el) return;
-    timer = setTimeout(() => show(el), SHOW_MS);
+    waitFor = el;
+    timer = setTimeout(() => show(el, true), SHOW_MS);
   });
   doc.addEventListener("pointerout", (e) => { if (cur || timer) { const to = e.relatedTarget; const el = targetOf(e); if (!to || !el || !el.contains(to)) hide(); } });
   doc.addEventListener("focusin", (e) => {
@@ -166,7 +174,16 @@ export function installTips(doc = typeof document !== "undefined" ? document : n
   doc.addEventListener("focusout", hide);
   doc.addEventListener("pointerdown", hide, true);
   doc.addEventListener("keydown", (e) => { if (e.key === "Escape" && cur) hide(); }, true);
-  win.addEventListener("scroll", hide, true);
+  // 0.4.35 (panel 0431 item 5): the first hover on a page never showed its tip. The page scrolls a box of its own
+  // (#view) as it settles, and any scroll anywhere hid the tip and cancelled the waiting one. Now a scroll hides a
+  // shown tip only when the scrolled box holds its button (or the whole page scrolled), and a waiting tip is not
+  // cancelled: it is placed from where the button is when it shows.
+  win.addEventListener("scroll", (e) => {
+    const t = e.target;
+    const whole = !t || t === doc || t === win || t === doc.documentElement || t === doc.body;
+    if (cur && (whole || (typeof t.contains === "function" && t.contains(cur)))) { hide(); return; }
+    if (waitFor && (whole || (typeof t.contains === "function" && t.contains(waitFor)))) movedWhileWaiting = true;
+  }, true);
   win.addEventListener("resize", hide);
   return { hide, box };
 }
