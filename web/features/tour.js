@@ -32,6 +32,9 @@ const css = `
 #cc-desktop-prompt h4 { padding-right: 72px; }
 #cc-desktop-prompt .x { position: absolute; top: 10px; right: 10px; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 0.8125rem; line-height: 1.2; cursor: pointer; }
 #cc-desktop-prompt .x:hover, #cc-desktop-prompt .x:focus { background: var(--card-hover, #1a2436); color: var(--text); }
+#cc-whats-new .card { display: flex; flex-direction: column; overflow: hidden; }
+#cc-whats-new .news-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+#cc-whats-new .news-acts { flex: none; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line-2); }
 #cc-whats-new h5 { margin: 14px 0 2px; font-size: 0.875rem; font-weight: 650; text-transform: none; letter-spacing: 0; }
 #cc-whats-new ul, #cc-desktop-prompt ul { margin: 8px 0 0; padding-left: 18px; }
 #cc-whats-new li, #cc-desktop-prompt li { margin: 6px 0; }
@@ -145,7 +148,9 @@ function newsMarkup(n) {
   const body = many
     ? versions.map((v) => `<section class="ver"><h5>${esc(v.title || "What's new")}</h5><div class="dim small">Version ${esc(v.version)}</div><ul>${(v.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul></section>`).join("")
     : `<ul>${(n.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("")}</ul>`;
-  return `<div class="card" role="dialog" aria-labelledby="cc-news-title"><h4 id="cc-news-title">${esc(title)}</h4><div class="dim small">${lead}</div>${body}<div class="row" style="margin-top:14px"><button class="btn sm" id="cc-news-tour">Take the tour</button><button class="btn sm primary" id="cc-news-ok" style="margin-left:auto">Got it</button></div></div>`;
+  // 0.4.37 (Chris, 0.4.36 install: "Meldmind seems frozen"): a long note pushed Got it below the window; only the list
+  // scrolls now, the title and the buttons stay in view
+  return `<div class="card" role="dialog" aria-labelledby="cc-news-title"><h4 id="cc-news-title">${esc(title)}</h4><div class="news-body"><div class="dim small">${lead}</div>${body}</div><div class="row news-acts"><button class="btn sm" id="cc-news-tour">Take the tour</button><button class="btn sm primary" id="cc-news-ok" style="margin-left:auto">Got it</button></div></div>`;
 }
 function showNews(n = tour?.whatsNew) {
   if (!n || idx >= 0 || S.view === "setup") return false;
