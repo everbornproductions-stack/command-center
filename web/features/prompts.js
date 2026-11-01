@@ -230,7 +230,14 @@ function toChat() {
       if (want && box.value !== want) { box.value = want; box.dispatchEvent(new Event("input", { bubbles: true })); }
       if (document.activeElement !== box) {
         try { box.scrollIntoView({ block: "center" }); } catch { /* fine */ }
-        box.focus();
+        box.focus({ preventScroll: true });
+      }
+      // 0.4.35 (panel 0431 item 12): a long prompt made the box and the list under it tall, so Send sat below the
+      // window (y 1029 at 1366 x 800). The box is capped at about 6 lines (flow.css); bring Send on screen too.
+      const send = document.getElementById("go");
+      if (send) {
+        const r = send.getBoundingClientRect();
+        if (r.height && (r.bottom > innerHeight - 8 || r.top < 0)) { try { send.scrollIntoView({ block: "nearest" }); } catch { /* fine */ } }
       }
     }
     // the Command page and its extras draw over a moment on a slow PC: check again for about 1.5 seconds

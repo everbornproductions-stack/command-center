@@ -84,9 +84,18 @@ export function buildContext() {
   };
 }
 
+// 0.4.35 (panel 0431 item 11): under a Simple answer the answer row already has Make 3 variations, Add to project and
+// Looks good, Finish / Edit further. The Next bar keeps to suggestions that row does not have, so each action shows once.
+export const ANSWER_ROW_IDS = ["variations", "refine", "finish", "add-project"];
+function answerRowShows() {
+  const { S } = CC();
+  if (expert() || (S.view || "command") !== "command" || !S.live?.id) return false;
+  return !!(S.live.deliverable || (S.live.primary && S.live.agents?.[S.live.primary]?.text));
+}
 export function currentSuggestions() {
   const s = mem.server;
-  return suggest(buildContext(), { weights: s?.weights || DEFAULT_WEIGHTS, disabled: s?.disabled || [], lowPower: lowPower() });
+  const disabled = [...(s?.disabled || []), ...(answerRowShows() ? ANSWER_ROW_IDS : [])];
+  return suggest(buildContext(), { weights: s?.weights || DEFAULT_WEIGHTS, disabled, lowPower: lowPower() });
 }
 
 async function loadServer() {

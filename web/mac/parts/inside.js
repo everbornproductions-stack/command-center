@@ -148,6 +148,37 @@ function paintNotes() {
   if (box) paintMore(box);
 }
 
+// 0.4.35 (panel 0431 item 6): Simple at phone width. The Next bar and the Project tools row took two rows (about 110 px)
+// above a 367 px answer. They now share one row that swipes sideways. Nothing is removed; wider windows unwrap it.
+const SWIPE_IDS = ["mmbar", "projbar"];
+function paintSwipe(col) {
+  if (!col) return;
+  let box = col.querySelector(":scope > .sx-swipe");
+  const want = !isExpert() && document.body.dataset.ui === "simple" && window.innerWidth <= 760;
+  if (!want) {
+    if (box) { for (const b of [...box.children]) moveKeepFocus(b, (n) => col.insertBefore(n, box)); box.remove(); }
+    return;
+  }
+  const loose = SWIPE_IDS.map((id) => document.getElementById(id)).filter((b) => b && b.parentElement === col);
+  if (loose.length && !box) {
+    box = document.createElement("div");
+    box.className = "sx-swipe";
+    box.setAttribute("role", "group");
+    box.setAttribute("aria-label", "Next steps and project tools");
+    col.insertBefore(box, loose[0]);
+  }
+  if (!box) return;
+  // a bar that is not one of the two (the Finish bar placed next to Project tools) goes back above the row
+  for (const b of [...box.children]) if (!SWIPE_IDS.includes(b.id)) moveKeepFocus(b, (n) => col.insertBefore(n, box));
+  for (const id of SWIPE_IDS) {
+    const b = document.getElementById(id);
+    if (b && b.parentElement !== box && (b.parentElement === col || box.contains(b))) moveKeepFocus(b, (n) => box.appendChild(n));
+  }
+  const mm = document.getElementById("mmbar");
+  if (mm && mm.parentElement === box && box.firstElementChild !== mm) moveKeepFocus(mm, (n) => box.prepend(n));
+  if (!box.children.length) box.remove();
+}
+
 // 0.4.27 (panel item 1): on a short window or a phone the row is one line (inside.css). When some chips do not fit,
 // a More button at its right end opens the whole row; Less folds it again. Nothing is removed or hidden for good.
 function paintMore(box) {
@@ -234,7 +265,7 @@ export default {
 
     const paint = () => {
       queued = false;
-      try { paintHead(CC); paintNotes(); paintCards(); } catch (e) { console.warn("[mac] inside:", e); }
+      try { paintHead(CC); paintNotes(); paintSwipe(view.parentElement); paintCards(); } catch (e) { console.warn("[mac] inside:", e); }
     };
     // Mutation callbacks run before the next paint, so the header is back before anyone sees the page without it.
     const soon = () => { if (!queued) { queued = true; queueMicrotask(paint); } };
@@ -262,6 +293,7 @@ export default {
     const tick = setInterval(() => {
       const h = view.querySelector(":scope > .cx-head"); if (h) syncProxies(h);
       const notes = isExpert() && col?.querySelector(":scope > .cx-notes"); if (notes) paintMore(notes);
+      try { paintSwipe(col); } catch { /* the next paint tries again */ }
     }, 1000);
     // The More button in the notice row depends on the window size (one line on a short window or a phone).
     const onResize = () => soon();
@@ -275,6 +307,8 @@ export default {
         view.removeAttribute("data-cx-enter");
         dropHead(view);
         unwrapNotes(col);
+        const sw = col?.querySelector(":scope > .sx-swipe");
+        if (sw) { for (const b of [...sw.children]) col.insertBefore(b, sw); sw.remove(); }
         for (const el of [...HOMES.keys()]) putHome(el);
         view.querySelectorAll(".pcard > .cx-av").forEach((a) => a.remove());
       },

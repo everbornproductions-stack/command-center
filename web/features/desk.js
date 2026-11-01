@@ -16,6 +16,11 @@ const css = `
 #cc-home .cc-home-list .lbl { font-size: 0.6875rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
 #cc-home .dim { color: var(--muted); }
 #cc-readers { position: fixed; inset: 0; z-index: 80; background: rgba(3,6,12,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
+/* 0.4.35 (panel 0431 item 2a): the Mac look's .card rule (240 x 260 px, a flex item 240 px wide) shrank this box, so the
+   AI rows, Private mode, Cancel and Send spilled out under it. The box sizes to its content, up to the window, and
+   scrolls on its own past that. */
+#cc-readers .card { position: relative; display: block; flex: 0 1 520px; min-width: 0; height: auto; max-height: calc(100vh - 32px); overflow: auto; cursor: auto; user-select: text; transform: none; box-sizing: border-box; }
+#cc-readers .card:hover { transform: none; }
 #cc-readers .card { width: min(520px, 100%); background: var(--panel-solid, #0e1522); color: var(--text, #e5e7eb); border: 1px solid var(--line, #1f2937); border-radius: 14px; padding: 16px 18px; }
 #cc-readers p { margin: 8px 0; line-height: 1.45; }
 .cc-desk-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -90,7 +95,7 @@ function beforeSend({ mode, prompt }) {
   return new Promise((resolve) => {
     // 0.4.21: before anything is sent, say if the image, video or voice AI this job needs cannot make it
     const media = api("/dogfood/preflight", { method: "POST", body: { goal: prompt } }).catch(() => null);
-    api("/desk/readers", { method: "POST", body: { mode, prompt } }).then(async (info) => {
+    api("/desk/readers", { method: "POST", body: { mode, prompt, check: true } }).then(async (info) => {
       info.media = await media;
       const old = document.getElementById("cc-readers");
       old?.remove();

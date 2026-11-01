@@ -243,6 +243,11 @@ label.lbl { display: block; font-size: 0.6875rem; color: var(--muted); letter-sp
 .seg { display: inline-flex; flex-wrap: wrap; max-width: 100%; box-sizing: border-box; background: var(--card-bg, #0a0f18); border: 1px solid var(--line-2); border-radius: 10px; padding: 3px; }
 .seg button { background: transparent; border: 0; padding: 6px 12px; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 500; white-space: nowrap; }
 .seg button.on { background: #1a2436; color: #fff; }
+/* 0.4.35 (panel 0431 item 2c): a small "Pro" mark on a choice that needs Pro (Mission on Free). White on violet, 5.7 : 1. */
+/* On a phone the mode rows wrap to a second line with it, pushing Send under the Talk bar (item 15b), so
+   it hides there; the Mission tip still ends "Part of Pro." and Send opens the Pro box before anything else. */
+@media (max-width: 760px) { :is(#run-mode, #mac-rb-modes) .cc-pro-mark { display: none; } }
+.cc-pro-mark { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; line-height: 1.4; letter-spacing: .02em; background: #6d28d9; color: #fff; vertical-align: 1px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; font-size: 0.6875rem; background: #16202f; border: 1px solid #243044; color: #c7d0dd; font-family: var(--mono); }
 .chip.green { color: var(--green); border-color: #1d4d3b; }
 .chip.amber { color: var(--amber); border-color: #5a4616; }
