@@ -244,9 +244,7 @@ label.lbl { display: block; font-size: 0.6875rem; color: var(--muted); letter-sp
 .seg button { background: transparent; border: 0; padding: 6px 12px; border-radius: 8px; color: var(--muted); cursor: pointer; font-weight: 500; white-space: nowrap; }
 .seg button.on { background: #1a2436; color: #fff; }
 /* 0.4.35 (panel 0431 item 2c): a small "Pro" mark on a choice that needs Pro (Mission on Free). White on violet, 5.7 : 1. */
-/* On a phone the mode rows wrap to a second line with it, pushing Send under the Talk bar (item 15b), so
-   it hides there; the Mission tip still ends "Part of Pro." and Send opens the Pro box before anything else. */
-@media (max-width: 760px) { :is(#run-mode, #mac-rb-modes) .cc-pro-mark { display: none; } }
+/* (It hides on a phone: see the rule under the 1250 px block.) */
 .cc-pro-mark { display: inline-block; margin-left: 4px; padding: 0 5px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; line-height: 1.4; letter-spacing: .02em; background: #6d28d9; color: #fff; vertical-align: 1px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; font-size: 0.6875rem; background: #16202f; border: 1px solid #243044; color: #c7d0dd; font-family: var(--mono); }
 .chip.green { color: var(--green); border-color: #1d4d3b; }
@@ -425,6 +423,10 @@ body.light-mode .btn, body.light-mode .btn:active { transition: none; transform:
 @media (max-width: 1250px) { .app { grid-template-columns: 1fr 0; } .feed { display: none; } .toasts { right: 20px; } .view:has(> .cmd) { overflow: auto; } .cmd { grid-template-columns: 1fr; height: auto; max-height: none; grid-template-rows: auto auto; } .cmd .orders { grid-row: auto; overflow: visible; max-height: none; } .cmd-side { overflow: visible; } .cmd-side .output { min-height: 0; } .cmd .ops, .cmd .output, .cmd.simple-chat .orders { overflow: visible; max-height: none; } }
 /* 0.4.28 (panel item 7): the Pro box at phone width. Kept below the 1250 px block so the stacked-layout rules read in order. */
 @media (max-width: 760px) { #cc-upgrade { padding: 12px; align-items: flex-start; } #cc-upgrade .card { max-height: calc(100dvh - 120px); padding: 14px 14px; } #cc-upgrade .cc-up-head { top: -14px; margin: -14px -14px 0; padding: 14px 14px 4px; } }
+/* 0.4.35 (panel 0431 item 15b): on a phone the mode rows wrap to a second line with the Pro mark, pushing Send under the
+   Talk bar, so it hides there; the Mission tip still ends "Part of Pro." and Send opens the Pro box before anything else.
+   Kept below the 1250 px block, like the rule above. */
+@media (max-width: 760px) { :is(#run-mode, #mac-rb-modes) .cc-pro-mark { display: none; } }
 
 /* ---- phone layout ---- */
 @media (max-width: 760px) {

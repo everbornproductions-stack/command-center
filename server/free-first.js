@@ -46,9 +46,11 @@ const DEFAULT_FREE_PAGES = [
 export function freePages() {
   const catalog = loadCatalog();
   const old = new Map(DEFAULT_FREE_PAGES.map((p) => [p.id, p]));
-  return catalog.entries.filter((e) => e.kind === "key" && e.status === "active" && e.page).map((e) => ({
-    ...(old.get(e.id) || {}), id: e.id, name: e.label, url: e.page, provider: e.provider || null,
-    what: e.good, needs: "key", later: ["github", "cloudflare"].includes(e.id),
+  // the AIs on this PC (Ollama, LM Studio) are pages too: no key, found by the port probe
+  return catalog.entries.filter((e) => (e.kind === "key" || e.kind === "local") && e.status === "active" && e.page).map((e) => ({
+    ...(old.get(e.id) || {}), id: e.id, name: e.label, url: e.page, provider: e.kind === "local" ? null : e.provider || null,
+    what: e.good, needs: e.kind === "local" ? "nothing" : "key", later: ["github", "cloudflare"].includes(e.id),
+    ...(e.kind === "local" ? { local: old.get(e.id)?.local || e.id } : {}),
   }));
 }
 export const FREE_PAGES = freePages();
