@@ -18,13 +18,14 @@ import { localFetch } from "./loopback-fetch.js";
 export const GROKBOT_TEXT = "grokbot-text";
 // The subscription apps, Antigravity and Grok Bot are wired in by server/free-first-wire.js (loaded by the server).
 // They are looked up through these hooks so this module has no import cycle with the agents; with no hooks there are no apps.
-const hooks = { readyPlanRoutes: () => [], outOfQuota: () => false, planId: (id) => `plan-${id}`, agyRouteModels: () => [], grokbotReady: () => false };
+const hooks = { readyPlanRoutes: () => [], outOfQuota: () => false, planId: (id) => `plan-${id}`, agyRouteModels: () => [], grokbotReady: () => false, ocRouteModels: () => [] };
 export function setAppHooks(h = {}) { Object.assign(hooks, h); }
 const readyPlanRoutes = () => hooks.readyPlanRoutes();
 const outOfQuota = (id) => hooks.outOfQuota(id);
 const planId = (id) => hooks.planId(id);
 const agyRouteModels = () => hooks.agyRouteModels();
 const grokbotReady = () => hooks.grokbotReady();
+const ocRouteModels = () => hooks.ocRouteModels(); // 0.4.33: OpenCode's free models (server/opencode-agent.js)
 import { cachedLive } from "./provider-balance.js";
 import { describePause } from "./pause.js";
 
@@ -41,7 +42,7 @@ export const FREE_PAGES = [
   { id: "ollama", name: "Ollama (this PC)", url: "https://ollama.com/download", provider: null, what: "Free and private. Meldmind finds it by itself once it runs.", needs: "nothing", local: "ollama" },
   { id: "lmstudio", name: "LM Studio (this PC)", url: "https://lmstudio.ai", provider: null, what: "Free and private. Meldmind finds it by itself once it runs.", needs: "nothing", local: "lmstudio" },
 ];
-const nameOf = (pid) => PROVIDERS[pid]?.name || (pid === GROKBOT_TEXT ? "Grok Bot" : pid === "antigravity" ? "Antigravity" : String(pid).startsWith("plan-") ? planName(pid) : pid);
+const nameOf = (pid) => PROVIDERS[pid]?.name || (pid === GROKBOT_TEXT ? "Grok Bot" : pid === "antigravity" ? "Antigravity" : pid === "opencode" ? "OpenCode" : String(pid).startsWith("plan-") ? planName(pid) : pid);
 const PLAN_NAMES = { "plan-claude-code": "Claude Code", "plan-codex": "Codex", "plan-gemini-cli": "Gemini CLI" };
 const planName = (pid) => PLAN_NAMES[pid] || String(pid).replace(/^plan-/, "");
 
@@ -54,6 +55,7 @@ export function isFreeModel(pid, model) {
   if (PROVIDERS[pid]?.demo) return true;
   if (isLocalProvider(pid)) return true;
   if (pid === "antigravity") return true;
+  if (pid === "opencode") return true; // 0.4.33: only OpenCode's free models are used through it
   const tier = FREE_TIERS[pid];
   if (tier && tier.models.includes(model)) { try { return !!fallbackSettings().freeTiers[pid]?.on; } catch { return false; } }
   return false;
@@ -171,6 +173,8 @@ export function lastResortChoices({ tried = [], cls = {}, freeOnly = freeOnlyOn(
   }
   // Antigravity (free Google sign-in)
   try { for (const r of agyRouteModels() || []) add(r.provider, r.model, r.name || "Antigravity", "free Google sign-in app"); } catch { /* not installed */ }
+  // OpenCode (free models, no account)
+  try { for (const r of ocRouteModels() || []) add(r.provider, r.model, r.name || "OpenCode", "free models through OpenCode"); } catch { /* not installed */ }
   if (!freeOnly && settings.subscriptions !== false) {
     const plans = [];
     try { for (const r of readyPlanRoutes()) if (!outOfQuota(r.id)) plans.push(r); } catch { /* no apps */ }
@@ -244,6 +248,7 @@ export async function creditCheck({ force = false, connected, whyOut, billingOf 
   // apps and free sign-ins are ready AIs too
   const extra = [];
   try { for (const r of agyRouteModels() || []) extra.push({ provider: r.provider, name: r.name || "Antigravity", model: r.model, free: true, local: false, tier: 1 }); } catch { /* none */ }
+  try { for (const r of ocRouteModels() || []) extra.push({ provider: r.provider, name: r.name || "OpenCode", model: r.model, free: true, local: false, tier: 1 }); } catch { /* none */ }
   try { for (const r of readyPlanRoutes()) if (!outOfQuota(r.id)) extra.push({ provider: planId(r.id), name: `${r.name} (your plan)`, model: planId(r.id), free: false, local: false, tier: 2 }); } catch { /* none */ }
   if (grokbotReady()) extra.push({ provider: GROKBOT_TEXT, name: "Grok Bot", model: GROKBOT_TEXT, free: false, local: false, tier: 2 });
   for (const e of extra) if (!ready.some((r) => r.provider === e.provider)) ready.push(e);

@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.32
+lastUpdatedVersion: 0.4.33
 ---
 
 # Getting started
@@ -220,3 +220,7 @@ Hover tips: point at a button, or reach it with Tab, and a small box says what i
 ## Checked SQLite scripts (0.4.32)
 
 SQLite scripts are checked before they count as done: Meldmind runs the file once in an empty practice database that lives only in memory, and if it has an error the AI is asked to fix it. Scripts that would write other files are never run. A Google Apps Script (.gs) file is saved even when the AI marks the code as JavaScript. PowerShell scripts are read for a common trap (zip commands used without loading the zip library) and sent back to the AI to fix, without running them. The sidebar no longer lists Missions, Councils, Research, Second opinion or Recent chats separately. They are the How to run it choices on Chat and the History list, and searching those words still finds them.
+
+## Install and sign in to helpers from Settings (0.4.33)
+
+Install and Sign in buttons for your AI helpers: in Settings under Your AI helpers, a missing helper (Codex, OpenCode, Freebuff, Gemini CLI, Claude Code) has an Install button. It needs Node.js on your PC and takes about a minute. A signed-out helper has Sign in, which opens its own sign-in window; you sign in there with your own account, and Meldmind never sees your password. Antigravity is not installed this way, so it gets a Get it button for its download page. OpenCode works as a free helper: Meldmind starts OpenCode in the background when a step needs it, uses only its free models, and hands the step to the next helper when OpenCode's free allowance is used up.
