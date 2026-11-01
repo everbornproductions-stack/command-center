@@ -171,8 +171,14 @@ test("the bottom bar lights an AI while a run is going and goes dark after", { s
     await t.page.waitForSelector("#cc-composer-ais .composer-ai[data-p]", { state: "attached", timeout: WAIT() });
     assert.ok(await t.page.$("#composer-add"), "+ Add an AI chip");
     await t.page.fill("#orders", "Write one friendly line for my bakery");
+    // 0.4.33 (CI): a practice run can finish in a blink, so the lit state is watched from before Send and a flash counts
+    await t.page.evaluate(() => {
+      window.__sawWorking = false;
+      const look = () => { if (document.querySelector("#cc-composer-ais .composer-ai.working")) window.__sawWorking = true; };
+      new MutationObserver(look).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+    });
     await t.page.click("#go");
-    await t.page.waitForSelector("#cc-composer-ais .composer-ai.working", { timeout: WAIT() });
+    await t.page.waitForFunction(() => window.__sawWorking === true, null, { timeout: WAIT() });
     await t.page.waitForFunction(() => !document.querySelector("#cc-composer-ais .composer-ai.working") && window.CC.S.live?.status === "done", null, { timeout: WAIT() * 2 });
   } finally { await t.close(); }
 });
