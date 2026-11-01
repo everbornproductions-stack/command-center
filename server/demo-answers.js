@@ -34,6 +34,8 @@ export function requestOf(user) {
 
 const KINDS = [
   ["code", /\b(code|script|function|python|javascript|typescript|sql|regex|bug|html|css|api endpoint|snippet)\b/i],
+  // 0.4.31: a spreadsheet or a data list is a table, so the Spreadsheet and List or data paths really save a file in demo
+  ["table", /\b(spread ?sheets?|excel|xlsx|xlsm|csv|(?:in|as|into) a table|table of|columns?)\b/i],
   ["email", /\b(e-?mail|follow[ -]?up|reply to|write to|letter|message to|thank[- ]you note|cold outreach)\b/i],
   ["post", /\b(post|caption|instagram|tiktok|tweet|reel|linkedin|facebook|social media|hashtags?)\b/i],
   ["summary", /\b(summar\w*|recap|tl;?dr|key points|main points|sum up)\b/i],
@@ -41,8 +43,12 @@ const KINDS = [
   ["list", /\b(ideas?|list|names|options|ways to|top \d+|\d+ (ways|ideas|tips|things|reasons))\b/i],
 ];
 
+// A request that asks to save a spreadsheet or a CSV file wants a table, whatever other words it uses.
+const SAVES_TABLE = /\b(?:save|saved|name|call|export|as)\b[^.\n]{0,40}?\b[\w-]+\.(?:xlsx|xlsm|csv)\b/i;
+
 export function kindOf(text) {
   const t = String(text || "");
+  if (SAVES_TABLE.test(t)) return "table";
   for (const [kind, re] of KINDS) if (re.test(t)) return kind;
   return "answer";
 }
@@ -176,24 +182,144 @@ function answer(req, v) {
   return `**Short answer:** for most people, the best first step is a small test you can finish in a week.\n\n**Why:** a small test shows you what works before you spend real time or money.\n\n**What to do next:**\n1. Write down the one result you want.\n2. Pick the smallest step that would show progress.\n3. Check back in a week and keep what worked.`;
 }
 
-const BUILDERS = { post, email, plan, summary, code, list, answer };
+// ---- 0.4.31: a small table built from the request (a budget with a total, products, contacts, a tracker) ----
+// A spreadsheet total is a formula (=SUM), so the sheet adds up again when a number changes; a CSV gets the number.
+const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+const AMOUNTS = { rent: 1200, mortgage: 1500, food: 450, groceries: 450, gas: 160, fuel: 160, utilities: 180, electric: 120, electricity: 120, water: 60, phone: 60, internet: 70, insurance: 140, car: 300, childcare: 600, savings: 200, fun: 100, eating: 150, clothes: 80, gym: 40 };
+function amountFor(item, i) {
+  const k = String(item).toLowerCase().split(/\s+/).find((w) => AMOUNTS[w]);
+  if (k) return AMOUNTS[k];
+  let h = 0;
+  for (const c of String(item)) h = (h * 31 + c.charCodeAt(0)) % 997;
+  return 50 + ((h + i * 7) % 20) * 10;
+}
+// "products in my shop with name, price and stock" -> ["Name", "Price", "Stock"]
+export function columnsOf(req) {
+  const m = String(req || "").match(/\bwith (?:columns? (?:for )?)?([a-z][a-z /&'-]*?(?:\s*,\s*[a-z][a-z /&'-]*?)*(?:,? and [a-z][a-z /&'-]*?)?)(?=[.;:!?]|$| (?:for|in|to|so|that|each)\b)/i);
+  if (!m) return [];
+  const cols = m[1].split(/\s*,\s*(?:and\s+)?|\s+and\s+/).map((c) => c.trim().replace(/^(?:a|an|the|their|its|each)\s+/i, "")).filter(Boolean);
+  if (cols.length < 2 || cols.length > 6 || cols.some((c) => c.split(/\s+/).length > 3)) return [];
+  return cols.map(cap);
+}
+// "monthly budget for my house, rent, food, gas" -> ["Rent", "Food", "Gas"]
+function itemsOf(req) {
+  const first = String(req || "").split(/[.!?](?:\s|$)/)[0];
+  const parts = first.split(/\s*,\s*(?:and\s+)?|\s+and\s+/).map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 3) return [];
+  const items = parts.slice(1).filter((p) => p.split(/\s+/).length <= 3 && !/\b(with|for|use|save)\b/i.test(p));
+  return items.length >= 2 ? items.slice(0, 8).map(cap) : [];
+}
+const NAMES_OF = {
+  product: ["Classic tee", "Coffee mug", "Tote bag", "Sticker pack", "Gift card"],
+  person: ["Ann Lee", "Ben Ortiz", "Cara Shah", "Dan Kim", "Eva Brooks"],
+  task: ["Order supplies", "Call the printer", "Update the price list", "Post the weekly special", "Pay the invoices"],
+};
+function cellFor(col, i, kind) {
+  const c = col.toLowerCase();
+  const names = NAMES_OF[kind] || NAMES_OF.product;
+  if (/\b(name|item|product|title|task|contact|lead|person|customer)\b/.test(c)) return names[i % names.length];
+  if (/\b(price|cost|amount|rate|value)\b/.test(c)) return [18, 12, 22, 5, 25][i % 5].toFixed(2);
+  if (/\b(stock|qty|quantity|count|units|inventory|on hand)\b/.test(c)) return String([24, 40, 15, 60, 100][i % 5]);
+  if (/e-?mail/.test(c)) return `${names[i % names.length].split(" ")[0].toLowerCase()}@example.com`;
+  if (/phone|mobile|cell/.test(c)) return `555-01${String(10 + i * 7).padStart(2, "0")}`;
+  if (/\b(date|due|when|deadline)\b/.test(c)) return `Nov ${3 + i * 2}`;
+  if (/\bstatus\b/.test(c)) return ["New", "Called", "Booked", "Waiting", "Done"][i % 5];
+  if (/\b(owner|who)\b/.test(c)) return ["You", "Sam", "You", "Jo", "Sam"][i % 5];
+  if (/\b(sku|id|code)\b/.test(c)) return `SKU-${101 + i}`;
+  if (/\b(category|type|kind)\b/.test(c)) return ["Clothing", "Kitchen", "Bags", "Paper", "Gifts"][i % 5];
+  if (/\b(next step|follow)/.test(c)) return ["Send prices", "Call back Friday", "Book a visit", "Send the guide", "Check in next week"][i % 5];
+  if (/\b(hours?|time)\b/.test(c)) return String([2, 1.5, 3, 0.5, 4][i % 5]);
+  if (/\bnotes?\b/.test(c)) return ["Best seller", "Reorder soon", "New this month", "Gift idea", "Seasonal"][i % 5];
+  return "[fill in]";
+}
+const tableRow = (cells) => `| ${cells.join(" | ")} |`;
+const mdTable = (head, rows) => [tableRow(head), tableRow(head.map(() => "---")), ...rows.map(tableRow)].join("\n");
+
+/** The table for a spreadsheet or list request: { kind, table, total } (total is set for a budget or an invoice). */
+export function tableFor(req) {
+  const t = String(req || "");
+  const csv = /\bcsv\b/i.test(t);
+  const cols = columnsOf(t);
+  if (/\binvoices?\b/i.test(t)) {
+    const items = itemsOf(t).length ? itemsOf(t) : ["Design work", "Printing", "Delivery"];
+    const qty = [3, 2, 1, 4, 2, 1, 3, 2], price = [80, 45, 25, 30, 60, 15, 40, 20];
+    const rows = items.map((it, i) => [it, String(qty[i]), price[i].toFixed(2), csv ? (qty[i] * price[i]).toFixed(2) : `=B${i + 2}*C${i + 2}`]);
+    const sum = items.reduce((a, _, i) => a + qty[i] * price[i], 0);
+    rows.push([csv ? "Total due" : "**Total due**", "", "", csv ? sum.toFixed(2) : `=SUM(D2:D${items.length + 1})`]);
+    return { kind: "invoice", table: mdTable(["Item", "Qty", "Price", "Line total"], rows), total: sum };
+  }
+  if (/\b(budget|expenses?|spending|bills|costs|money)\b/i.test(t) && !cols.length) {
+    const items = itemsOf(t).length ? itemsOf(t) : ["Rent", "Groceries", "Utilities", "Gas", "Phone"];
+    const amounts = items.map((it, i) => amountFor(it, i));
+    const rows = items.map((it, i) => [it, amounts[i].toFixed(2)]);
+    const sum = amounts.reduce((a, b) => a + b, 0);
+    rows.push([csv ? "Total" : "**Total**", csv ? sum.toFixed(2) : `=SUM(B2:B${items.length + 1})`]);
+    return { kind: "budget", table: mdTable(["Item", "Monthly amount"], rows), total: sum };
+  }
+  let kind = "product", head = cols;
+  if (/\b(contacts?|leads?|customers?|clients?|people|members?)\b/i.test(t)) {
+    kind = "person";
+    if (!head.length) head = /\bleads?\b/i.test(t) ? ["Name", "Email", "Status", "Next step"] : ["Name", "Phone", "Email"];
+  } else if (/\b(tracker|track|tasks?|habits?|hours|to-?do)\b/i.test(t)) {
+    kind = "task";
+    if (!head.length) head = ["Task", "Owner", "Due", "Status"];
+  } else if (!head.length) head = ["Name", "Price", "Stock"];
+  const rows = [0, 1, 2, 3, 4].map((i) => head.map((c) => cellFor(c, i, kind)));
+  return { kind, table: mdTable(head, rows), total: null };
+}
+
+function table(req, v) {
+  const { kind, table: tbl, total } = tableFor(req);
+  const csv = /\bcsv\b/i.test(req);
+  const what = { budget: "budget", invoice: "invoice", person: "list", task: "tracker", product: "list" }[kind];
+  if (v === 2) return tbl;
+  if (v === 1) {
+    const note = total != null
+      ? (csv ? `**Note:** the total is ${total.toFixed(2)}. Add the column again after you change a number.` : "**Note:** the total is a formula, so it adds up again when you change a number.")
+      : "**Note:** one row per item and the header row first, so it opens cleanly in Excel or Google Sheets.";
+    return `${tbl}\n\n${note}`;
+  }
+  return `Here is a starting ${what} you can change. Swap in your own numbers and names.\n\n${tbl}\n\n${total != null ? "Check each amount against a real bill before you rely on the total." : "Add a row for each new item and keep the header row as it is."}`;
+}
+
+const BUILDERS = { post, email, plan, summary, code, list, answer, table };
 
 // The heading over a practice answer (0.4.25). It used to be the first 70 characters, which cut
 // "Write a week of Instagram posts for my two-location bakery. Save them as posts.md." to "...Save them".
 // Now: the whole request when it fits in 90 characters; else its whole first sentence when that fits;
 // else the request cut at the last word boundary before 90 characters, with "...". A full stop inside a
 // word (posts.md, 2.5) is not the end of a sentence.
+// 0.4.31: a folder path is dropped from the heading ("save it as menu.md in C:\Users\...\cafe" keeps
+// "save it as menu.md"), so the cut never lands inside a path and the file name stays.
 export const TITLE_MAX = 90;
+const FOLDER_PATH = /\s+(?:in|into|to|under|inside|at)\s+(?:the\s+|my\s+)?(?:folder\s+)?(?:"[^"]*[\\/][^"]*"|'[^']*[\\/][^']*'|(?:[A-Za-z]:[\\/]|~[\\/]|\\\\|\/|\.{1,2}[\\/]|(?!(?:and|either)\/or\b)[A-Za-z][\w.-]+[\\/])[^\s"']*(?:\s+[^\s"']*[\\/][^\s"']*)*)(?:\s+folder\b)?/g;
+/** The request without folder paths ("in C:\Users\me\Desktop", "to ~/notes/"), for a heading. */
+export function withoutFolderPath(text) {
+  return String(text || "").replace(FOLDER_PATH, "").replace(/\s+([.,;:!?])/g, "$1");
+}
 export function answerTitle(req, max = TITLE_MAX) {
-  const t = String(req || "").replace(/\s+/g, " ").trim();
+  const whole = String(req || "").replace(/\s+/g, " ").trim();
+  const t = withoutFolderPath(whole).trim();
   if (!t) return "";
   const tidy = (x) => x.replace(/\.$/, "").trim();
-  if (t.length <= max) return tidy(t);
+  const cutAt = (x, n) => {
+    const cut = x.slice(0, n + 1);
+    const space = cut.lastIndexOf(" ");
+    return (space > n / 2 ? cut.slice(0, space) : x.slice(0, n)).replace(/[\s,;:.!?-]+$/, "");
+  };
   const first = t.match(/^.+?[.!?](?=\s|$)/)?.[0];
-  if (first && first.length <= max) return tidy(first);
-  const cut = t.slice(0, max + 1);
-  const space = cut.lastIndexOf(" ");
-  return (space > max / 2 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:.!?-]+$/, "") + "...";
+  let out = t.length <= max ? tidy(t) : first && first.length <= max ? tidy(first) : cutAt(t, max) + "...";
+  // a path was dropped: the file name it was saved under stays in the heading ("... save it as menu.md")
+  if (t !== whole) {
+    const save = t.match(/\b(?:save|saved|write|export|put|store|name|call)\b[^.!?]{0,40}?\b[\w-]+\.[a-z0-9]{1,5}\b/i)?.[0];
+    const file = save?.match(/[\w-]+\.[a-z0-9]{1,5}$/i)?.[0];
+    if (file && !out.includes(file)) {
+      const head = t.slice(0, t.indexOf(save)).replace(/[\s,;:.!?-]+$/, "");
+      const room = max - save.length - 4;
+      out = !head ? save : head.length <= room ? `${head}, ${save}` : `${cutAt(head, Math.max(room, 20))}... ${save}`;
+    }
+  }
+  return out;
 }
 
 // The answer body (no heading, no footer) for this request and this pretend AI.
@@ -217,6 +343,7 @@ const DIFFER = {
   plan: "B uses a weekly table; C has only three steps. They differ on how much to plan before starting.",
   summary: "They agree on the main point; B adds a decision owner that the others leave out.",
   code: "Same approach; B adds an edge case note, C gives the code with no explanation.",
+  table: "Same table; B adds a note on the totals, C gives the table with no words.",
   list: "They differ on which idea to start with: B says the weekly question, A says behind the scenes.",
   answer: "They agree on starting small; B compares options in a table, C gives one line.",
 };
@@ -238,6 +365,7 @@ export function practiceVerdict(user, model) {
     plan: [`${by(1)} wanted a week-by-week table; ${by(2)} said three steps are enough to start.`, "The verdict keeps the table and marks week 1 as the only must-do."],
     summary: [`${by(1)} added who owns the next step; the others did not.`],
     code: [`${by(2)} gave the code only; ${by(1)} added an edge case. The verdict keeps the note.`],
+    table: [`${by(2)} gave the table only; ${by(1)} added a note on the totals. The verdict keeps the note.`],
     list: [`${by(0)} would start with behind the scenes; ${by(1)} with the weekly question.`],
     answer: [`${by(1)} compared three options; ${by(2)} gave a one-line answer. The verdict keeps the comparison.`],
   }[kind];

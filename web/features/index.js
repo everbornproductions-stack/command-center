@@ -23,6 +23,7 @@ import { FEATURES, idsFor, shellIds } from "/perf/registry.js";
 const registry = [];
 const loaded = new Set();
 const loading = new Map();
+const failed = new Map();
 
 window.CC.register = (f) => { if (!f?.id) return; const i = registry.findIndex((x) => x.id === f.id); if (i >= 0) registry[i] = f; else registry.push(f); };
 window.CC.features = registry;
@@ -35,9 +36,14 @@ function fileOf(id) {
 function loadOne(id) {
   if (loaded.has(id)) return Promise.resolve();
   if (loading.has(id)) return loading.get(id);
-  const job = import(`/features/${fileOf(id)}.js`).then(() => {
+  // 0.4.31: a module that failed to download is asked for again under a new address, so Try again really retries
+  // (the browser remembers a failed module address for the life of the page)
+  const tries = failed.get(id) || 0;
+  const job = import(`/features/${fileOf(id)}.js${tries ? `?retry=${tries}` : ""}`).then(() => {
     loaded.add(id);
+    failed.delete(id);
   }).catch((e) => {
+    failed.set(id, tries + 1);
     if (!/Failed to fetch|404|not found/i.test(String(e))) console.warn(`[features] ${id}:`, e);
   }).finally(() => {
     loading.delete(id);

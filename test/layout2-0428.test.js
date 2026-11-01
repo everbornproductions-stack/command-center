@@ -94,13 +94,14 @@ for (const [width, height] of [[1366, 800], [1440, 900]]) {
       assert.match(before.overflow, /auto|scroll/, "#view scrolls");
       // Wheel over the answer, as a person would, until its last line is on screen (at most 30 turns).
       const panel = await t.page.evaluate(() => { const r = document.getElementById("deliv-panel").getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(Math.min(Math.max(r.top + 60, 120), innerHeight - 200)) }; });
-      let last = null;
-      for (let i = 0; i < 30; i++) {
+      // 0.4.31 (item 8): the answer now takes the full width under the order column and is brought into view, so its
+      // last line may already be on screen: look first, then wheel (100 px a turn, so the line is not skipped past).
+      let last = await onScreen(t.page, "[data-test-last]");
+      for (let i = 0; i < 60 && !(last.inside && last.top); i++) {
         await t.page.mouse.move(panel.x, panel.y);
-        await t.page.mouse.wheel(0, 300);
+        await t.page.mouse.wheel(0, 100);
         await t.page.waitForTimeout(150);
         last = await onScreen(t.page, "[data-test-last]");
-        if (last.inside && last.top) break;
       }
       assert.ok(last?.inside && last?.top, `the last line of the answer can be reached with the wheel: ${JSON.stringify(last)}`);
       assert.ok(await t.page.evaluate(() => document.getElementById("view").scrollTop) > 0, "the page moved");
