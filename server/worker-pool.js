@@ -16,6 +16,7 @@
 // rest for the helper list, and only drops an API AI from a step when the person switched it off here.
 import { doc, putDoc } from "./store.js";
 import { cliLimit } from "./cli-limit.js";
+import { loadCatalog } from "./free-catalog.js";
 
 export const SETTINGS_DOC = "settings";
 export const POOL_KEY = "workerPool";
@@ -139,7 +140,7 @@ export function restingUntil(id, now = Date.now()) {
 }
 export const isResting = (id, now = Date.now()) => restingUntil(id, now) > 0;
 /** The helper can take a step now: switched on and not resting. (Installed and signed in is the router's job.) */
-export const workerUsable = (id, now = Date.now()) => !!id && isEnabled(id) && !isResting(id, now);
+export const workerUsable = (id, now = Date.now()) => !!id && loadCatalog().entries.find((e) => e.id === id)?.status !== "retired" && isEnabled(id) && !isResting(id, now);
 
 /**
  * Rest a helper: until the time it gave, else for its cooldown. Returns the time it is back.
@@ -203,8 +204,10 @@ export function pickWorker(rows, { mode = "balanced", kinds = null, exclude = []
 export function poolRank(list, { mode = "balanced", now = Date.now() } = {}) {
   const src = Array.isArray(list) ? list : [];
   if (!src.length) return src;
-  const kept = src.filter((m) => { const id = workerIdFor(m?.provider); return !id || !workerSpec(id) ? true : workerUsable(id, now); });
-  const out = kept.length ? kept : src;
+  const available = src.filter((m) => { const id = workerIdFor(m?.provider); return !id || !workerSpec(id) || loadCatalog().entries.find((e) => e.id === id)?.status !== "retired"; });
+  if (!available.length) return [];
+  const kept = available.filter((m) => { const id = workerIdFor(m?.provider); return !id || !workerSpec(id) ? true : workerUsable(id, now); });
+  const out = kept.length ? kept : available;
   if (!SAVINGS_MODES.has(String(mode))) return out;
   const slots = [], apps = [];
   out.forEach((m, i) => { const spec = workerSpec(workerIdFor(m?.provider)); if (spec && spec.kind !== "api") { slots.push(i); apps.push({ m, free: !!spec.free }); } });
@@ -248,19 +251,21 @@ export function workerRow(spec, det = {}, now = Date.now()) {
   const enabled = isEnabled(spec.id);
   const back = restingUntil(spec.id, now);
   let status;
-  if (!enabled) status = "off";
+  const catalogEntry = loadCatalog().entries.find((e) => e.id === spec.id);
+  if (catalogEntry?.status === "retired") status = "retired";
+  else if (!enabled) status = "off";
   else if (det.installed === false) status = "missing";
   else if (det.signedIn === false) status = "signin";
   else if (back) status = "resting";
   else status = "ready";
   const backLabel = back ? clock(back) : "";
-  const statusLabel = status === "resting" ? `Resting, back at ${backLabel}` : status === "off" && det.installed === false ? "Off, not installed" : STATUS_WORD[status];
+  const statusLabel = status === "retired" ? catalogEntry.retiredNote : status === "resting" ? `Resting, back at ${backLabel}` : status === "off" && det.installed === false ? "Off, not installed" : STATUS_WORD[status];
   return {
     id: spec.id, label: spec.label, kind: spec.kind, free: !!spec.free, enabled,
     cooldownHours: Number(stored.cooldownHours) > 0 ? Number(stored.cooldownHours) : spec.cooldownHours,
     restingUntil: back || null, backLabel, lastError: stored.lastError || "",
     needs: status === "missing" || status === "signin" ? (det.needs || spec.needs || "") : "",
-    good: spec.good || "", status, statusLabel, light: LIGHT[status],
+    good: catalogEntry?.good || spec.good || "", retiredNote: catalogEntry?.retiredNote || "", replacedBy: catalogEntry?.replacedBy || "", status, statusLabel, light: status === "retired" ? "grey" : LIGHT[status],
   };
 }
 

@@ -47,16 +47,18 @@ export function stateLine(w) {
 function rowHtml(w) {
   const light = w.light || "grey";
   const tags = [KIND_WORD[w.kind] || "", w.free ? "Free" : ""].filter(Boolean).join(" · ");
+  const retired = w.status === "retired";
+  const replacement = retired && w.page ? `<button type="button" class="btn sm" data-helper-page="${esc(w.page)}">Get ${esc(w.replacedBy || "replacement")}</button>` : "";
   return `<div class="cc-h-row" data-helper="${esc(w.id)}" data-status="${esc(w.status)}">
     <span class="dot ${esc(light)}" aria-hidden="true"></span>
     <div style="min-width:0">
       <div><span class="cc-h-name">${esc(w.label)}</span> <span class="dim small">${esc(tags)}</span></div>
-      <div class="cc-h-state" data-helper-state>${esc(stateLine(w))}</div>
+      <div class="cc-h-state" data-helper-state>${retired ? `<span class="chip">Retired</span> ` : ""}${esc(stateLine(w))}</div>
       ${w.good ? `<div class="cc-h-good dim">Good for: ${esc(w.good)}</div>` : ""}
       ${w.needs ? `<div class="cc-h-need dim">${esc(w.needs)}</div>` : ""}
-      ${(() => { const a = helperAction(w); return a ? `<div style="margin-top:6px"><button type="button" class="btn sm primary" data-helper-act="${esc(a.kind)}" data-helper-id="${esc(w.id)}"${a.url ? ` data-url="${esc(a.url)}"` : ""} aria-label="${esc(a.label)} ${esc(w.label)}">${esc(a.label)}</button></div>` : ""; })()}
+      ${(() => { const a = helperAction(w); return a || replacement ? `<div style="margin-top:6px">${a ? `<button type="button" class="btn sm primary" data-helper-act="${esc(a.kind)}" data-helper-id="${esc(w.id)}"${a.url ? ` data-url="${esc(a.url)}"` : ""} aria-label="${esc(a.label)} ${esc(w.label)}">${esc(a.label)}</button>` : ""}${replacement}</div>` : ""; })()}
     </div>
-    <label class="cc-h-switch"><input type="checkbox" role="switch" data-helper-switch="${esc(w.id)}" ${w.enabled ? "checked" : ""} aria-label="Use ${esc(w.label)}"> ${w.enabled ? "On" : "Off"}</label>
+    <label class="cc-h-switch"><input type="checkbox" role="switch" data-helper-switch="${esc(w.id)}" ${w.enabled ? "checked" : ""} ${retired ? "disabled" : ""} aria-label="Use ${esc(w.label)}"> ${retired ? "Retired" : w.enabled ? "On" : "Off"}</label>
   </div>`;
 }
 
@@ -87,6 +89,7 @@ export function renderHelpers(box) {
         if (r.view) show(r.view);
       } catch (e) { toast(e.message, true); b.disabled = false; b.textContent = label; }
     }));
+    box.querySelectorAll("[data-helper-page]").forEach((b) => b.addEventListener("click", () => { const u = b.dataset.helperPage; if (window.ccDesktop?.openExternal) window.ccDesktop.openExternal(u); else window.open(u, "_blank", "noopener"); }));
     box.querySelectorAll("[data-helper-switch]").forEach((sw) => sw.addEventListener("change", async () => {
       const wid = sw.dataset.helperSwitch;
       sw.disabled = true;
@@ -97,7 +100,11 @@ export function renderHelpers(box) {
   async function load(refresh = false) {
     clearTimeout(timer);
     if (!box.isConnected) return;
-    try { show(await api(`/workers${refresh ? "?refresh=1" : ""}`)); }
+    try {
+      const [view, catalog] = await Promise.all([api(`/workers${refresh ? "?refresh=1" : ""}`), api("/free-catalog").catch(() => ({}))]);
+      const entries = catalog.apps || [];
+      show({ ...view, workers: (view.workers || []).map((w) => { const e = entries.find((x) => x.id === w.id); return e ? { ...w, retiredNote: e.retiredNote || w.retiredNote, replacedBy: e.replacedBy || w.replacedBy, page: e.page || w.page } : w; }) });
+    }
     catch (e) { $("#cc-h-list").innerHTML = `<div class="dim small">${esc(e.message)}</div>`; }
     // A resting helper comes back on its own: look again in a minute while the panel is open.
     timer = setTimeout(() => load(false), 60000);

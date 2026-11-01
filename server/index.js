@@ -64,6 +64,7 @@ import { assertServiceSlots } from "./service-limit.js";
 import { scanHistory, detectKeys, buildAiFolder, bookmarksHtml, applyToBrowser, openUrl, browserProfiles } from "./discover.js";
 import { loadPlugins, handlePlugin, loadedPlugins } from "./plugins/index.js";
 import { scheduler } from "./perf/scheduler.js";
+import { refreshCatalog } from "./free-catalog.js";
 import { bindPerf, noteActivity } from "./perf/power.js";
 import { sourcesFromCitations, recordNative, previewSearch } from "./search.js";
 import { prepareWeb, beginDeep } from "./research.js";
@@ -72,7 +73,7 @@ import { saveFilesFromAnswer } from "./save-named-files.js";
 import { requireResearch } from "./feature-gate.js";
 import { augment as libraryAugment, publicSources as publicLibrarySources } from "./libraries.js";
 import { sendCheck } from "./send-check.js";
-import { freeOnlyOn, hasPaidKey, freeOnlyError, costText, whyHandoff, ensureLocalProviders, creditCheck, freeOnlyView, FREE_PAGES } from "./free-first.js";
+import { freeOnlyOn, hasPaidKey, freeOnlyError, costText, whyHandoff, ensureLocalProviders, creditCheck, freeOnlyView, FREE_PAGES, freePages } from "./free-first.js";
 import { readiness as grokReadiness } from "./grokbot.js";
 import "./free-first-wire.js";
 import { nothingCameBack, fallbackChat, fallbackRecord, announce as announceFallback, troubleKind, trouble, fallbackSettings } from "./fallback.js";
@@ -993,7 +994,7 @@ async function api(req, res, url) {
       return json(res, 200, {
         freeOnly: freeOnlyView(),
         summary: check.summary,
-        pages: FREE_PAGES.map((pg) => ({ id: pg.id, name: pg.name, url: pg.url, what: pg.what, needs: pg.needs, provider: pg.provider, later: !!pg.later, connected: pg.provider ? hasSecret(pg.provider, PROVIDERS[pg.provider]?.keyEnv) : pg.local ? !!found.rows.find((r) => r.key === pg.local)?.found : false, working: pg.provider ? !check.out.some((o) => o.provider === pg.provider) : true })),
+        pages: freePages().map((pg) => ({ id: pg.id, name: pg.name, url: pg.url, what: pg.what, needs: pg.needs, provider: pg.provider, later: !!pg.later, connected: pg.provider ? hasSecret(pg.provider, PROVIDERS[pg.provider]?.keyEnv) : pg.local ? !!found.rows.find((r) => r.key === pg.local)?.found : false, working: pg.provider ? !check.out.some((o) => o.provider === pg.provider) : true })),
         local: found.rows.map((r) => ({ key: r.key, name: r.name, found: r.found, models: r.models.length })),
         grokbot: { ready: gb.ready, detail: gb.detail },
         out: check.out.map((o) => ({ provider: o.provider, name: o.name, why: o.why })),
@@ -1512,6 +1513,13 @@ bus.on("event", (ev) => {
 bindPerf({
   light: () => { try { return !!settings().lightMode; } catch { return false; } },
   sockets: () => { let n = 0; eachClient((c) => { if (c.readyState === 1) n += 1; }); return n; },
+});
+scheduler.register({
+  id: "free-catalog",
+  everyMs: 24 * 60 * 60 * 1000,
+  firstMs: 10000,
+  pause: true,
+  run: () => refreshCatalog(),
 });
 scheduler.register({
   id: "ui-refresh",
