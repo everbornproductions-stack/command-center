@@ -819,8 +819,18 @@ body[data-style="mac"]:not([data-macwin="framed"]) {
   --mac-di: 42px;
   --mac-win-b: var(--mac-dock-h);
 }
+/* 0.4.37: the window waits for the dock to finish sliding away (.28 s) before it grows into the dock's band. Grown at once,
+   the bottom of the sidebar ("Settings and more") and of the chat sat under the still-moving dock for a moment (CI caught
+   it in look-0425 item 8). Coming back, the band empties at once, so the dock never slides over anything. A registered
+   length is what lets --mac-win-b wait (an unregistered custom property cannot be delayed). */
+@property --mac-win-b {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 body[data-style="mac"]:not([data-macwin="framed"]).mac-dock-away {
   --mac-win-b: 0px;
+  transition: --mac-win-b 0s linear .28s;
 }
 body[data-style="mac"]:not([data-macwin="framed"]) #app {
   border: 0;

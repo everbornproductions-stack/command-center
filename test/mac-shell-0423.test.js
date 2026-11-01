@@ -54,8 +54,9 @@ test("source: shell.css is scoped to body[data-style=mac], carries the tokens, h
   }
   assert.ok(css.includes('[data-theme="dark"]'), "dark tokens");
   assert.ok(css.includes(".mac-noblur"), "solid fallback class");
-  // Every rule opens with the Mac scope; @media lines only open a block.
-  const openings = css.split("\n").map((l) => l.trim()).filter((l) => l.endsWith("{") && !l.startsWith("@media"));
+  // Every rule opens with the Mac scope; @media lines only open a block (0.4.37: so does @property, which registers
+  // --mac-win-b so the window can wait for the dock; it is not a selector).
+  const openings = css.split("\n").map((l) => l.trim()).filter((l) => l.endsWith("{") && !l.startsWith("@media") && !l.startsWith("@property"));
   const unscoped = openings.filter((l) => !l.includes('body[data-style="mac"]'));
   assert.deepEqual(unscoped, [], "every selector is scoped");
 });
