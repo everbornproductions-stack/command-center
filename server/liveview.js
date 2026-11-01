@@ -135,7 +135,7 @@ function takeMission(run, m, kind) {
     run.tasks = new Map();
     for (const t of m.tasks) {
       if (!t?.id) continue;
-      run.tasks.set(t.id, { id: t.id, title: t.title || "", status: t.status || null, provider: t.provider || null, model: t.model || null, agentName: t.agentName || null });
+      run.tasks.set(t.id, { id: t.id, title: t.title || "", status: t.status || null, provider: t.provider || null, model: t.model || null, agentName: t.agentName || null, helper: t.helper?.label ? { id: String(t.helper.id || ""), label: clip(t.helper.label, 60) } : null, tries: Array.isArray(t.tries) ? t.tries.length : 0 });
       if (t.provider) run.providers.add(t.provider);
     }
   }
@@ -179,7 +179,7 @@ export function applyLiveEvent(state, ev) {
   if (ev.type === "task.update" && ev.missionId && ev.task?.id) {
     const run = ensureRun(state, ev.missionId);
     const t = ev.task;
-    run.tasks.set(t.id, { id: t.id, title: t.title || "", status: t.status || null, provider: t.provider || null, model: t.model || null, agentName: t.agentName || null });
+    run.tasks.set(t.id, { id: t.id, title: t.title || "", status: t.status || null, provider: t.provider || null, model: t.model || null, agentName: t.agentName || null, helper: t.helper?.label ? { id: String(t.helper.id || ""), label: clip(t.helper.label, 60) } : null, tries: Array.isArray(t.tries) ? t.tries.length : 0 });
     if (t.provider) run.providers.add(t.provider);
     run.updatedAt = Date.now();
     return run.id;
@@ -263,7 +263,7 @@ function allowMission(m) {
   for (const t of m.tasks || []) {
     if (!t?.id) continue;
     if (t.provider) providers.add(t.provider);
-    tasks.push({ id: t.id, title: t.title || "", status: t.status || null, provider: t.provider || null, model: t.model || null, agentName: t.agentName || null });
+    tasks.push({ id: t.id, title: t.title || "", status: t.status || null, provider: t.provider || null, model: t.model || null, agentName: t.agentName || null, helper: t.helper?.label ? { id: String(t.helper.id || ""), label: clip(t.helper.label, 60) } : null, tries: Array.isArray(t.tries) ? t.tries.length : 0 });
   }
   return {
     id: m.id, kind: m.kind || "mission", projectId: m.projectId || null,
@@ -356,6 +356,8 @@ function assembleRuns(state, missions, jobs, ledger, health, providers) {
       title: live?.title || d?.title || "", status, startedAt: d?.startedAt || live?.updatedAt || 0, finishedAt: d?.finishedAt || null,
       step: stepOf(status, rawWorkers, tasks), working, cost: spend.cost, credits: spend.credits, pending: 0,
       providerIds: [...providersSet], workers, handoffs, taskIds, fromLedger: spend.fromLedger, model: d?.model || null,
+      // 0.4.29: which helper has each step (Your AI helpers)
+      steps: tasks.slice(0, 24).map((t) => ({ id: t.id, title: clip(t.title || "", 90), status: t.status || null, helper: t.helper?.label || "", tries: t.tries || 0 })),
     });
   }
   const usedCredits = new Set();

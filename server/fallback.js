@@ -28,6 +28,7 @@ import { describePause } from "./pause.js";
 import { noteReply as noteFreeReply } from "./free-limits.js";
 import { freeOnlyOn, freeOnlyView, freeOnlyError, isFreeModel, costTier, lastResortChoices, planFirstForCode } from "./free-first.js";
 import { cliLimit } from "./cli-limit.js";
+import { noteRest as poolRest, clearRest as poolClear, apiId } from "./worker-pool.js";
 
 export const KIND = "fallback.settings";
 export const STATE = "fallback.state";
@@ -129,6 +130,8 @@ export function markTrouble(pid, kind, detail = "", { quiet = false, missionId =
   const entry = { provider: pid, model: perModel ? model : null, kind, detail: String(detail || "").replace(/\s+/g, " ").trim().slice(0, 160), since: live ? prev.since : now, until, count: (prev?.count || 0) + 1, announced: announced || !quiet };
   box[key] = entry;
   putDoc(STATE, st);
+  // 0.4.29: the helper list shows the same rest (Your AI helpers); routing stays with this file (decision 16)
+  if (!perModel && until && PROVIDERS[pid]) { try { poolRest(apiId(pid), { until, error: REASON[kind], now }); } catch { /* best effort */ } }
   emit("fallback.skip", { provider: pid, ...entry });
   const who = perModel ? `${nameOf(pid)} ${modelName(pid, model)}` : nameOf(pid);
   if (!quiet && !announced) emit("log", { text: `${who} skipped for new work${until ? ` for ${minutes(COOLDOWN_MS[kind])}` : ""}: ${REASON[kind]}${entry.detail ? ` (${entry.detail})` : ""}. It comes back on its own when it works again.`, level: "error", missionId });
@@ -139,6 +142,7 @@ export function clearTrouble(pid, why = "") {
   let dropped = false;
   if (st.skip[pid]) { delete st.skip[pid]; dropped = true; }
   for (const [k, s] of Object.entries(modelBox(st))) if (s?.provider === pid || k.startsWith(`${pid}:`)) { delete st.skip[k]; delete st.models[k]; dropped = true; }
+  try { poolClear(apiId(pid)); } catch { /* best effort */ }
   if (!dropped) return false;
   putDoc(STATE, st);
   emit("fallback.clear", { provider: pid, why });

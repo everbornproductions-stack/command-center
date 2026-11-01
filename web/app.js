@@ -221,16 +221,23 @@ function toast(msg, err = false, link = null, ttl = 0) {
 }
 // A click handler that forgot its try/catch still tells the person what went wrong instead of failing silently.
 // The same message is shown at most once every 10 s, so a failing background poll cannot flood the screen.
+// 0.4.29: a program error ("Cannot read properties of undefined") is shown as a plain sentence, never raw; the raw text
+// goes to console.error, which the desktop app writes to its log. Uncaught errors (not only promises) are handled too.
 const lastUnhandled = new Map();
-window.addEventListener("unhandledrejection", (e) => {
-  const err = e.reason;
+const RAW_UI_ERR = /\b(?:TypeError|ReferenceError|RangeError|SyntaxError)\b|Cannot (?:read|set|destructure) propert|\bis not (?:a function|a constructor|defined|iterable)\b|undefined \(reading|Unexpected (?:token|end of JSON)|in JSON at position|\[object Object\]/;
+function reportUiError(err) {
   if (!err || err.name === "AbortError") return;
   const msg = String(err.message || err);
-  console.warn("[unhandled]", err);
-  if (Date.now() - (lastUnhandled.get(msg) || 0) < 10000) return;
-  lastUnhandled.set(msg, Date.now());
-  toast(msg, true);
-});
+  const raw = /^(?:Type|Reference|Range|Syntax)Error$/.test(String(err.name || "")) || RAW_UI_ERR.test(msg);
+  console.error("[ui-error]", msg, err && err.stack ? String(err.stack).split("\n").slice(1, 3).join(" ").trim() : "");
+  const shown = raw ? "Something on this screen did not work. Nothing was sent. Try again; if it keeps happening, open Help." : msg;
+  if (Date.now() - (lastUnhandled.get(shown) || 0) < 10000) return;
+  lastUnhandled.set(shown, Date.now());
+  toast(shown, true);
+}
+window.addEventListener("unhandledrejection", (e) => reportUiError(e.reason));
+// a script error inside a made app's preview frame or an extension is not ours; only errors from Meldmind's own scripts are reported
+window.addEventListener("error", (e) => { if (e.error && (!e.filename || e.filename.startsWith(location.origin))) reportUiError(e.error); });
 // Keyboard: anything drawn as a clickable card or row (role="button", not a real <button>) opens with Enter or Space.
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
@@ -1201,7 +1208,10 @@ function renderExtras(kind, sel, ...args) {
     if (S.mode === "hosted" && isDesktopOnly(f.id)) continue;
     if (simple && kind === "command" && !SIMPLE_COMMAND.has(f.id)) continue;
     if (simple && kind === "settings" && EXPERT_SETTINGS.has(f.id)) continue;
-    const d = document.createElement("div"); d.dataset.feature = f.id; box.appendChild(d); try { f[kind].render(d, ...args); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }
+    // 0.4.29: a panel may name its own slot on the page (Your AI helpers sits under My AIs in Settings)
+    const slot = f[kind].slot ? document.querySelector(f[kind].slot) : null;
+    if (slot) slot.innerHTML = "";
+    const d = document.createElement("div"); d.dataset.feature = f.id; (slot || box).appendChild(d); try { f[kind].render(d, ...args); } catch (e) { d.innerHTML = `<div class="dim small">${esc(f.id)}: ${esc(e.message)}</div>`; }
   }
 }
 function renderFeature(kind, id, sel) {
@@ -1851,6 +1861,12 @@ function renderOpsHead() {
   syncResearchStop();
   syncOpsPanel();
 }
+// 0.4.29: a re-assigned step keeps its earlier tries visible: "Try 1 (Claude Code: out of usage)", with what it wrote.
+function triesHtml(t) {
+  const tries = Array.isArray(t.tries) ? t.tries : [];
+  if (!tries.length) return "";
+  return `<div class="task-tries small">${tries.map((x) => x.output ? `<details class="task-try" data-try="${x.n}"><summary>${esc(x.line)}</summary><div class="md">${md(x.output)}</div></details>` : `<div class="task-try dim" data-try="${x.n}">${esc(x.line)}</div>`).join("")}</div>`;
+}
 function renderTasks() {
   const box = $("#tasks"); if (!box) return;
   const tasks = Object.values(S.live.tasks);
@@ -1873,7 +1889,7 @@ function renderTasks() {
     const follow = wrote ? `<div class="task-follow"><div class="task-answer"><div class="md">${md(t.output)}</div>${threadHtml(t.thread)}</div>${answerReply(t.id, "Reply to this AI")}</div>` : grokBlock;
     return `<div class="task" data-task="${t.id}">
       <span class="st ${t.notDone ? "failed" : t.status}"></span>
-      <div><div>${esc(t.title)} ${t.notSaved ? `<span class="chip red" title="${esc(t.notSaved.line)}">Not saved</span>` : t.notRun ? `<span class="chip red" title="${esc(t.notRun.line)}">Not run</span>` : t.notDone ? '<span class="chip red" title="This step said it could not do the job">not done</span>' : ""} ${t.wroteLine ? `<span class="chip green" title="Written into your project folder">${esc(t.wroteLine)}</span>` : ""} ${t.inputMissing?.length ? `<span class="chip red" title="${esc(t.error || "An earlier step did not come back")}">input missing</span>` : ""} ${t.retried ? '<span class="chip amber">re-assigned</span>' : ""} ${t.revised ? '<span class="chip violet">revised</span>' : ""} ${rv}${t.agentJob ? ` <span class="chip ${t.agentJob.status === "needs_approval" ? "amber" : t.agentJob.status === "failed" ? "red" : "violet"}" title="Results are async and can take minutes">${esc({ queued: "queued", working: "working", needs_approval: "needs your approval", done: "done", failed: "failed" }[t.agentJob.status] || t.agentJob.status)}${t.late ? ", arrived later" : t.status === "waiting" ? ", still out" : ""}</span>` : ""}</div><div class="who" style="color:${pcolor(t.provider)}">${esc(t.agentName || pname(t.provider))} · ${esc(t.model)}${t.deps?.length ? ` · after ${t.deps.join(", ")}` : ""}</div></div>
+      <div><div>${esc(t.title)} ${t.notSaved ? `<span class="chip red" title="${esc(t.notSaved.line)}">Not saved</span>` : t.notRun ? `<span class="chip red" title="${esc(t.notRun.line)}">Not run</span>` : t.notDone ? '<span class="chip red" title="This step said it could not do the job">not done</span>' : ""} ${t.wroteLine ? `<span class="chip green" title="Written into your project folder">${esc(t.wroteLine)}</span>` : ""} ${t.inputMissing?.length ? `<span class="chip red" title="${esc(t.error || "An earlier step did not come back")}">input missing</span>` : ""} ${t.retried ? '<span class="chip amber">re-assigned</span>' : ""} ${t.revised ? '<span class="chip violet">revised</span>' : ""} ${rv}${t.agentJob ? ` <span class="chip ${t.agentJob.status === "needs_approval" ? "amber" : t.agentJob.status === "failed" ? "red" : "violet"}" title="Results are async and can take minutes">${esc({ queued: "queued", working: "working", needs_approval: "needs your approval", done: "done", failed: "failed" }[t.agentJob.status] || t.agentJob.status)}${t.late ? ", arrived later" : t.status === "waiting" ? ", still out" : ""}</span>` : ""}</div><div class="who" style="color:${pcolor(t.provider)}">${esc(t.agentName || pname(t.provider))} · ${esc(t.model)}${t.deps?.length ? ` · after ${t.deps.join(", ")}` : ""}</div>${t.helper?.label ? `<div class="small task-helper" data-helper="${esc(t.helper.id || "")}">Helper: <b>${esc(t.helper.label)}</b></div>` : ""}${triesHtml(t)}</div>
       <span class="chip">${t.capability}</span>
       <span class="cost">${money(t.cost || t.estCost || 0, 4)}</span>
       <div class="bar"><i style="width:${pct}%;background:${t.status === "failed" ? "var(--red)" : pcolor(t.provider)}"></i></div>
@@ -2982,7 +2998,7 @@ function renderSettings(v) {
   v.innerHTML = `
   ${moreBar}
   ${groupsNav}
-  <div class="grid" style="grid-template-columns: 1fr 1fr">
+  <div class="grid settings-cols" id="settings-cols" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr))">
     <div class="grid" style="align-content:start">
       <div class="panel" id="settings-keys"><div id="settings-group-my-ais" class="cat-h" style="margin-bottom:4px">My AIs</div><h3>Chat &amp; reasoning AIs <span class="right">${S.mode === "hosted" ? "keys encrypted in your hub" : "keys stay on this PC"} · ${esc(S.vault?.method || "")}</span></h3>
         <div class="dim small">Claude, ChatGPT, Grok and Gemini need an API key, or an OpenRouter key, to take part in the council. An MCP server does not take their place there. Tools such as Kling can use an API key or an MCP server.</div>
@@ -2990,6 +3006,7 @@ function renderSettings(v) {
         ${anyKeyHtml()}
         <div class="grid" style="gap:10px;margin-top:10px">${textP.map(card).join("")}</div>
         ${S.mode === "hosted" ? "" : `<div class="row" style="margin-top:10px"><button class="btn sm" id="cp-add">+ Add custom provider</button><span class="dim small">Any OpenAI- or Anthropic-compatible API: OpenRouter, Groq, Together, Fireworks, DeepSeek, Mistral, Perplexity, Ollama, LM Studio, Aider, OpenCode, or a company gateway. Freebuff has its own card under Free AIs.</span></div><div id="cp-form"></div>`}</div>
+      <div id="settings-helpers"></div>
     </div>
     <div class="grid" style="align-content:start">
       <div class="panel"><h3>General</h3>

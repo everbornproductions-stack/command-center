@@ -10,6 +10,7 @@ import { addRouteSource } from "./route-extras.js";
 import { readPlanFirst } from "./plans.js";
 import { ROUTES, routeOn, routeById, cachedStatus, allStatus, askApp } from "./sub-routes.js";
 import { LIMIT_REST_MS } from "./cli-limit.js";
+import { noteRest as poolRest, clearRest as poolClear, workerUsable } from "./worker-pool.js";
 
 export const METER_DOC = "plan.meter";
 // 0.4.28 (dogfood loan-calc): an app out of its plan rests until the reset time it gave, else a few hours
@@ -31,6 +32,7 @@ export function noteAnswer(routeId, now = Date.now()) {
   delete m.outAt[routeId];
   delete m.outUntil[routeId];
   putDoc(METER_DOC, m);
+  try { poolClear(routeId); } catch { /* the helper list is best effort */ }
 }
 
 // until: when the app said its limit ends (its own reset time); else it rests OUT_MS (a few hours)
@@ -40,6 +42,8 @@ export function noteOutOfQuota(routeId, now = Date.now(), until = null) {
   const u = Number(until) || 0;
   m.outUntil[routeId] = u > now ? u : now + OUT_MS;
   putDoc(METER_DOC, m);
+  // 0.4.29: the helper list (server/worker-pool.js) rests it until the same time
+  try { poolRest(routeId, { until: m.outUntil[routeId], error: "out of usage", now }); } catch { /* best effort */ }
 }
 
 // When the app comes back (ms), or 0 when it is not resting.
@@ -78,6 +82,7 @@ export function planRouteModels() {
   const out = [];
   for (const r of readyPlanRoutes()) {
     if (outOfQuota(r.id)) continue;
+    if (!workerUsable(r.id)) continue; // 0.4.29: switched off or resting in Your AI helpers
     const caps = capsOf(r);
     out.push({
       provider: planId(r.id), providerName: `${r.name} (your plan)`, color: PROVIDERS[r.providers[0]]?.color || null,

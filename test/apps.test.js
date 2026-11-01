@@ -291,9 +291,9 @@ test("user-facing copy has no em dash and no install button", () => {
   const help = fs.readFileSync(path.join(ROOT, "docs", "help", "desktop-apps.md"), "utf8");
   assert.match(help, /lastUpdatedVersion: 0\.4\.9/);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.version, "0.4.28");
+  assert.equal(pkg.version, "0.4.29");
   const catalogJson = JSON.parse(fs.readFileSync(path.join(ROOT, "docs", "help", "catalog.json"), "utf8"));
-  assert.equal(catalogJson.lastUpdatedVersion, "0.4.28");
+  assert.equal(catalogJson.lastUpdatedVersion, "0.4.29");
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

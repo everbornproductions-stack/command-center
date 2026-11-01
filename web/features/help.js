@@ -3,6 +3,7 @@
 // Ask sends only when the button is clicked. With no connected AI the server returns search hits.
 // What can Meldmind do? is the same guide as the tour. A row hides when its page is missing.
 import { liveProbe, matchesQuery, rememberWalks, visibleGuide } from "./guide.js";
+import { renderSelfAsk } from "./self-talk.js";
 import { helpOrder, searchArticles, tryThese, contextTipsForView, doThisNextForState, matchScreensForQuery, PERSONA_STARTER_PACKS, getPersonaStarterPack } from "../help-rank.js";
 
 const { api, toast, esc, md, go } = window.CC;
@@ -48,6 +49,7 @@ function renderTab(view) {
       <div id="help-screen-hits" class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
       <div id="help-list" class="help-list"></div>
     </div>
+    <div id="help-self-ask"></div>
     <div class="panel" id="help-context">
       <h3>Tips for this screen: ${esc(ctxInfo.title)}</h3>
       <p class="dim small" style="margin:0 0 8px">${esc(ctxInfo.summary)}</p>
@@ -108,6 +110,8 @@ function renderTab(view) {
     </div>
   </div>`;
   if (desk) window.CC.renderUpdateBox?.();
+  // 0.4.29: Ask about Meldmind, read-only answers from its own records (server/self-talk.js)
+  renderSelfAsk(view.querySelector("#help-self-ask"));
 
   let articles = [];
   let guideRows = [];

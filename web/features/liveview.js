@@ -350,6 +350,12 @@ function handoffHtml(list) {
   }).join("");
   return `<div class="panel lv-hands"><h3>Outside agents</h3><p class="dim small" style="margin:0 0 6px">Sent, working, or reported back. Results can take a few minutes. This page only watches.</p>${rows}</div>`;
 }
+// 0.4.29: which helper has each step (Your AI helpers). Shown for runs that are working, and the newest run.
+function stepsHtml(r, first = false) {
+  const steps = (r.steps || []).filter((s) => s && s.helper);
+  if (!steps.length || !(r.working || first)) return "";
+  return `<ul class="lv-helpers" data-run="${esc(r.id)}" style="margin:2px 0 8px;padding-left:18px">${steps.slice(0, 8).map((s) => `<li class="small" data-step="${esc(s.id)}"><span>${esc(s.title || s.id)}</span> <span class="dim">· </span><b class="lv-helper">${esc(s.helper)}</b>${s.tries ? ` <span class="dim">(after ${s.tries} earlier ${s.tries === 1 ? "try" : "tries"})</span>` : ""}</li>`).join("")}</ul>`;
+}
 function captions() {
   return `<div class="lv-captions"><p class="dim small lv-caption lv-caption-live">The bright node is working now. Light along a line is work moving. Idle agents stay on the map, dimmed.</p><p class="dim small lv-caption lv-caption-calm">Motion is reduced. The active agent stays lit, and idle ones stay dim. Moving light is off.</p></div>`;
 }
@@ -392,12 +398,12 @@ function tabInner(view) {
       <div class="small" style="margin-top:6px">${esc(p.step || "Idle")}</div>
       ${S.flags?.projectbar ? `<div class="row" style="margin-top:6px"><button type="button" class="btn sm" data-continue="${esc(p.id)}">Continue this project</button></div>` : ""}
     </div>`).join("");
-  const runRows = (runs || []).slice(0, 12).map((r) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);gap:8px">
+  const runRows = (runs || []).slice(0, 12).map((r, i) => `<div class="row small" style="padding:6px 0;border-bottom:1px solid var(--line);gap:8px">
       <span class="chip ${r.working ? "green" : ""}">${esc(r.kind || "")}</span>
       <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(r.title || r.step || "")}</span>
       <span class="dim">${esc(r.step || "")}</span>
       <span class="mono dim">${moneyOf(r.cost)}${r.credits ? " · " + esc(String(r.credits)) + " cr" : ""}</span>
-    </div>`).join("") || `<div class="dim small">No runs on this view yet. Send orders from Command and they show up here.</div>`;
+    </div>${stepsHtml(r, i === 0)}`).join("") || `<div class="dim small">No runs on this view yet. Send orders from Command and they show up here.</div>`;
   return `<div class="lv-wrap">
     <div class="row"><h3 style="margin:0">Live</h3><span class="dim small">who is working, the step, and what it has cost</span></div>
     ${noteHtml()}

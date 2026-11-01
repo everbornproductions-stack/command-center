@@ -6,6 +6,7 @@
 // fits, else the browser helper (for people without Grok Bot), never for plain text work.
 import * as GB from "./grokbot.js";
 import * as BH from "./browser.js";
+import { workerUsable } from "./worker-pool.js";
 
 // want(): does this one step fit the agent (used once the mission's agent is chosen)
 const adapter = (M) => ({ id: M.AGENT_ID, name: M.NAME, dispatch: M.dispatch, awaitJob: M.awaitJob, waitMs: M.waitMs, STATUS_LABEL: M.STATUS_LABEL, TAGS: M.TAGS, TAG_LABEL: M.TAG_LABEL, readiness: M.readiness, want: ({ prompt, explicit }) => M.wantAgent({ prompt, explicit }) });
@@ -29,8 +30,9 @@ export function pickAgent({ prompt, grokbot, browser } = {}) {
 
 // Missions: which agent the planner may hand steps to (null: none).
 export function missionAgent({ grokbot, browser } = {}) {
-  if (grokbot !== false && GB.readiness().ready && (grokbot === true || GB.settings().auto)) return AGENTS[GB.AGENT_ID];
-  if (browser !== false && BH.readiness().ready && (browser === true || (BH.settings().auto && !grokbotSetUp()))) return AGENTS[BH.AGENT_ID];
+  // 0.4.29: a helper switched off or resting in Your AI helpers takes no steps
+  if (grokbot !== false && workerUsable(GB.AGENT_ID) && GB.readiness().ready && (grokbot === true || GB.settings().auto)) return AGENTS[GB.AGENT_ID];
+  if (browser !== false && workerUsable(BH.AGENT_ID) && BH.readiness().ready && (browser === true || (BH.settings().auto && !grokbotSetUp()))) return AGENTS[BH.AGENT_ID];
   return null;
 }
 
