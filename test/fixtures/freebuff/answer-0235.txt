@@ -1,0 +1,18 @@
+ Freebuff
+ ┌──────────────────────────────────────────────────────────────────┐
+ │ May use data for AI training                                     │
+ │ Session active                                                   │
+ │ 30/30 hours remaining                                            │
+ └──────────────────────────────────────────────────────────────────┘
+   [01:31 AM]
+   Reply with just the word OK. ⎘
+  OK
+                                                                                ⎘ • 2s • △▽
+ 14K (1%)                                                                      ✕ End session
+╭────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                    │
+│  ▍Enter a coding task or / for commands                                                            │
+│                                                                                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ MiMo v2.6 Flash Fast · ~\work · /model to change · Chat: Reply with just the word OK.
+ ← for history · ? for help

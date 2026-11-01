@@ -18,7 +18,9 @@ export const NODE_PAGE = "https://nodejs.org/en/download";
 // signIn: what the sign-in window runs (the helper's own command); words: what the person does there.
 export const HELPERS = {
   codex: { pkg: "@openai/codex", bin: "codex", signIn: ["login"], words: "A window opens and then your browser: sign in with your ChatGPT account, then come back and press Check again." },
-  "gemini-cli": { pkg: "@google/gemini-cli", bin: "gemini", signIn: [], words: "A window opens with Gemini CLI: pick Sign in with Google, finish in your browser, then close the window and press Check again." },
+  // Gemini CLI is not installed or signed in from here: Google retired it for individuals on 2026-11-01 ("This client is no
+  // longer supported for Gemini Code Assist for individuals ... migrate to Antigravity"). Antigravity replaces it.
+  "gemini-cli": { page: "https://antigravity.google/download", words: "Google replaced Gemini CLI with Antigravity for personal accounts. Get Antigravity instead; your Gemini key keeps working." },
   "claude-code": { pkg: "@anthropic-ai/claude-code", bin: "claude", signIn: [], words: "A window opens with Claude Code: type /login, finish in your browser, then close the window and press Check again." },
   opencode: { pkg: "opencode-ai", bin: "opencode", allowScripts: true, signIn: null, words: "" },
   freebuff: { pkg: "freebuff", bin: "freebuff", signIn: [], words: "A window opens with Freebuff: follow its sign-in link in your browser, then close the window and press Check again." },

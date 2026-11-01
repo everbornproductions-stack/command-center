@@ -62,6 +62,8 @@ export function rowOf(m, ex) {
     pinned: ex.pinned.includes(m.id), cost: Number(m.cost) || 0,
     preview: snippet(answerOf(m), 110),
     canRedo: !!promptOf(m) && m.kind !== "imported",
+    // 0.4.34: the file it made (the History drawer groups by kind of work)
+    file: String(m.savedFile?.name || (Array.isArray(m.savedFiles) && m.savedFiles.find((f) => f?.ok)?.name) || "") || null,
   };
 }
 

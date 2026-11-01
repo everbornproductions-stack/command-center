@@ -61,6 +61,8 @@ export async function open() {
     <p class="small" style="margin:0 0 6px">Free AIs go first, so a job never stops just because one account ran out. Each key page opens in your browser. Paste the key here and it goes straight to your private vault. Nothing is charged.</p>
     <p class="small dim" id="cc-fa-summary" style="margin:0 0 6px">${esc(d.summary || "")}</p>
     ${freeOnlySwitchHtml(!!d.freeOnly?.on).replace('id="cc-freeonly"', 'class="cc-freeonly-box"')}
+    <div id="cc-fa-apps"></div>
+    <div class="lbl" style="margin-top:10px">Free keys</div>
     <div id="cc-fa-list">${d.pages.map(rowHtml).join("")}</div>
     <div class="row cc-fa-row" id="cc-fa-grok" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px"><b style="min-width:190px">Grok Bot</b><span class="chip ${gb.ready ? "green" : ""}">${gb.ready ? "Ready" : "Not set up"}</span><span class="dim small" style="flex:1">Your own assistant. It takes any job it can do, and it is a last-resort helper when other AIs fail.</span><button type="button" class="btn sm" id="cc-fa-grokbtn">${gb.ready ? "Open Grok Bot settings" : "Set up Grok Bot"}</button></div>
     <div id="cc-fa-limits" class="small" style="margin-top:10px"></div>
@@ -69,6 +71,8 @@ export async function open() {
   </div>`;
   document.body.appendChild(wrap);
   card = wrap;
+  // 0.4.34: the free apps on this PC (Install, Sign in, Get it) sit above the key rows
+  window.CC.freeSetup?.mount?.(wrap.querySelector("#cc-fa-apps"), { title: "Free AI apps on this PC", keys: false });
   const back = document.activeElement;
   const end = () => { close(); try { back?.focus?.(); } catch {} };
   wrap.querySelector("#cc-fa-close").addEventListener("click", end);

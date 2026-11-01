@@ -14,7 +14,7 @@ test("the package names are fixed and are the real ones", () => {
   assert.deepEqual(installArgs("codex"), ["install", "-g", "@openai/codex"]);
   assert.deepEqual(installArgs("opencode"), ["install", "-g", "--allow-scripts=opencode-ai", "opencode-ai"], "OpenCode's own setup step is allowed for that one package only");
   assert.deepEqual(installArgs("freebuff"), ["install", "-g", "freebuff"]);
-  assert.deepEqual(installArgs("gemini-cli"), ["install", "-g", "@google/gemini-cli"]);
+  assert.equal(installArgs("gemini-cli"), null, "0.4.34: Google retired Gemini CLI for individuals; it gets the Antigravity page instead");
   assert.deepEqual(installArgs("claude-code"), ["install", "-g", "@anthropic-ai/claude-code"]);
   assert.equal(installArgs("antigravity"), null, "not on npm: download page");
   assert.equal(installArgs("grokbot"), null);
