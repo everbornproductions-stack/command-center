@@ -1604,8 +1604,8 @@ function foldSimpleBox(on) {
   const c = document.querySelector("#view .cmd.simple-chat");
   if (c) { if (on) c.dataset.fold = "1"; else delete c.dataset.fold; }
 }
-// 0.4.28 (panel item 3a): when an answer finishes, bring its action buttons into view above the docked chat box. Only
-// when the answer, from its top to those buttons, fits on one screen; a long answer stays at its start for reading.
+// 0.4.28 (panel item 3a): when an answer finishes, bring its action buttons into view above the docked chat box (0.4.31:
+// a long answer too, as long as the first button row stays on screen).
 // It only ever scrolls down, once per answer. A slow PC draws the buttons, the answer line and the folded box over a
 // few seconds, so it checks again every quarter second for 6 seconds and stops as soon as the person scrolls or clicks.
 function revealAnswer(id) {
@@ -1622,17 +1622,19 @@ function revealAnswer(id) {
     const scroller = card.closest(".cmd.simple-chat");
     const box = scroller?.querySelector(".orders");
     if (!scroller || scroller.scrollHeight <= scroller.clientHeight + 2) return;
-    const acts = [...card.querySelectorAll(".answer-main, #cc-v-again")].filter((e) => e.getBoundingClientRect().height > 0);
+    // 0.4.31 (panel 0428 item 1b): Copy, Double-check, Try again and Finish (the Next bar and the finish pair) count too.
+    const acts = [...card.querySelectorAll(".answer-main, #cc-v-again, [data-feature='next-actions'] .na-bar, [data-feature='finishpath'] > *")].filter((e) => e.getBoundingClientRect().height > 0);
     if (!acts.length) return;
     const sr = scroller.getBoundingClientRect();
     const boxTop = box && getComputedStyle(box).position === "sticky" ? Math.min(box.getBoundingClientRect().top, sr.bottom) : sr.bottom;
     const bottom = Math.max(...acts.map((e) => e.getBoundingClientRect().bottom)) + 12;
-    const top = card.getBoundingClientRect().top;
-    // buttons already clear, or still far below the screen (a long answer stays at its start): nothing to do. Buttons that
-    // are on screen but under the chat box are lifted just enough (CI 0.4.28: Copy sat under the box's Mic at 1366 x 800).
+    // 0.4.31 (panel 0428 item 1b): a long answer used to stay at its start, so at 1366 x 800 and 1024 x 768 the buttons
+    // were never brought up. Now the button rows always end just above the chat box (the person scrolls up to read),
+    // but never so far that the first row (Copy) goes off the top. Buttons already clear: nothing to do.
     const actsTop = Math.min(...acts.map((e) => e.getBoundingClientRect().top));
-    if (bottom <= boxTop || (actsTop > sr.bottom && bottom - top > sr.height)) return;
-    scroller.scrollBy({ top: bottom - boxTop, behavior: "auto" });
+    const lift = Math.min(bottom - boxTop, actsTop - sr.top - 8);
+    if (lift <= 1) return;
+    scroller.scrollBy({ top: lift, behavior: "auto" });
   };
   const started = Date.now();
   const tick = () => {

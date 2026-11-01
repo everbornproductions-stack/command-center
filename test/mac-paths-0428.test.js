@@ -183,10 +183,10 @@ test("browser: the ten cards render with label and blurb, the keys reach every o
       await t.page.keyboard.press("End");
       await t.page.waitForTimeout(450);
       assert.equal(await t.page.evaluate(() => document.activeElement?.dataset.path), "data");
-      // The page buttons scroll the row for a mouse; Enter on a focused card opens it.
-      await t.page.waitForFunction(() => document.getElementById("mf-more-paths").disabled, null, { timeout: WAIT }).catch(() => {});
-      const ends = await t.page.evaluate(() => ({ prev: document.getElementById("mf-prev").disabled, next: document.getElementById("mf-more-paths").disabled }));
-      assert.deepEqual(ends, { prev: false, next: true }, "at the end: back works, more is done");
+      // 0.4.31 (panel 0428 item 7): at 1366 the ten cards wrap into two rows, so the page arrows hide (the arrows are
+      // checked at 390 below, where the row still swipes). Enter on a focused card opens it.
+      const ends = await t.page.evaluate(() => ({ prev: document.getElementById("mf-prev").hidden, next: document.getElementById("mf-more-paths").hidden }));
+      assert.deepEqual(ends, { prev: true, next: true }, "every card fits: the page arrows hide");
       await t.page.evaluate(() => document.activeElement?.blur());
       await shot(t, `pick-${theme}-1366-new-cards.png`);
       // Card text contrast on the painted pixels, every card scrolled into view first.
@@ -197,13 +197,7 @@ test("browser: the ten cards render with label and blurb, the keys reach every o
         assert.equal(got.length, 2, `${theme} ${p}: measured label and blurb`);
         assert.deepEqual(low(got), [], `${theme} ${p}`);
       }
-      // The page arrows: at the end the back arrow is on; it pages back to the start.
-      for (let i = 0; i < 6 && !(await t.page.evaluate(() => document.getElementById("mf-prev").disabled)); i++) {
-        await t.page.click("#mf-prev");
-        await t.page.waitForTimeout(800);
-      }
-      await t.page.waitForFunction(() => document.getElementById("mf-paths").scrollLeft <= 2, null, { timeout: WAIT });
-      assert.deepEqual(low(await paintedContrast(t.page, "#mac-flow .mf-sub, #mac-flow .mf-scroll:not([disabled])", { max: 4 })), [], `${theme} hint and arrows`);
+      assert.deepEqual(low(await paintedContrast(t.page, "#mac-flow .mf-sub", { max: 2 })), [], `${theme} hint`);
       await t.page.focus('#mac-flow .mf-path[data-path="spreadsheet"]');
       await t.page.keyboard.press("Enter");
       await t.page.waitForFunction(() => window.CC.mac.flow.state.step === "style" && window.CC.mac.flow.state.path === "spreadsheet", null, { timeout: WAIT });
@@ -229,6 +223,20 @@ test("browser: Simple at 390 wide shows the cards without sideways scroll; the r
     assert.equal(g.overflowX, "auto");
     assert.match(g.touch, /pan-x/, "a finger can swipe the row");
     await shot(t, "pick-dark-390.png");
+    // 0.4.31: the page arrows (moved here from the 1366 check, where every card now fits): more pages to the end, then
+    // back pages to the start.
+    for (let i = 0; i < 12 && !(await t.page.evaluate(() => document.getElementById("mf-more-paths").disabled)); i++) {
+      await t.page.click("#mf-more-paths");
+      await t.page.waitForTimeout(800);
+    }
+    await t.page.waitForFunction(() => document.getElementById("mf-more-paths").disabled, null, { timeout: WAIT });
+    assert.equal(await t.page.evaluate(() => document.getElementById("mf-prev").disabled), false, "at the end: back works");
+    assert.deepEqual(low(await paintedContrast(t.page, "#mac-flow .mf-scroll:not([disabled])", { max: 2 })), [], "the back arrow is readable");
+    for (let i = 0; i < 12 && !(await t.page.evaluate(() => document.getElementById("mf-prev").disabled)); i++) {
+      await t.page.click("#mf-prev");
+      await t.page.waitForTimeout(800);
+    }
+    await t.page.waitForFunction(() => document.getElementById("mf-paths").scrollLeft <= 2, null, { timeout: WAIT });
     // a swipe: scroll the row to the end; the last card is whole on screen and can be tapped
     await t.page.evaluate(() => { const r = document.getElementById("mf-paths"); r.scrollLeft = r.scrollWidth; });
     await t.page.waitForTimeout(600);

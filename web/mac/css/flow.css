@@ -111,6 +111,23 @@ body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data
 body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] #cc-emp-hint,
 body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] #cc-composer-ais,
 body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] #cc-auto-line:empty { display: none; }
+/* 0.4.31 (panel 0428 item 1a): folded, the box card was still 157 px (Mic, team picker and "Free only" stayed), so the
+   answer had about 300 px and its buttons sat under the box. Folded, the box is one line with Send beside it (about
+   64 px); Mic, the team picker, "Free only" and the auto line come back as soon as the person clicks or types in it.
+   Stop stays when a run shows it. */
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .orders { padding-top: 4px; padding-bottom: 8px; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-panel { gap: 0 !important; } /* the panel sets gap inline */
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-live:not([hidden]) { margin-bottom: 6px; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 12px; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .orders .sc-box #orders { flex: 1 1 auto; min-width: 0; min-height: 40px; height: 40px; padding-top: 9px; padding-bottom: 5px; overflow: hidden; white-space: nowrap; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .orders .sc-box #orders::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .simple-send-row { flex: none; flex-wrap: nowrap; gap: 6px; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .simple-send-row > #vo-mic,
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .simple-send-row > #sc-team,
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .simple-send-row > span,
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box #cc-auto-line,
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .pd-wrap { display: none; }
+body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box #go { min-height: 38px; padding-top: 6px; padding-bottom: 6px; margin-left: 0; }
 body[data-style="mac"][data-mac-flow="on"] #cc-canvas { display: none !important; }
 /* 0.4.28: five more paths (Spreadsheet, Document, Slides, App or script, List or data). Simple drawn pictures, no images. */
 body[data-style="mac"] #mac-flow .mf-art-sheet { background: linear-gradient(0deg, rgba(255,255,255,.55) 1px, transparent 1px) 0 0 / 100% 22px, linear-gradient(90deg, rgba(255,255,255,.55) 1px, transparent 1px) 0 0 / 46px 100%, linear-gradient(135deg,#30d158,#0a7d3c); }
@@ -140,3 +157,13 @@ body[data-style="mac"] #mac-flow .mf-hint { margin: 10px 2px 0; color: var(--mf-
 /* 0.4.28: a button centres its content, so a card with a two-line blurb sat higher than the others. Cards stack from the top. */
 body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card { display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; }
 body[data-style="mac"] #mac-flow .mf-path > .mf-art, body[data-style="mac"] #mac-flow .mf-card > .mf-art { flex: none; }
+/* 0.4.31 (panel 0428 item 7): at 1366 only Website, Image, Video and part of Campaign showed; the five file choices
+   started off screen. On a wide window (1000 px and up) the ten cards sit in two rows of five, smaller, so every
+   choice is on screen; the arrows hide on their own because the row no longer scrolls. A phone keeps the swipe row. */
+@media (min-width: 1000px) {
+  body[data-style="mac"] #mac-flow .mf-paths { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; overflow: visible; scroll-snap-type: none; padding: 6px 4px 12px; }
+  body[data-style="mac"] #mac-flow .mf-paths .mf-path { width: auto; min-width: 0; min-height: 150px; padding-bottom: 10px; }
+  body[data-style="mac"] #mac-flow .mf-paths .mf-art { height: 72px; }
+  body[data-style="mac"] #mac-flow .mf-paths .mf-path b { font-size: 16px; padding-top: 8px; }
+  body[data-style="mac"] #mac-flow .mf-swipe { display: none; }
+}
