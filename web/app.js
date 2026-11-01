@@ -669,8 +669,11 @@ function onMission(m) {
         const failed = m.status === "failed";
         const practice = String(m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "").startsWith("demo-");
         const costWord = practice || !(cost > 0) ? "Free" : money(m.cost, 4);
-        const base = replyTurns(m) > 0 ? `Reply in · ${costWord}` : `${noun} ${stateWord} · ${costWord}`;
-        toast(failed && m.error ? m.error : base, failed);
+        const base = replyTurns(m) > 0 ? `Reply ready · ${costWord}` : `${noun} ${stateWord} · ${costWord}`;
+        // 0.4.37 (Chris: "Expert mode's interface is a lot cleaner"): on the Simple chat page the answer is already in
+        // the conversation, so a "done" toast only covers it; a failure still shows
+        const onChat = S.uiMode === "simple" && S.view === "command" && !failed;
+        if (!onChat) toast(failed && m.error ? m.error : base, failed);
       }
       maybeNotifyFinish("Meldmind finished a run", m.status === "failed" && cost === 0 ? "Nothing was charged" : `${noun} ${stateWord}`);
     }
@@ -694,7 +697,7 @@ function onCouncil(c) {
     if (S.live.finishStamp !== stamp) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
-      toast(replyTurns(c) > 0 ? `Reply in · ${money(c.cost, 4)}` : `Council done · ${money(c.cost, 4)}`);
+      toast(replyTurns(c) > 0 ? `Reply ready · ${money(c.cost, 4)}` : `Council done · ${money(c.cost, 4)}`);
       maybeNotifyFinish("Meldmind finished a run", "Council done");
     }
   }
