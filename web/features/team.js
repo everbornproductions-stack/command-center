@@ -52,6 +52,8 @@ function reload() {
 // ---------- the page ----------
 export async function renderTeamPage(view, helpers) {
   st.helpers = helpers || st.helpers;
+  // the Simple menu's Team item says which page is open
+  document.getElementById("side-team")?.setAttribute("aria-current", "page");
   st.view = view;
   const focus = String(S().navFocus || "");
   const fm = focus.match(/data-team-tab=['"]?(\w+)/);
@@ -251,11 +253,12 @@ function wireTeam(root) {
       e.preventDefault();
       const text = form.querySelector("#td-text").value.trim();
       if (!text) return toast("Say what to do each time.", true);
+      const addBtn = form.querySelector("#td-add"); if (addBtn) addBtn.disabled = true; // one duty per press
       try {
         const r = await api(`/team/agents/${encodeURIComponent(a.id)}/duties`, { method: "POST", body: { text, every: every.value, day: every.value === "day" ? undefined : Number(day.value), time: form.querySelector("#td-time").value || "09:00", capUsd: Number(form.querySelector("#td-cap").value) || 1, projectId: currentProject() } });
         toast(`Duty added: ${r.when}.`);
         st.dutyOpen = false; await load(); paintTeam();
-      } catch (err) { toast(err.message, true); }
+      } catch (err) { toast(err.message, true); if (addBtn) addBtn.disabled = false; }
     });
   }
   const duty = async (id, path, method = "POST", note = "") => { try { await api(`/schedules/${encodeURIComponent(id)}${path}`, { method }); if (note) toast(note); await load(); paintTeam(); } catch (e) { toast(e.message, true); } };
@@ -416,7 +419,7 @@ function deliverableRender(el, run) {
   const text = run?.deliverable || "";
   if (!run?.id || !String(text).trim()) { el.innerHTML = ""; return; }
   el.innerHTML = `<button type="button" class="btn sm" id="tm-give-answer" title="Hand this answer and its request to someone on your team. It lands on their desk.">Give to an agent</button>`;
-  el.querySelector("button").addEventListener("click", () => giveAnswer({ prompt: run.mission?.prompt || run.council?.prompt || run.mission?.goal || S().lastPrompt || "", answer: text }));
+  el.querySelector("#tm-give-answer").addEventListener("click", () => giveAnswer({ prompt: run.mission?.prompt || run.council?.prompt || run.mission?.goal || S().lastPrompt || "", answer: text }));
 }
 // The Expert chat page says who you are chatting with (Simple shows it under the chat box).
 function commandRender(el) {
