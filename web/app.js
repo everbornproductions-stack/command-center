@@ -1840,7 +1840,7 @@ function scPrompt(l) {
 }
 // The quick changes under a reply. Each one is the next message in this chat.
 function scQuickHtml(turn) {
-  return `<div class="sc-quick" role="group" aria-label="Make changes">${REPLY_CHANGES.map((c) => `<button type="button" class="btn sm" data-sc-quick="${esc(c.id)}" data-turn="${turn}">${esc(c.label)}</button>`).join("")}<button type="button" class="btn sm" data-sc-quick="other" data-turn="${turn}">Something else</button></div>`;
+  return `<div class="sc-quick" role="group" aria-label="Make changes">${REPLY_CHANGES.map((c) => `<button type="button" class="btn sm" data-sc-quick="${esc(c.id)}" data-turn="${turn}">${esc(c.label)}</button>`).join("")}<button type="button" class="btn sm" data-sc-quick="other" data-turn="${turn}">Something else</button><button type="button" class="btn sm" data-sc-give data-turn="${turn}">Give to an agent</button></div>`;
 }
 // Long code inside an answer folds: the card stays short and the code opens under the answer when clicked.
 function scFoldCode(el) {
@@ -1967,6 +1967,9 @@ function onSimpleChatClick(e) {
   const tryChip = t.closest?.("[data-sc-try]");
   if (tryChip) { const c = CHAT_EMPTY.chips.find((x) => x.id === tryChip.dataset.scTry); if (c) scFillBox(c.text); return; }
   if (t.closest?.("#sc-new")) { if (window.CC.layout?.newChat) window.CC.layout.newChat(); else { S.live = newLive(); S.lastOrders = ""; render(); } return; }
+  // 0.4.39 (Chris: agents as a team): Give to an agent, under a reply's Make changes (web/features/team.js)
+  const give = t.closest?.("[data-sc-give]");
+  if (give) { const l = S.live || {}, i = Number(give.dataset.turn), turns = scTurns(l); const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user"); window.CC.team?.giveAnswer?.({ prompt: ask?.text || scPrompt(l), answer: scTurnText(turns[i]) }); return; }
   const quick = t.closest?.("[data-sc-quick]");
   if (quick) {
     if (quick.dataset.scQuick === "other") { $("#orders")?.focus(); return; }
@@ -2779,6 +2782,8 @@ async function sendOrders() {
       if (S.forceFree?.provider) { packBody.provider = S.forceFree.provider; packBody.model = S.forceFree.model; S.forceFree = null; }
       // an AI employee picked from the Simple hint answers this chat with its script
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
+      // 0.4.39 (Chris: agents as a team): Chat with it on a Team desk picks the agent in Expert too
+      else if (S.employee?.team && S.employee?.id) packBody.employee = S.employee.id;
       const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;
       const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...searchOpts, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       S.stopId = started?.runId || started?.id || "";

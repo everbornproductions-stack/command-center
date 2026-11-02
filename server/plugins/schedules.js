@@ -14,6 +14,7 @@
 // Hosted: the Cloudflare cron calls POST /api/internal/schedules/tick (server/schedule-tick.js).
 import * as S from "../schedules.js";
 import * as A from "../custom-agents.js";
+import * as E from "../employees.js";
 import { raise } from "./alerts.js";
 import { scheduler } from "../perf/scheduler.js";
 
@@ -35,7 +36,9 @@ async function runOne(h, s, { prompt, runId, budgetUsd }) {
     const ok = m.status === "done" || m.status === "done-with-errors";
     return { status: ok ? "done" : "failed", cost: m.cost, missionId: m.id, deliverable: m.deliverable || "", error: ok ? null : m.error || `The mission ended as ${m.status}.` };
   }
-  const opts = s.target.kind === "agent" ? A.runOptions(agentOf(s.target.agentId), { prompt, projectId }) : { prompt, projectId };
+  // 0.4.39 (Chris: agents as a team): a duty on an AI employee's desk runs that employee ("emp-<id>")
+  const emp = s.target.kind === "agent" && String(s.target.agentId).startsWith("emp-") ? E.getEmployee(String(s.target.agentId).slice(4)) : null;
+  const opts = emp ? E.employeeRunOptions(emp.id, { prompt, projectId }) : s.target.kind === "agent" ? A.runOptions(agentOf(s.target.agentId), { prompt, projectId }) : { prompt, projectId };
   const m = await h.runChat({ ...opts, runId });
   return { status: m.status === "done" ? "done" : "failed", cost: m.cost, missionId: m.id, deliverable: m.deliverable || "", error: m.error || null };
 }
@@ -64,7 +67,7 @@ export function init(h) {
 
 const createOpts = (h, body) => {
   if (body?.target?.kind === "mission") h.guard("missions"); // missions are a Pro feature; the schedule is refused up front
-  return { agentExists: (id) => !!A.getAgent(id) };
+  return { agentExists: (id) => !!A.getAgent(id) || (String(id).startsWith("emp-") && !!E.getEmployee(String(id).slice(4))) };
 };
 
 export async function routes(req, res, url, body, h) {
@@ -73,7 +76,7 @@ export async function routes(req, res, url, body, h) {
   const m = req.method;
   try {
     if (m === "GET" && p === "/") {
-      return h.json(res, 200, { items: S.listSchedules(), runs: S.listRuns({ limit: 100 }).map(S.publicRun), agents: A.listAgents().map((a) => ({ id: a.id, name: a.name, noSend: a.noSend === true })), note: h.HOSTED ? HOSTED_NOTE : S.NOTE, limits: S.LIMITS, statusLabel: S.STATUS_LABEL, defaultCap: S.DEFAULT_CAP });
+      return h.json(res, 200, { items: S.listSchedules(), runs: S.listRuns({ limit: 100 }).map(S.publicRun), agents: [...A.listAgents().map((a) => ({ id: a.id, name: a.name, noSend: a.noSend === true })), ...E.teamList().map((e) => ({ id: `emp-${e.id}`, name: e.name, noSend: true }))], note: h.HOSTED ? HOSTED_NOTE : S.NOTE, limits: S.LIMITS, statusLabel: S.STATUS_LABEL, defaultCap: S.DEFAULT_CAP });
     }
     if (m === "POST" && p === "/") { h.guard("scheduler"); return h.json(res, 200, S.createSchedule(body || {}, createOpts(h, body))); }
     if (seg[0] === "runs") {

@@ -120,7 +120,8 @@ test("the create box sits at the top of the Agents page with every field, not be
   const src = read("web/features/agents.js");
   const box = src.slice(src.indexOf("function createBox"), src.indexOf("function wireCreate"));
   assert.ok(box.includes("Create your own agent"), "the box has its heading");
-  assert.match(src, /\$\{createBox\(\)\}\$\{employeesPanel\(\)\}/, "the box renders first, above the page body");
+  // 0.4.39: the Agents page became Team; the create box now leads its My agents tab, right under the explainer
+  assert.match(src, /\$\{agentsExplainerHtml\(explainOpen\(\)\)\}\$\{createBox\(\)\}<div id="ag-root"/, "the box renders first on My agents, above the page body");
   for (const id of ["ac-name", "ac-job", "ac-when", "ac-cap", "ac-nosend"]) assert.ok(box.includes(`id="${id}"`), `field ${id} is in the box`);
   assert.equal(box.includes("<details"), false, "nothing is folded away");
   assert.equal(/More options|Pro only|Upgrade/.test(box), false, "no More options fold and no Pro popup");
