@@ -28,7 +28,8 @@ test("a page loads its module, and Light mode leaves Command extras unloaded", (
   assert.ok(command.includes("walkthrough"));
   assert.equal(light.includes("search"), false);
   assert.equal(light.includes("schedules"), false);
-  assert.equal(light.length, 0);
+  // 0.4.38 (panel 0436 item 2): the answer check is the one module Light mode still loads on Chat
+  assert.deepEqual(light, ["answer-check"]);
   for (const id of shellIds()) {
     assert.equal(command.includes(id), false);
     assert.ok(shellIds().includes("help"));

@@ -214,6 +214,9 @@ export function idsFor(view, { light = false } = {}) {
   if (name === "command" && !light) {
     for (const f of FEATURES) if (f.home || f.deliverable || f.listen) add(f);
   }
+  // 0.4.38 (panel 0436 item 2): Light mode skips the answer's extra panels but not the answer check (0.4.36 let it through
+  // in renderExtras, but it was never loaded here, so it never showed)
+  if (name === "command" && light) for (const f of FEATURES) if (f.id === "answer-check") add(f);
   return out;
 }
 
