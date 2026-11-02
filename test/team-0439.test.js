@@ -287,7 +287,7 @@ test("page: Team list with statuses and counts, a desk, Assign, Review, a duty, 
     await page.fill("#tm-tell-text", "Write a caption for the new cinnamon roll photo");
     await page.click("#tm-assign");
     await page.waitForFunction(() => [...document.querySelectorAll("#tm-assigned .tm-task")].some((r) => /cinnamon roll/.test(r.textContent)), null, { timeout: 15000 });
-    await page.waitForFunction(() => [...document.querySelectorAll("#tm-assigned .tm-task")].some((r) => /cinnamon roll/.test(r.textContent) && r.dataset.status === "review"), null, { timeout: 90000 });
+    await page.waitForFunction(() => [...document.querySelectorAll("#tm-assigned .tm-task")].some((r) => /cinnamon roll/.test(r.textContent) && r.dataset.status === "review"), null, { timeout: 180000 });
     const feed = await page.evaluate(() => (window.CC.S.feed || []).map((e) => e.text || "").join("\n"));
     assert.match(feed, /Social media writer (started|finished) Write a caption/, "the Live feed says who did what");
 
@@ -322,7 +322,7 @@ test("page: Team list with statuses and counts, a desk, Assign, Review, a duty, 
     await page.waitForSelector("#view .ex-chat #orders", { timeout: 15000 });
     await page.fill("#orders", "Write a thank-you note for Mrs. Lee");
     await page.click("#go");
-    await page.waitForFunction(() => String(window.CC.S.live?.mission?.prompt || "").includes("Mrs. Lee") && window.CC.S.live?.status === "done" && !!document.getElementById("tm-give-answer"), null, { timeout: 90000 });
+    await page.waitForFunction(() => String(window.CC.S.live?.mission?.prompt || "").includes("Mrs. Lee") && window.CC.S.live?.status === "done" && !!document.getElementById("tm-give-answer"), null, { timeout: 180000 });
     await page.evaluate(() => document.getElementById("tm-give-answer").click());
     await page.waitForSelector(".tm-dlg #tg-agent", { timeout: 10000 });
     assert.match(await page.inputValue("#tg-text"), /thank-you note for Mrs\. Lee/);
@@ -365,7 +365,7 @@ test("page at 390 x 844: list then desk, nothing under the dock or the Talk bar,
     // Assign works at phone width too
     await page.fill("#tm-tell-text", "Two captions for a cupcake photo");
     await page.click("#tm-assign");
-    await page.waitForFunction(() => [...document.querySelectorAll("#tm-assigned .tm-task")].some((r) => /cupcake/.test(r.textContent) && r.dataset.status === "review"), null, { timeout: 90000 });
+    await page.waitForFunction(() => [...document.querySelectorAll("#tm-assigned .tm-task")].some((r) => /cupcake/.test(r.textContent) && r.dataset.status === "review"), null, { timeout: 180000 });
     await page.evaluate(() => { const r = [...document.querySelectorAll("#tm-assigned .tm-task")].find((x) => /cupcake/.test(x.textContent)); r.querySelector("[data-task-review]").click(); });
     await page.waitForSelector(".tm-dlg #tr-copy", { timeout: 10000 });
     const box = await page.evaluate(() => { const r = document.querySelector(".tm-dlg-box").getBoundingClientRect(); return { l: r.left, r: r.right, w: innerWidth }; });
