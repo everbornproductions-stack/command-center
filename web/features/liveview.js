@@ -439,7 +439,9 @@ function cmdInner(view) {
   </div>`;
 }
 function mountOpsButton() {
-  const ops = document.querySelector(".panel.ops");
+  // 0.4.38 (Chris: Expert Command as a chat): #ops-panel sits in the Expert answer card now (not a .panel); the foot
+  // shows on the Live Ops page, and the card has its own Open live view link in its header
+  const ops = document.querySelector("#ops-panel, .panel.ops");
   if (!ops) return;
   let foot = ops.querySelector(".lv-ops-foot");
   if (!foot) {

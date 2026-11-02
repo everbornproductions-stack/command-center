@@ -28,7 +28,8 @@ test("a page loads its module, and Light mode leaves Command extras unloaded", (
   assert.ok(command.includes("walkthrough"));
   assert.equal(light.includes("search"), false);
   assert.equal(light.includes("schedules"), false);
-  assert.equal(light.length, 0);
+  // 0.4.38 (panel 0436 item 2): the answer check is the one module Light mode still loads on Chat
+  assert.deepEqual(light, ["answer-check"]);
   for (const id of shellIds()) {
     assert.equal(command.includes(id), false);
     assert.ok(shellIds().includes("help"));
@@ -107,7 +108,7 @@ test("startup files do not require a heavy module, and the installer budget hold
   const pkg = JSON.parse(read("package.json"));
   const names = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
   assert.deepEqual(heavySpecifiers(names), []);
-  assert.equal(pkg.version, "0.4.37");
+  assert.equal(pkg.version, "0.4.38");
 
   const yml = read("electron-builder.yml");
   assert.match(yml, /!addons\/\*\*/);

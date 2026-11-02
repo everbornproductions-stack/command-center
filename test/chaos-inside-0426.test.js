@@ -111,7 +111,8 @@ test("source: the inside part is registered after panel, every rule is scoped to
 // ---------- paper, theme and contrast ----------
 
 const TEXT = [
-  "#view .cx-head .cx-title", "#view .cx-head .cx-sub", "#view .panel > h3", "#view .panel > h3 .right", "#view .dim", "#view .muted", "#view .hint",
+  // 0.4.38 (Chris: Expert Command as a chat): Command has no page header; its chat heading and links are measured instead
+  "#view .cx-head .cx-title", "#view .cx-head .cx-sub", "#view .ex-hello", "#view .ex-sub", "#view .ex-link", "#view .panel > h3", "#view .panel > h3 .right", "#view .dim", "#view .muted", "#view .hint",
   "#view .btn.primary", "#view #go", "#view .btn:not(.primary)", "#view .chip", "#view .seg button", "#view label.lbl",
   "#view .kpi .k .v", "#view .kpi .k .l", "#view .kpi .k .s",
   "#app .feed .feed-head > span", "#app .feed .ev .who", "#app .feed .ev .txt", "#app .feed .ev .t",
@@ -135,15 +136,17 @@ test("contrast: the Expert inside text is at least 4.5:1 on the painted pixels i
         assert.deepEqual(low(list), [], `${theme} ${v}`);
       }
       // The ones the brief names were really measured.
-      for (const want of ["Command", "Credits", "Send orders", "API spend", "$0.00"]) {
+      for (const want of ["Marching orders", "Credits", "Send orders", "API spend", "$0.00"]) {
         assert.ok([...seen].some((s) => s.startsWith(want)), `${theme}: measured "${want}"`);
       }
     } finally { await t.close(); }
   }
 });
 
-test("paper: the inside is opaque with no blur, and its theme follows the Mac button (body[data-theme]), not the classic theme", { skip }, async () => {
-  // Classic theme light under a dark Mac window, then classic dark under a light Mac window.
+// 0.4.38 (Chris: "we need consistency throughout"): the Mac button and the theme in Settings > Look are one setting now,
+// so pressing the Mac button sets both; this used to check that they could differ, which is what made his menu unreadable
+test("paper: the inside is opaque with no blur, and the Mac button sets the one theme (html and body agree)", { skip }, async () => {
+  // Classic theme light, then the Mac button to dark; classic dark, then the Mac button to light.
   for (const [classic, mac, card, canvas] of [["light", "dark", "rgb(17, 24, 39)", "rgb(11, 15, 23)"], ["dark", "light", "rgb(255, 255, 255)", "rgb(249, 250, 251)"]]) {
     const t = await bootNew({ theme: classic, width: 1440, height: 900 });
     try {
@@ -162,7 +165,7 @@ test("paper: the inside is opaque with no blur, and its theme follows the Mac bu
           icon: cs("#view .kpi .k", "::before").width,
         };
       });
-      assert.equal(got.html, classic);
+      assert.equal(got.html, mac, "the Mac button changed the saved theme too");
       assert.equal(got.body, mac);
       assert.equal(got.app, canvas, "opaque canvas in the Mac theme");
       assert.equal(got.panel, card, "cards follow the Mac theme");
@@ -210,7 +213,8 @@ test("Simple: nothing changes (computed styles the same with the inside part on 
     assert.deepEqual(diff(r), [], "Simple changed");
     // Expert and back: the header, notice row and letter squares go away again, and the bars are back where they were.
     await toExpert(t);
-    await go(t, "command");
+    // 0.4.38: Command is the chat page now (no header); Projects keeps one
+    await go(t, "projects");
     assert.ok(await t.page.$("#view > .cx-head"), "Expert has the header");
     await t.page.click("#mac-simple");
     await t.page.waitForFunction(() => document.body.dataset.ui === "simple", null, { timeout: WAIT });
@@ -240,7 +244,8 @@ test("header: Command, Projects, Credits and Settings get a page header that sur
   const t = await bootNew({ theme: "dark", width: 1440, height: 900 });
   try {
     await toExpert(t);
-    const WANT = { command: "Command", projects: "Projects", credits: "Credits", settings: "Settings" };
+    // 0.4.38 (Chris: Expert Command as a chat): Command dropped its header; Preview route and Send orders are in its box
+    const WANT = { projects: "Projects", credits: "Credits", settings: "Settings" };
     for (const [v, title] of Object.entries(WANT)) {
       await go(t, v);
       const first = () => t.page.evaluate(() => { const f = document.getElementById("view").firstElementChild; return f?.classList.contains("cx-head") ? f.querySelector(".cx-title")?.textContent : null; });
@@ -260,9 +265,11 @@ test("header: Command, Projects, Credits and Settings get a page header that sur
     await t.page.evaluate(() => { const d = document.createElement("div"); document.getElementById("view").appendChild(d); d.remove(); });
     await t.page.waitForTimeout(400);
     assert.equal(await t.page.evaluate(() => document.activeElement?.id), "orders", "focus stays in the orders box");
-    const proxies = await t.page.evaluate(() => [...document.querySelectorAll("#view > .cx-head [data-cx-for]")].map((b) => [b.dataset.cxFor, b.textContent.trim(), b.hidden]));
-    assert.deepEqual(proxies, [["preview", "Preview route", false], ["go", "Send orders", false]]);
-    // The Finish, Momentum and Project tools bars sit in one notice row above the page.
+    // 0.4.38: no header and no notice row over the Command chat; Preview route and Send orders are in its box
+    const cmd = await t.page.evaluate(() => ({ head: !!document.querySelector("#view > .cx-head"), notes: !!document.querySelector("#app .view-col > .cx-notes"), inBox: ["preview", "go"].every((id) => !!document.getElementById(id)?.closest(".ex-box")) }));
+    assert.deepEqual(cmd, { head: false, notes: false, inBox: true });
+    // The Finish, Momentum and Project tools bars sit in one notice row above the page (Images).
+    await go(t, "images");
     const notes = await t.page.evaluate(() => { const box = document.querySelector("#app .view-col > .cx-notes"); return box ? [...box.children].map((c) => c.id) : null; });
     // 0.4.27: the row also holds its own More button (cx-notes-more), which opens the row on a short window.
     if (notes) assert.ok(notes.every((id) => ["fpbar", "mmbar", "projbar", "cx-notes-more"].includes(id)) && notes.some((id) => id !== "cx-notes-more"), `notice row holds ${notes}`);
@@ -443,7 +450,8 @@ test("notice row: at 1440 wide the Finish, Momentum and Project tools chips fit 
     try {
       await toExpert(t);
       await macTheme(t, theme);
-      await go(t, "command");
+      // 0.4.38 (Chris: Expert Command as a chat): the Command chat has no notice row; Images keeps it
+      await go(t, "images");
       await t.page.waitForSelector("#app .cx-notes #projbar", { timeout: WAIT });
       await t.page.waitForTimeout(800);
       const got = await t.page.evaluate(() => {

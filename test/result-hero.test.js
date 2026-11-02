@@ -111,7 +111,8 @@ test("the result card for a site shows Publish when a place is connected, and a 
       window.CC.resultHero.addButton({ id: "demo-hook", label: "Hook button", onClick() {} });
       window.CC.api = window.CC.api; // channels come from the real server: none connected in a fresh data folder
       window.CC.resultHero.mount(host, { kind: "site", text: "<!doctype html><html><body>Hi</body></html>", name: "Test site" });
-      await new Promise((r) => setTimeout(r, 800));
+      // a real wait for the card (a fixed 0.8 s was too short on the CI runner)
+      for (let i = 0; i < 80 && !host.querySelector(".rh-card iframe"); i++) await new Promise((r) => setTimeout(r, 100));
       const card = host.querySelector(".rh-card");
       return { has: !!card, main: card?.querySelector(".rh-main")?.textContent, hook: [...card.querySelectorAll(".rh-more-row button")].map((b) => b.textContent), iframe: !!card.querySelector("iframe") };
     });

@@ -155,19 +155,20 @@ test("item 8: Expert at 1366 x 800, the Deliverable is at least 420 px wide once
     await toExpert(t);
     await t.page.evaluate(() => window.CC.go("command"));
     await t.page.waitForSelector("#orders", { timeout: WAIT });
-    const before = await t.page.evaluate(() => getComputedStyle(document.querySelector("#view > .cmd")).gridTemplateColumns.split(" ").length);
-    assert.equal(before, 2, "two columns while there is no answer");
+    // 0.4.38 (Chris: Expert Command as a chat): one chat column, no side columns; the answer card (#ex-answer) took the
+    // place of #deliv-panel and keeps the width and the one-line "Written by" head this test guards
+    assert.equal(await t.page.evaluate(() => !!document.querySelector("#view > .ex-chat") && !document.querySelector("#view > .cmd")), true, "the Command chat page");
     await t.page.fill("#orders", "Plan a bake sale for Saturday with a full list of steps");
     await t.page.click("#go");
-    await t.page.waitForFunction(() => ["done", "done-with-errors"].includes(window.CC.S.live?.status) && !document.getElementById("deliv-panel").hidden, null, { timeout: RUN });
+    await t.page.waitForFunction(() => ["done", "done-with-errors"].includes(window.CC.S.live?.status) && !document.getElementById("ex-answer").hidden, null, { timeout: RUN });
     await settled(t);
     const card = await t.page.evaluate(() => {
-      const p = document.getElementById("deliv-panel"), head = document.getElementById("out-head");
+      const p = document.querySelector("#ex-answer .sc-card"), head = document.getElementById("out-head");
       const lh = parseFloat(getComputedStyle(head).lineHeight) || 18;
       return { ui: document.body.dataset.ui, w: Math.round(p.getBoundingClientRect().width), headLines: Math.round(head.getBoundingClientRect().height / lh), headText: head.textContent.trim() };
     });
     assert.equal(card.ui, "expert");
-    assert.ok(card.w >= 420, `#deliv-panel is ${card.w} px wide`);
+    assert.ok(card.w >= 420, `the answer card is ${card.w} px wide`);
     assert.match(card.headText, /Written by/);
     assert.ok(card.headLines <= 1, `"${card.headText}" takes ${card.headLines} lines`);
     assert.deepEqual(t.errors, []);
@@ -244,9 +245,12 @@ test("item 11d: Expert at 390, the task box is clear of the Talk bar at load and
       const v = document.getElementById("view"), o = document.getElementById("orders").getBoundingClientRect(), bar = document.getElementById("vt-bar");
       const b = bar && !bar.hidden ? bar.getBoundingClientRect() : null;
       const hit = document.elementFromPoint(o.left + 20, o.bottom - 4);
-      return { pad: parseFloat(getComputedStyle(v).paddingBottom), barH: b ? Math.round(b.height) : 0, overlap: b ? Math.max(0, Math.round(o.bottom - b.top)) : 0, bottomOnTop: !!hit && (hit.id === "orders" || hit.closest?.("#orders") != null) };
+      // 0.4.38 (Chris: Expert Command as a chat): the chat page ends above the Talk bar (#view stops where it starts), so
+      // it needs no bottom padding for it
+      const viewClear = !b || Math.round(v.getBoundingClientRect().bottom) <= Math.round(b.top) + 1;
+      return { pad: parseFloat(getComputedStyle(v).paddingBottom), viewClear, barH: b ? Math.round(b.height) : 0, overlap: b ? Math.max(0, Math.round(o.bottom - b.top)) : 0, bottomOnTop: !!hit && (hit.id === "orders" || hit.closest?.("#orders") != null) };
     });
-    assert.ok(r.pad >= r.barH, `#view bottom padding ${r.pad} px covers the Talk bar (${r.barH} px)`);
+    assert.ok(r.pad >= r.barH || r.viewClear, `#view bottom padding ${r.pad} px covers the Talk bar (${r.barH} px), or #view ends above it`);
     assert.equal(r.overlap, 0, "the task box does not run under the Talk bar");
     assert.equal(r.bottomOnTop, true, "the bottom of the task box is on top");
     assert.deepEqual(t.errors, []);

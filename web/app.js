@@ -172,15 +172,94 @@ async function apiBlobUrl(path) {
   return URL.createObjectURL(await r.blob());
 }
 function downloadBlob(url, filename) { const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
-function showUpgrade(message) {
+// 0.4.38 (Chris: upgrade in the app): the Pro box is where people buy. It shows the same buy buttons as Settings >
+// Your plan (plan-compare.js upgradeButtonsHtml, with the plans and pay links the server already returns), the
+// paid-watch waiting line once a pay link opens, and a small link to the license key box. A plan with no published
+// link keeps its plain "not published yet" toast (chooseProPlan). Nothing here charges, prices or calls Stripe.
+const UPGRADE_PAY_LINE = "Pay on the secure Stripe page. Meldmind unlocks by itself when it sees the payment.";
+const UPGRADE_SPLIT = {
+  free: [["monthly", "yearly"], ["extremeMonthly", "extremeYearly", "developerMonthly", "developerYearly", "lifetime"]],
+  pro: [["extremeMonthly", "extremeYearly"], ["developerMonthly", "developerYearly"]],
+  extreme: [["developerMonthly", "developerYearly"], []],
+  studio: [["developerMonthly", "developerYearly"], []],
+};
+function licenseTier() { return String(S.license?.tier || "free").toLowerCase(); }
+// The plain Upgrade entry (title bar chip, classic top bar chip) shows only on Free, once the plan is known.
+function upgradeOffered() { return !!S.license && licenseTier() === "free"; }
+function pickPlans(keys) { const p = S.proPlans || {}; const out = {}; for (const k of keys) if (p[k]) out[k] = p[k]; return out; }
+function upgradeButtonSets() {
+  const tier = licenseTier();
+  const split = UPGRADE_SPLIT[tier];
+  if (!split || !S.proPlans) return { main: "", more: "" };
+  return {
+    main: upgradeButtonsHtml({ plans: pickPlans(split[0]), tier, primary: true }),
+    more: upgradeButtonsHtml({ plans: pickPlans(split[1]), tier, primary: false }),
+  };
+}
+function closeUpgrade() { document.getElementById("cc-upgrade")?.remove(); }
+function showUpgrade(message, opts = {}) {
   if (document.getElementById("cc-upgrade")) return;
+  const { main, more } = upgradeButtonSets();
+  const title = opts.title || "That is a Pro feature";
+  // The server's gate line ends "Add a license key in Settings." The buy buttons now sit right here, so that tail is dropped.
+  const said = String(message || "").replace(/\s*Add a license key in Settings\.?\s*$/i, "").trim();
+  const words = said || (opts.title ? "Pro unlocks Mission mode, unlimited councils and projects, and the off-peak scheduler." : "This is part of Pro.");
+  const compare = planCompareHtml(S.proPlans?.compare) || compareTable(esc);
+  const waiting = PAID_WAIT[S.paidWait] || "";
+  const buy = main
+    ? `<div class="cc-up-buy" data-up-main>${main}</div>
+      ${more ? `<button type="button" class="cc-up-link" id="cc-upgrade-all" aria-expanded="false" aria-controls="cc-upgrade-more">See all plans</button><div class="cc-up-buy cc-up-more" id="cc-upgrade-more" hidden>${more}</div>` : ""}
+      <p class="dim small cc-up-pay">${esc(UPGRADE_PAY_LINE)}</p>`
+    : `<p class="dim small cc-up-pay">The plans are under Settings > Your plan.</p><div class="cc-up-buy"><button class="btn primary" type="button" id="cc-upgrade-go">Open Your plan</button></div>`;
   const box = document.createElement("div");
   box.id = "cc-upgrade";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><div class="cc-up-head"><h4 id="cc-upgrade-title">That is a Pro feature</h4><button class="btn sm" type="button" id="cc-upgrade-x" aria-label="Close this box">Close</button></div><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a license key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
+  box.innerHTML = `<div class="card" role="dialog" aria-modal="true" aria-labelledby="cc-upgrade-title"><div class="cc-up-head"><h4 id="cc-upgrade-title">${esc(title)}</h4><button class="btn sm" type="button" id="cc-upgrade-x" aria-label="Close this box">Close</button></div><p>${esc(words)}</p>
+    ${buy}
+    <div class="small cc-up-wait" data-paid-wait aria-live="polite" role="status" ${waiting ? "" : "hidden"}>${esc(waiting)}</div>
+    <div class="cc-up-foot"><button class="btn sm" type="button" data-paid-now="1" ${waiting ? "" : "hidden"}>I paid, check now</button><button type="button" class="cc-up-link" id="cc-upgrade-key">Have a license key?</button><span class="cc-up-gap"></span><button class="btn sm" type="button" id="cc-upgrade-close">Not now</button></div>
+    <div class="cc-up-compare">${compare}</div>
+    ${main && more ? `<div class="cc-up-founder">${founderSpotsHtml(S.proPlans)}</div>` : ""}</div>`;
   document.body.appendChild(box);
-  box.querySelector("#cc-upgrade-close").addEventListener("click", () => box.remove());
-  box.querySelector("#cc-upgrade-x").addEventListener("click", () => box.remove());
-  box.querySelector("#cc-upgrade-go").addEventListener("click", () => { box.remove(); S.view = "settings"; render(); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
+  bindProPlans(box);
+  // Pay links open through openPayLink (https only; the desktop app hands window.open to the default browser), and
+  // bindProPlans has already started the paid-watch, which paints the waiting line and shows I paid, check now.
+  box.querySelectorAll("[data-upgrade-link]").forEach((a) => a.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    if (!openPayLink(a.getAttribute("href"))) toast("That checkout link could not open. Nothing was charged.", true);
+  }));
+  box.querySelector("#cc-upgrade-all")?.addEventListener("click", (ev) => {
+    const list = box.querySelector("#cc-upgrade-more");
+    list.hidden = !list.hidden;
+    ev.currentTarget.setAttribute("aria-expanded", String(!list.hidden));
+    ev.currentTarget.textContent = list.hidden ? "See all plans" : "Fewer plans";
+  });
+  // Settings can draw a moment later (and once more after it loads), so the key box is focused once it is there and
+  // checked again shortly after.
+  const focusKey = (tries = 0, settled = 0) => {
+    const k = document.getElementById("lic-key");
+    if (k && k.getClientRects().length && document.activeElement !== k) { k.scrollIntoView({ block: "center" }); k.focus(); }
+    const ok = !!k && document.activeElement === k;
+    if (tries < 50 && (!ok || settled < 5)) setTimeout(() => focusKey(tries + 1, ok ? settled + 1 : 0), 100);
+  };
+  const toKey = () => { closeUpgrade(); S.connectWizard = false; S.openProject = null; openSettingsMore("#settings-plan"); setTimeout(focusKey, 50); };
+  box.querySelector("#cc-upgrade-key").addEventListener("click", toKey);
+  box.querySelector("#cc-upgrade-go")?.addEventListener("click", toKey);
+  box.querySelector("#cc-upgrade-close").addEventListener("click", closeUpgrade);
+  box.querySelector("#cc-upgrade-x").addEventListener("click", closeUpgrade);
+  box.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); closeUpgrade(); } });
+  box.addEventListener("click", (e) => { if (e.target === box) closeUpgrade(); });
+  (box.querySelector("[data-up-main] .btn") || box.querySelector("#cc-upgrade-x"))?.focus({ preventScroll: true });
+}
+// The Upgrade chip, Simple Settings' Upgrade button and the growth box's Upgrade to Pro all open the box. A plan with
+// nothing left to buy (Developer, owner) goes to Settings > Your plan as before.
+function openUpgrade() {
+  if (!UPGRADE_SPLIT[licenseTier()] || !S.proPlans) { openSettingsMore("#settings-plan"); return; }
+  showUpgrade("", { title: licenseTier() === "free" ? "Upgrade to a paid plan" : "Upgrade your plan" });
+}
+// Classic top bar chip (index.html #cc-upgrade-chip). The Mac title bar paints its own copy (mac/parts/shell.js).
+function paintUpgradeChip() {
+  const chip = document.getElementById("cc-upgrade-chip");
+  if (chip && chip.hidden === upgradeOffered()) chip.hidden = !upgradeOffered();
 }
 function toastNeedKey() {
   noteToast();
@@ -226,6 +305,29 @@ function toast(msg, err = false, link = null, ttl = 0) {
 //  - Expert with no Live feed column (1024 x 768): bottom right, just above the chat dock and the Talk bar, off the
 //    page's own buttons at the top right.
 // Expert with the Live feed column keeps the 0.4.31 place (top right, over the feed). The Pro box rule still wins.
+const CHAT_GUARD = "#view :is(.sc-chat, .ex-chat) :is(.sc-acts button, .sc-changes button, .sc-changes select, .sc-box, .ex-box, .sc-quick button, #sc-live)";
+function chatToastClear() {
+  const vis = (r) => r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight;
+  const toasts = [...document.querySelectorAll("#toasts .toast")].map((e) => e.getBoundingClientRect()).filter(vis);
+  if (!toasts.length) return true;
+  const guard = [...document.querySelectorAll(CHAT_GUARD)].map((e) => e.getBoundingClientRect()).filter(vis);
+  return !toasts.some((s) => guard.some((r) => s.left < r.right && r.left < s.right && s.top < r.bottom && r.top < s.bottom));
+}
+function placeChatToast(body) {
+  const box = document.querySelector("#view .sc-chat .sc-box, #view .ex-chat .ex-box, #view .sc-chat .orders");
+  const spots = [
+    () => { delete body.dataset.toastAt; },
+    () => { body.dataset.toastAt = "top-right"; },
+    () => {
+      const r = box?.getBoundingClientRect();
+      if (!r || !r.height) return false;
+      body.style.setProperty("--cc-toast-bottom", `${Math.max(8, Math.round(innerHeight - r.top + 8))}px`);
+      body.dataset.toastAt = "bottom";
+    },
+  ];
+  for (const spot of spots) { if (spot() !== false && chatToastClear()) return; }
+  delete body.dataset.toastAt;
+}
 function placeToasts() {
   const body = document.body;
   if (body.dataset.style !== "mac") { delete body.dataset.toastAt; return; }
@@ -240,7 +342,11 @@ function placeToasts() {
     return true;
   };
   // 0.4.37 (Chris: Simple chat layout): on a phone the Simple chat box sits right above the Talk bar, so toasts go to the top
-  if (phone && simple && document.querySelector("#view .sc-chat")) { delete body.dataset.toastAt; return; }
+  // 0.4.38 (0.4.37 panel item 4: "Saved ..." landed on Try again, under the Next bar that 0.4.37 moved into Make changes):
+  // on a chat page (Simple, and the Expert chat) toasts start at the top of the window and never sit on an answer's
+  // buttons, the Make changes fold or the chat box. If the top spot covers one, they try the top right corner, then
+  // just above the chat box (placeChatToast).
+  if (document.querySelector("#view .sc-chat, #view .ex-chat")) { placeChatToast(body); return; }
   if (phone) { if (!bottomAbove(["#vt-bar"])) delete body.dataset.toastAt; return; }
   if (simple) {
     const bars = ["#mac-titlebar", "#notices", "#fpbar", "#mmbar", "#projbar"].map((s) => shown(document.querySelector(s))).filter((r) => r && r.top < innerHeight * 0.4);
@@ -1096,6 +1202,7 @@ function pageFailed(view) {
 }
 function render() {
   if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
+  paintUpgradeChip(); // 0.4.38 (Chris: upgrade in the app): the classic top bar Upgrade chip, Free only
   document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
   const cc = window.CC;
   const light = !!S.settings?.lightMode;
@@ -1590,7 +1697,8 @@ function mergedSingleTurns(run) {
   return [...(run?.answerThread || []), ...(run?.thread || [])].filter(Boolean).sort((a, b) => (a.at || 0) - (b.at || 0));
 }
 // 0.4.21: the Free only switch next to Send (the same setting as Settings and the Get free AIs card)
-function freeOnlyHtml() { const on = !!S.freeOnly?.on; return `<label class="row small cc-freeonly" id="cc-freeonly-wrap" style="gap:6px;white-space:nowrap" title="On: only AIs on this PC and free allowances are used. Nothing is charged."><input type="checkbox" id="cc-freeonly" ${on ? "checked" : ""}> Free only (never spend money)</label>`; }
+// 0.4.38 (Chris: Expert Command as a chat): short = "Free only" in the Expert chat box row; the tip says the rest
+function freeOnlyHtml(short = false) { const on = !!S.freeOnly?.on; return `<label class="row small cc-freeonly" id="cc-freeonly-wrap" style="gap:6px;white-space:nowrap" title="On: only AIs on this PC and free allowances are used. Nothing is charged."><input type="checkbox" id="cc-freeonly" ${on ? "checked" : ""}> ${short ? "Free only" : "Free only (never spend money)"}</label>`; }
 // 0.4.21: Auto picks the mode and says so in one plain line; the picker is under More options in Simple too
 const AUTO_MODES = [["auto", "Auto", "Meldmind picks Single, Mission or Council for you"], ["single", "Single", "One AI answers"], ["council", "Council", "Several AIs answer and one writes the verdict"], ["mission", "Mission", "Plan, split across AIs, check, assemble"]];
 function teamLabel() { const m = AUTO_MODES.find((x) => x[0] === (S.simpleRunMode || "auto")); return m && m[0] !== "auto" ? `${esc(m[1])} mode` : "Auto team"; }
@@ -1617,6 +1725,16 @@ function scEmptyHtml() {
       <div class="sc-starters" id="cc-starters" role="group" aria-label="Try one">${CHAT_EMPTY.chips.map((c) => `<button type="button" class="sc-try" data-sc-try="${esc(c.id)}">${esc(c.label)}</button>`).join("")}</div>
     </div>`;
 }
+// 0.4.38 (0.4.37 panel item 6: "Make changes opens 38 controls in one block, three of them covered"): the first answer's
+// Make changes starts short. "Change the answer" has the same quick changes a reply gets; "Check, save or finish" shows
+// Double-check, Change this part, Add to project and Looks good, Finish (chat.css hides the rest while the fold is
+// short). "All options" shows every other action in place (nothing is removed) and "Fewer options" folds them again.
+function scChangesTop(all) {
+  return `<div class="sc-grp-h">Change the answer</div>${scQuickHtml("")}<div class="sc-grp-h">Check, save or finish</div>`;
+}
+function scAllBtn(all) {
+  return `<button type="button" class="btn sm sc-all-btn" data-sc-all aria-expanded="${all ? "true" : "false"}">${all ? "Fewer options" : "All options"}</button>`;
+}
 // The four buttons. turn is "" for the first answer, or the index of a reply in the chat's thread.
 function scButtonsHtml(turn, open) {
   const t = turn === "" ? "" : ` data-turn="${turn}"`;
@@ -1624,6 +1742,7 @@ function scButtonsHtml(turn, open) {
 }
 function renderSimpleChat(v) {
   const mainOpen = !!S.scOpen?.[`main:${S.live?.id || ""}`];
+  const mainAll = !!S.scOpen?.[`all:${S.live?.id || ""}`];
   // a redraw keeps the reading place (or stays at the newest message when it was there)
   const was = $("#sc-scroll");
   const keep = was ? { top: was.scrollTop, end: was.scrollHeight - was.scrollTop - was.clientHeight < 6 } : null;
@@ -1645,10 +1764,12 @@ function renderSimpleChat(v) {
               <div id="out-follow"></div>
             </div>
             ${scButtonsHtml("", mainOpen)}
-            <div class="sc-changes" id="sc-changes" ${mainOpen ? "" : "hidden"}>
+            <div class="sc-changes${mainAll ? " sc-all" : ""}" id="sc-changes" ${mainOpen ? "" : "hidden"}>
+              ${scChangesTop(mainAll)}
               <div id="cc-answer-line" class="answer-line small"></div>
               <div id="sc-mm-slot"></div>
               <div id="deliv-extras"></div>
+              ${scAllBtn(mainAll)}
             </div>
           </div>
           <div id="sc-turns" aria-live="polite"></div>
@@ -1786,15 +1907,18 @@ function paintTurns() {
   const sig = JSON.stringify([l.id || "", turns.length, turns.map((t) => (t.text || "").length + (t.error ? "e" : "")), replying, S.scAsk || "", Object.keys(open).filter((k) => open[k] && k.startsWith(`turn:${l.id}:`))]);
   if (box.dataset.sig === sig) return;
   box.dataset.sig = sig;
+  // 0.4.38: an Expert follow-up bubble says it went on in the same run ("Mission · follow-up")
+  const exTag = box.closest(".ex-chat") ? `${EX_KIND[l.kind] || "Chat"} · follow-up` : "";
+  const me = (text) => exTag ? `<div class="sc-me ex-me"><div class="ex-tag">${esc(exTag)}</div><div class="ex-q">${esc(text)}</div></div>` : `<div class="sc-me">${esc(text)}</div>`;
   const html = turns.map((t, i) => {
-    if (t.role === "user") return `<div class="sc-me">${esc(t.text || "")}</div>`;
+    if (t.role === "user") return me(t.text || "");
     const on = !!open[`turn:${l.id}:${i}`];
     const who = t.label || (t.provider ? pname(t.provider) : "");
     const body = t.error ? `<div class="small" style="color:var(--red)">${esc(t.error)}</div>` : `<div class="md">${md(scTurnText(t))}</div>`;
     return `<div class="sc-ai sc-reply" data-turn="${i}"><div class="sc-card"><h3 class="sc-who"><b>Answer</b>${who ? `<span>${esc(who)}</span>` : ""}</h3>${body}</div>${t.error ? "" : `${scButtonsHtml(i, on)}<div class="sc-changes" ${on ? "" : "hidden"}>${scQuickHtml(i)}</div>`}</div>`;
   }).join("");
   const live = Object.values(l.agents || {}).find((a) => a?.role === "followup" && !a.done && a.text);
-  const pending = replying ? `${S.scAsk ? `<div class="sc-me">${esc(S.scAsk)}</div>` : ""}<div class="sc-ai sc-pending"><div class="sc-card"><h3 class="sc-who"><b>Answer</b><span>Writing...</span></h3><div class="reply-live md" data-reply-live="job:">${live ? md(live.text) : `<p class="dim">Writing the answer...</p>`}</div></div></div>` : "";
+  const pending = replying ? `${S.scAsk ? me(S.scAsk) : ""}<div class="sc-ai sc-pending"><div class="sc-card"><h3 class="sc-who"><b>Answer</b><span>Writing...</span></h3><div class="reply-live md" data-reply-live="job:">${live ? md(live.text) : `<p class="dim">Writing the answer...</p>`}</div></div></div>` : "";
   box.innerHTML = html + pending;
   box.querySelectorAll(".sc-reply .md").forEach(scFoldCode);
   if (S.scStick) {
@@ -1804,17 +1928,55 @@ function paintTurns() {
       const tall = last.getBoundingClientRect().height > scroller.clientHeight - 40;
       try { last.scrollIntoView({ block: tall ? "start" : "end", behavior: "auto" }); } catch { /* fine */ }
     }
+    // 0.4.38 (0.4.37 panel item 5: at 390 x 844 the newest reply's buttons ended up behind the chat box): once the
+    // reply is in, its buttons come up just above the box, like the first answer's (revealAnswer)
+    if (!replying) revealReply();
     if (!replying) S.scStick = false;
   }
 }
+// Brings the newest reply's buttons (Copy, Try again, Make changes, Save as file) into view just above the chat box.
+// It only scrolls down and never past the top of the buttons; it checks again for 3 seconds while the page settles
+// and stops as soon as the person scrolls, clicks or types.
+function revealReply() {
+  let stopped = false;
+  const events = ["wheel", "touchstart", "pointerdown", "keydown"];
+  const stop = () => { stopped = true; for (const ev of events) window.removeEventListener(ev, stop, true); };
+  for (const ev of events) window.addEventListener(ev, stop, { capture: true, passive: true });
+  const run = () => {
+    const reply = [...document.querySelectorAll("#sc-turns .sc-reply")].pop();
+    const acts = reply?.querySelector(":scope > .sc-acts");
+    if (!acts || !acts.getBoundingClientRect().height) return;
+    const scrolls = (el) => !!el && el.scrollHeight > el.clientHeight + 2 && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
+    let scroller = null;
+    for (let el = reply.parentElement; !scroller && el && el !== document.body; el = el.parentElement) if (scrolls(el)) scroller = el;
+    if (!scroller) return;
+    const sr = scroller.getBoundingClientRect();
+    const box = reply.closest(".sc-chat, .ex-chat")?.querySelector(":scope > .orders");
+    const br = box?.getBoundingClientRect();
+    const floor = br && br.top < sr.bottom && br.top > sr.top ? br.top : sr.bottom;
+    const a = acts.getBoundingClientRect();
+    const lift = Math.min(a.bottom + 10 - floor, a.top - sr.top - 8);
+    if (lift > 1) scroller.scrollBy({ top: lift, behavior: "auto" });
+  };
+  const started = Date.now();
+  const tick = () => { if (stopped) return; run(); if (Date.now() - started < 3000) setTimeout(tick, 250); else stop(); };
+  setTimeout(tick, 60);
+}
 // The parts of the Chat page that follow the run: empty or in use, the question bubble, the replies.
 function scFrame(l) {
-  const chat = $("#view .sc-chat");
+  const chat = $("#view .sc-chat") || $("#view .ex-chat");
   if (!chat) return;
   const st = scState();
   if (chat.dataset.state !== st) chat.dataset.state = st;
   const q = $("#sc-q");
-  if (q) { const p = scPrompt(l); if (q.textContent !== p) q.textContent = p; q.hidden = !p; }
+  // 0.4.38: in Expert the order bubble carries a tag line of how it ran ("Mission · Balanced · Free only")
+  if (q && chat.classList.contains("ex-chat")) {
+    const p = scPrompt(l);
+    const tag = p ? exTagLine(l) : "";
+    const sig = `${tag}\n${p}`;
+    if (q.dataset.sig !== sig) { q.dataset.sig = sig; q.innerHTML = `${tag ? `<div class="ex-tag">${esc(tag)}</div>` : ""}<div class="ex-q">${esc(p)}</div>`; }
+    q.hidden = !p;
+  } else if (q) { const p = scPrompt(l); if (q.textContent !== p) q.textContent = p; q.hidden = !p; }
   // the answer check belongs to a finished answer; a new run starts without the last one's warning
   const chk = $("#sc-check");
   if (chk?.firstChild && !REPLIED.has(l?.status)) chk.innerHTML = "";
@@ -1823,10 +1985,17 @@ function scFrame(l) {
 // 0.4.37: is this send the next message in the same chat? Only when the person typed it after a finished answer, it is
 // not a picture, video or project request, and no feature pressed Send for them (Try again and the Make something steps
 // fill the box and press Send, and those start a new answer as before).
+// 0.4.38 (Chris: Expert Command as a chat): the Expert chat goes on the same way, when the run mode picked is Auto team
+// or the same kind as the chat's run. Picking another mode (Council after a Single answer, Research, Second opinion)
+// starts a new run through Expert's own send path; the earlier chat stays in History.
 function scFollowOk(prompt) {
-  if (S.uiMode !== "simple" || S.view !== "command" || !$("#view .sc-chat")) return false;
+  if (S.view !== "command") return false;
+  const simpleChat = S.uiMode === "simple" && !!$("#view .sc-chat");
+  const expertChat = S.uiMode === "expert" && !!$("#view .ex-chat");
+  if (!simpleChat && !expertChat) return false;
   const l = S.live;
   if (!l?.id || !["single", "council", "mission"].includes(l.kind) || S.make?.active) return false;
+  if (expertChat && !["auto", l.kind].includes(S.cmdMode || "auto")) return false;
   if (!["done", "done-with-errors"].includes(l.status)) return false;
   if (!(l.deliverable || l.agents?.[l.primary]?.text)) return false;
   if (projectIntent(prompt) || window.CC.makeChat?.intent?.(prompt)) return false;
@@ -1887,6 +2056,17 @@ function onSimpleChatClick(e) {
   const tryChip = t.closest?.("[data-sc-try]");
   if (tryChip) { const c = CHAT_EMPTY.chips.find((x) => x.id === tryChip.dataset.scTry); if (c) scFillBox(c.text); return; }
   if (t.closest?.("#sc-new")) { if (window.CC.layout?.newChat) window.CC.layout.newChat(); else { S.live = newLive(); S.lastOrders = ""; render(); } return; }
+  // 0.4.38 (panel 0437 item 6): All options / Fewer options in the first answer's Make changes
+  const allBtn = t.closest?.("[data-sc-all]");
+  if (allBtn) {
+    const fold = allBtn.closest(".sc-changes");
+    const on = !fold.classList.contains("sc-all");
+    fold.classList.toggle("sc-all", on);
+    S.scOpen = { ...(S.scOpen || {}), [`all:${S.live?.id || ""}`]: on };
+    allBtn.setAttribute("aria-expanded", String(on));
+    allBtn.textContent = on ? "Fewer options" : "All options";
+    return;
+  }
   const quick = t.closest?.("[data-sc-quick]");
   if (quick) {
     if (quick.dataset.scQuick === "other") { $("#orders")?.focus(); return; }
@@ -1941,12 +2121,13 @@ function revealAnswer(id) {
   const stop = () => { stopped = true; for (const ev of events) window.removeEventListener(ev, stop, true); };
   for (const ev of events) window.addEventListener(ev, stop, { capture: true, passive: true });
   const run = () => {
-    const card = document.getElementById("simple-answer");
+    // 0.4.38: the Expert chat's answer card (#ex-answer) is brought up the same way
+    const card = document.getElementById("simple-answer") || document.getElementById("ex-answer");
     if (!card || card.hidden) return;
     // 0.4.35 (panel 0431 item 6): at phone width the chat page does not scroll itself; the page box (#view) does, with
     // the chat box at the top. Use whichever box around the answer really scrolls.
     // 0.4.37: the chat column (#sc-scroll) scrolls and the chat box sits under it, so walk up from the answer itself.
-    const chat = card.closest(".sc-chat");
+    const chat = card.closest(".sc-chat, .ex-chat");
     const box = chat?.querySelector(".orders");
     const scrolls = (el) => !!el && el.scrollHeight > el.clientHeight + 2 && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
     let scroller = null;
@@ -2013,68 +2194,171 @@ function paintStarters() {
   if (!box) return;
   box.hidden = !!($("#orders")?.value.trim() || S.live?.id);
 }
+// 0.4.38 (Chris, 2026-11-02: "In the Command, the marching orders should be more prominent? It doesn't really read as a
+// chat like Claude, GPT and Grok."): Expert Command is one conversation column like the Simple Chat page. Each order is a
+// bubble on the right with a tag line of how it ran, each answer a card under it (the steps, which AI is on each and the
+// cost so far show inside the card while it works), and the marching orders box is the chat box pinned at the bottom:
+// the run modes as pills on top (#run-mode, restyled), the text box, then Mic, Priority, When, Free only, Preview route
+// and Send orders. The old Deliverable and Live ops boxes are gone from this page: #ops-panel now sits inside the answer
+// card (the Live Ops page still adopts it) and the answer card replaces #deliv-panel. Approved mockup:
+// meldmind-dogfood/mockups/expert-chat-0438.html. Styles: web/expert-chat.css.
+const EX_KIND = { single: "Single", council: "Council", mission: "Mission", research: "Research", opinion: "Second opinion", auto: "Auto team" };
+function exPriorityLabel(m) { const raw = m === "economy" ? "savings" : m; return (PRIORITY.find((p) => p[0] === raw) || [])[1] || ""; }
+// The tag line over an order: how it ran ("Mission · Balanced · Free only"). The send stores what was picked; a chat
+// reopened from History says what the run itself records.
+function exTagLine(l) {
+  const sent = S.exSent && S.exSent.prompt === scPrompt(l) ? S.exSent : null;
+  const kind = l?.kind || sent?.mode || "";
+  const parts = [];
+  if (sent?.auto && kind && kind !== "auto") parts.push(`Auto team: ${EX_KIND[kind] || kind}`);
+  else if (kind) parts.push(EX_KIND[kind] || kind);
+  const pr = exPriorityLabel(sent?.priority || l?.mission?.mode || l?.council?.mode || "");
+  if (pr) parts.push(pr);
+  if (sent ? sent.free : !!S.freeOnly?.on) parts.push("Free only");
+  if (sent?.when === "offpeak") parts.push("Off-peak");
+  return parts.join(" · ");
+}
+function exAiCount(l) {
+  if (l?.kind === "council") return (l.council?.members || []).length + (l.council?.agents || []).length;
+  if (l?.kind === "mission" || l?.kind === "research") return new Set(Object.values(l.tasks || {}).map((t) => t.agentName || t.provider).filter(Boolean)).size;
+  return 0;
+}
+// The answer card's header line (kind, how many AIs, the cost so far, Open live view) and the steps fold.
+function paintExHead() {
+  const card = $("#ex-answer");
+  if (!card) return;
+  const l = S.live || {};
+  const busy = runBusy() || ["scheduled", "paused"].includes(l.status);
+  // the answer's buttons wait until the answer is done
+  const chat = card.closest(".ex-chat");
+  if (chat && chat.dataset.busy !== (busy ? "1" : "0")) chat.dataset.busy = busy ? "1" : "0";
+  const kind = $("#ex-kind");
+  if (kind) kind.textContent = l.id ? (EX_KIND[l.kind] || "Answer") : "Answer";
+  const n = exAiCount(l);
+  const ais = $("#ex-ais");
+  if (ais) { ais.textContent = n > 1 ? `${n} AIs` : ""; ais.hidden = n < 2; }
+  const costEl = $("#ex-cost");
+  const cost = Number(l.mission?.cost ?? l.council?.cost ?? 0);
+  if (costEl) { costEl.textContent = l.id && (cost > 0 || l.kind === "mission" || l.kind === "council") ? `${money(cost, 4)}${busy ? " so far" : ""}` : ""; costEl.hidden = !costEl.textContent; }
+  const live = $("#ex-live");
+  if (live) live.hidden = !l.id;
+  const tasks = Object.keys(l.tasks || {}).length;
+  const steps = ((l.kind === "mission" || l.kind === "research") && (tasks || busy)) || (l.kind === "council" && !!l.council);
+  const open = S.exStepsOpen?.[l.id];
+  const fold = steps && !busy && open !== true;
+  card.dataset.steps = !steps ? "none" : fold ? "fold" : "open";
+  const btn = $("#ex-steps-btn");
+  if (btn) {
+    btn.hidden = !steps || busy;
+    const what = l.kind === "council" ? "the AIs' answers" : `steps${tasks ? ` (${tasks})` : ""}`;
+    btn.textContent = fold ? `Show ${what}` : `Hide ${what}`;
+    btn.setAttribute("aria-expanded", String(!fold));
+  }
+}
+function exMoreToggle(on) {
+  const panel = $("#view .ex-panel");
+  if (!panel) return;
+  const want = on ?? !panel.classList.contains("more-open");
+  panel.classList.toggle("more-open", want);
+  S.exMoreOpen = want;
+  const b = $("#ex-more-btn");
+  if (b) { b.setAttribute("aria-expanded", String(want)); b.textContent = want ? "Fewer options" : "More options"; }
+}
 function renderCommand(v) {
   if (S.uiMode !== "expert") return renderSimpleChat(v);
   const modeSel = S.cmdMode || "auto";
+  const mainOpen = !!S.scOpen?.[`main:${S.live?.id || ""}`];
+  const mainAll = !!S.scOpen?.[`all:${S.live?.id || ""}`];
+  const was = $("#sc-scroll");
+  const keep = was ? { top: was.scrollTop, end: was.scrollHeight - was.scrollTop - was.clientHeight < 6 } : null;
+  const when = S.whenMode || "now";
   v.innerHTML = `
-  <div class="cmd">
-    <div class="orders">
-      <div class="panel orders-panel">
+  <div class="ex-chat" id="ex-chat" data-state="${scState()}">
+    <div class="sc-scroll" id="sc-scroll">
+      <div class="sc-col">
         <div id="graduate-slot"></div>
-        <h3 id="cmd-mode-banner" data-mode-banner="${esc(S.cmdShortcut || "")}">${esc(commandHeading(S.cmdShortcut, S.uiMode))} <span class="right" id="cls-hint"></span></h3>
-        <textarea id="orders" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell the team what you want. One line is enough.&#10;&#10;e.g. Plan the Instagram week for our new product launch: 5 post ideas, captions, hashtags and a posting schedule.">${esc(S.lastOrders || "")}</textarea>
-        <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
-        <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
-        <div class="small dim" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</div>
-        <div id="pp-popular"></div>
-        <label class="lbl">How to run it</label>
-        <div class="seg" id="run-mode" role="group" aria-label="How to run it">
-          <button data-m="auto" class="${modeSel === "auto" ? "on" : ""}" title="Meldmind picks Single, Mission or Council for you and says which">Auto team</button>
-          <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
-          <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
-          <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan → assign to specialists → QA → assemble">Mission${S.license?.limits?.missions ? "" : ' <span class="cc-pro-mark" aria-label="Part of Pro">Pro</span>'}</button>
-          <button data-m="research" class="${modeSel === "research" ? "on" : ""}" title="Search the web and answer with numbered sources">Research</button>
-          <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
+        <div class="sc-resume" id="sc-resume"></div>
+        <div class="ex-empty" id="ex-empty">
+          <h2 class="ex-hello" id="cmd-mode-banner" data-mode-banner="${esc(S.cmdShortcut || "")}">${esc(commandHeading(S.cmdShortcut, S.uiMode))}</h2>
+          <p class="ex-sub">Tell your AIs what you want in the box below. Pick how to run it on top of the box.</p>
+          <div id="pp-popular"></div>
+          <div id="ex-home"></div>
         </div>
-        <label class="lbl">Priority</label>
-        <div class="seg" id="cost-mode" role="group" aria-label="Priority">
-          ${PRIORITY.map(([m, label]) => `<button data-m="${m}" class="${priorityNow() === m ? "on" : ""}">${label}</button>`).join("")}
+        <div class="sc-thread" id="sc-thread">
+          <div class="sc-head"><button type="button" class="sc-new" id="sc-new" title="Start a new chat. This one stays in History.">New chat</button></div>
+          <div class="sc-me ex-me" id="sc-q" hidden></div>
+          <div class="sc-ai" id="ex-answer" data-steps="none" ${S.live?.id || S.make?.active ? "" : "hidden"}>
+            <div class="sc-card">
+              <h3 class="sc-who ex-who"><b id="ex-kind">Answer</b><span class="ex-chip" id="ex-ais" hidden></span><span class="ex-chip" id="ex-cost" hidden></span><span id="out-head"></span><span class="ex-who-acts"><button type="button" class="ex-link" id="ex-steps-btn" aria-controls="ops-panel" hidden>Hide steps</button><button type="button" class="ex-link" id="ex-live" hidden>Open live view</button></span></h3>
+              <div class="ops ex-steps" id="ops-panel">
+                <h3 class="ex-steps-h"><span class="ex-lo-title">Live ops</span> <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button></h3>
+                <div class="graph-wrap" id="graph"></div>
+                <div id="tasks" class="tasks"></div>
+                <div id="council"></div>
+              </div>
+              <div class="md" id="out-md"></div>
+              <div class="sc-check" id="sc-check"></div>
+              <div id="cc-fail-slot"></div>
+              <div id="out-follow"></div>
+            </div>
+            ${scButtonsHtml("", mainOpen)}
+            <div class="sc-changes${mainAll ? " sc-all" : ""}" id="sc-changes" ${mainOpen ? "" : "hidden"}>
+              ${scChangesTop(mainAll)}
+              <div id="sc-mm-slot"></div>
+              <div id="deliv-extras"></div>
+              ${scAllBtn(mainAll)}
+            </div>
+          </div>
+          <div id="sc-turns" aria-live="polite"></div>
         </div>
-        <label class="lbl">When</label>
-        <div class="seg" id="when-mode" role="group" aria-label="When">
-          <button data-m="now" class="${(S.whenMode || "now") === "now" ? "on" : ""}">Now</button>
-          <button data-m="offpeak" class="${S.whenMode === "offpeak" ? "on" : ""}" title="Queue the mission for the next discount window (e.g. DeepSeek off-peak, 50% off)">Off-peak</button>
-        </div>
-        <div class="row" style="margin-top:8px">
-          <label class="row small" style="gap:6px"><input type="checkbox" id="qa" ${S.settings.qa !== false ? "checked" : ""}> AI-to-AI QA</label>
-          <label class="row small" style="gap:6px;margin-left:auto">Cap $<input type="number" id="budget" value="${S.settings.missionBudget || 2}" step="0.5" min="0.1" style="width:70px;padding:4px 6px"></label>
-        </div>
-        ${projectField()}
-        <div id="route" class="route" style="margin-top:10px;display:none"></div>
-        <div id="cmd-extras"></div>
-        <div class="row" style="margin-top:auto;padding-top:10px">
-          <button class="btn" id="preview">Preview route</button>
-          <button class="btn" id="cc-get-free-expert" type="button" title="One-click links to free AI keys. Ollama and LM Studio are found by themselves.">Get free AIs</button>
-          <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
-          <span style="margin-left:auto">${freeOnlyHtml()}</span>
-          <button class="btn primary" id="go" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
-        </div>
-        <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
       </div>
     </div>
-    <div class="cmd-side">
-      <div class="panel deliv-wait" id="deliv-wait"><h3>Deliverable <span class="right">Shows here when there is a result</span></h3></div>
-      <div class="panel output" id="deliv-panel" hidden>
-        <h3>Deliverable <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
-        <div class="md" id="out-md"></div>
-        <div id="out-follow"></div>
-        <div id="deliv-extras"></div>
-      </div>
-      <div class="panel ops" id="ops-panel">
-        <h3>Live ops <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button></h3>
-        <div class="graph-wrap" id="graph"></div>
-        <div id="tasks" class="tasks"></div>
-        <div id="council"></div>
+    <div class="orders ex-orders">
+      <div class="ex-panel${S.exMoreOpen ? " more-open" : ""}">
+        <h3 class="ex-sr">Marching orders</h3>
+        <div id="route" class="route ex-route" style="display:none"></div>
+        <div class="ex-more" id="ex-more">
+          <div class="row ex-more-row">
+            <label class="row small" style="gap:6px"><input type="checkbox" id="qa" ${S.settings.qa !== false ? "checked" : ""}> AI-to-AI QA</label>
+            <label class="row small" style="gap:6px">Cap $<input type="number" id="budget" value="${S.settings.missionBudget || 2}" step="0.5" min="0.1" style="width:70px;padding:4px 6px"></label>
+            <button class="btn sm" id="cc-get-free-expert" type="button" title="One-click links to free AI keys. Ollama and LM Studio are found by themselves.">Get free AIs</button>
+          </div>
+          ${projectField()}
+          <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
+          <div id="cmd-extras"></div>
+        </div>
+        <div class="ex-box" id="ex-box">
+          <div class="seg ex-pills" id="run-mode" role="group" aria-label="How to run it">
+            <button data-m="auto" class="${modeSel === "auto" ? "on" : ""}" title="Meldmind picks Single, Mission or Council for you and says which">Auto team</button>
+            <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
+            <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
+            <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan, assign to specialists, check, put together">Mission${S.license?.limits?.missions ? "" : ' <span class="cc-pro-mark" aria-label="Part of Pro">Pro</span>'}</button>
+            <button data-m="research" class="${modeSel === "research" ? "on" : ""}" title="Search the web and answer with numbered sources">Research</button>
+            <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
+          </div>
+          <textarea id="orders" rows="2" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell your AIs what you want. One line is enough.">${esc(S.lastOrders || "")}</textarea>
+          <div class="ex-chips-slot" id="ex-chips-slot"></div>
+          <div class="ex-row" id="ex-row">
+            <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
+            <span class="ex-slot" id="ex-upload-slot"></span>
+            <select id="cost-mode" class="ex-select" aria-label="Priority">${PRIORITY.map(([m, label]) => `<option value="${m}" ${priorityNow() === m ? "selected" : ""}>${label}</option>`).join("")}</select>
+            <select id="when-mode" class="ex-select" aria-label="When"><option value="now" ${when === "now" ? "selected" : ""}>Now</option><option value="offpeak" ${when === "offpeak" ? "selected" : ""}>Off-peak</option></select>
+            ${freeOnlyHtml(true)}
+            <span class="ex-gap"></span>
+            <button type="button" class="ex-link" id="preview">Preview route</button>
+            <button class="btn sm" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
+            <button class="btn sm" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
+            <button class="btn primary" id="go" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
+          </div>
+        </div>
+        <div class="ex-help small" id="ex-help">
+          <span class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</span>
+          <span class="hint" id="send-hint" role="note">Ctrl+Enter sends.</span>
+          <span id="ex-prompts-slot"></span>
+          <button type="button" class="ex-link" id="ex-more-btn" aria-expanded="${S.exMoreOpen ? "true" : "false"}" aria-controls="ex-more">${S.exMoreOpen ? "Fewer options" : "More options"}</button>
+          <span class="right dim" id="cls-hint"></span>
+          <span class="small dim" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</span>
+        </div>
       </div>
     </div>
   </div>`;
@@ -2083,18 +2367,22 @@ function renderCommand(v) {
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0 && !quietProvider(P(pid))) graph.activate(pid, "working");
   refreshGraphUsage();
-  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdModeExplicit = true; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; if (head.firstChild) head.firstChild.textContent = `${commandHeading(S.cmdShortcut, S.uiMode)} `; } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); });
-  $("#cost-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.costMode = b.dataset.m; $$("#cost-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#cost-mode")); });
-  $("#when-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.whenMode = b.dataset.m; $$("#when-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#when-mode")); });
-  ["#run-mode", "#cost-mode", "#when-mode"].forEach((s) => markSeg($(s)));
+  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdModeExplicit = true; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; head.textContent = commandHeading(S.cmdShortcut, S.uiMode); } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); });
+  // 0.4.38: Priority and When are small selects in the chat box's bottom row (they were button rows)
+  $("#cost-mode").addEventListener("change", (e) => { S.costMode = e.target.value; });
+  $("#when-mode").addEventListener("change", (e) => { S.whenMode = e.target.value; });
+  markSeg($("#run-mode"));
   wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
-  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
+  // 0.4.38: Ctrl+Enter is the person sending, so it can go on in the same chat (see scFollowOk), as in Simple
+  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); S.sendByPerson = true; sendOrders(); } });
   $("#go").addEventListener("click", pressSend);
   $("#stop-chat")?.addEventListener("click", stopChat);
+  $("#stop-research")?.addEventListener("click", stopResearch);
   $("#preview").addEventListener("click", previewRoute);
   $("#cc-get-free-expert")?.addEventListener("click", () => window.CC.freeAis?.open?.());
-  $("#copy").addEventListener("click", () => copyDeliverable());
+  $("#ex-more-btn")?.addEventListener("click", () => exMoreToggle());
+  v.querySelector(".ex-chat").addEventListener("click", onExpertChatClick);
   $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
   $("#ops-pause")?.addEventListener("click", async () => {
     if (!S.live.id) return;
@@ -2109,8 +2397,26 @@ function renderCommand(v) {
   renderOps();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+  // a menu item that points at a tool under More options (Search, Upload) opens the fold first
+  if (S.navFocus) { const target = document.querySelector(S.navFocus); if (target?.closest("#ex-more")) exMoreToggle(true); }
   focusNavTarget();
   if (S.focusOrders) { S.focusOrders = false; $("#orders")?.focus(); }
+  const sc = $("#sc-scroll");
+  if (keep && sc) sc.scrollTop = keep.end ? sc.scrollHeight : keep.top;
+}
+// The Expert chat's clicks: New chat, the steps fold, Open live view, and the answer buttons (shared with Simple).
+function onExpertChatClick(e) {
+  const t = e.target;
+  if (t.closest?.("#ex-steps-btn")) {
+    const id = S.live?.id || "";
+    const card = $("#ex-answer");
+    S.exStepsOpen = { ...(S.exStepsOpen || {}), [id]: card?.dataset.steps === "fold" };
+    paintExHead();
+    return;
+  }
+  if (t.closest?.("#ex-live")) { window.CC.go("liveview"); return; }
+  if (t.closest?.("#ex-more") || t.closest?.(".ex-box") || t.closest?.("#ops-panel")) return;
+  onSimpleChatClick(e);
 }
 function syncGraph(force = false) {
   if (!graph || S.view !== "command") return;
@@ -2192,6 +2498,7 @@ function renderOpsHead() {
   }
   syncResearchStop();
   syncOpsPanel();
+  paintExHead();
 }
 // 0.4.29: a re-assigned step keeps its earlier tries visible: "Try 1 (Claude Code: out of usage)", with what it wrote.
 function triesHtml(t) {
@@ -2299,6 +2606,9 @@ function renderOutput() {
   // Simple: the answer sits right under the chat box, and only when there is one.
   const simpleAnswer = $("#simple-answer");
   if (simpleAnswer) simpleAnswer.hidden = !l.id && !S.make?.active;
+  // 0.4.38 (Chris: Expert Command as a chat): the Expert answer card follows the same rule
+  const exAnswer = $("#ex-answer");
+  if (exAnswer) { exAnswer.hidden = !l.id && !S.make?.active; paintExHead(); }
   scFrame(l);
   window.CC.makeChat?.mount();
   paintAnswerLine(l, text);
@@ -2341,6 +2651,7 @@ function renderOutput() {
   renderExtras("deliverable", "#deliv-extras", finished ? l : null);
   if (finished && text) arrangeAnswerActions($("#deliv-extras"), { onCopy: () => copyDeliverable(), open: !!S.answerMoreOpen, onToggle: (on) => { S.answerMoreOpen = on; } });
   if (finished && text && S.uiMode === "simple" && simpleAnswer) revealAnswer(l.id);
+  if (finished && text && S.uiMode === "expert" && exAnswer) revealAnswer(l.id);
   if (S.uiMode === "expert" && panel && !panel.hidden && text) showExpertAnswer(l.id, panel);
 }
 // Simple says who answered. With two AI companies, or one OpenRouter key, it offers Ask a council.
@@ -2417,7 +2728,9 @@ function paintFailure() {
 function outputFollowHtml() {
   const l = S.live;
   const simple = S.uiMode !== "expert";
-  if (simple) {
+  // 0.4.38: nor under an Expert chat answer: the marching orders box sends the follow-up and the turns show below.
+  // A council seat or a mission step keeps its own "Reply to this AI" box in the steps.
+  if (simple || $("#view .ex-chat")) {
     // 0.4.37: no reply box under a Simple answer; the chat box at the bottom sends the next message in the same chat
     return "";
   }
@@ -2647,6 +2960,8 @@ async function sendOrders() {
     else if (autoPick && sc?.autoLine) S.autoLine = sc.autoLine;
     const line = document.getElementById("cc-auto-line"); if (line) line.textContent = S.autoLine;
   }
+  // 0.4.38 (Chris: Expert Command as a chat): what this order was sent with, for its tag line over the bubble
+  if (!simple) S.exSent = { prompt, mode, auto: autoPick, priority: S.costMode || S.settings?.defaultMode || "balanced", free: !!S.freeOnly?.on, when: S.whenMode || "now" };
   const pp = window.CC?.promptPack;
   const attached = attachPack(pp);
   const ask = window.CC.searchAsk?.() || {};
@@ -2724,7 +3039,8 @@ async function sendOrders() {
     }
     // 0.4.27 (panel item 10, Dana): in Simple chat the box empties once the job is on its way, so a second Send
     // does not run the same job again. The words stay in the answer title (S.lastPrompt) and in History.
-    if (simple) {
+    // 0.4.38: the Expert chat empties its box too; the order shows as the bubble above its answer
+    if (simple || $("#view .ex-chat")) {
       const box = $("#orders");
       if (box && box.value.trim() === prompt) box.value = "";
       S.lastOrders = "";
@@ -3102,7 +3418,12 @@ const PAID_WAIT = {
   timeout: "Your purchase has not shown up yet. Use the same email you signed in with, then press I paid, check now. Or type your license key under Settings > Your plan. Your plan stays Free until one of these works.",
   unlocked: "",
 };
-function paintPaidWait() { $$("[data-paid-wait]").forEach((n) => { n.textContent = PAID_WAIT[S.paidWait] || ""; n.hidden = !PAID_WAIT[S.paidWait]; }); }
+function paintPaidWait() {
+  $$("[data-paid-wait]").forEach((n) => { n.textContent = PAID_WAIT[S.paidWait] || ""; n.hidden = !PAID_WAIT[S.paidWait]; });
+  // 0.4.38 (Chris: upgrade in the app): the Pro box shows I paid, check now once a pay link has opened, and closes on unlock.
+  $$("#cc-upgrade [data-paid-now]").forEach((b) => { b.hidden = !PAID_WAIT[S.paidWait]; });
+  if (S.paidWait === "unlocked") closeUpgrade();
+}
 const paidWatch = createPaidWatch({
   onState: (st) => { S.paidWait = st; paintPaidWait(); },
   current: () => S.license,
@@ -3290,7 +3611,7 @@ function renderSimpleBasics(v) {
   // (Expert has the helpers panel, with the same Install and Sign in buttons)
   { const fs = $("#basics-free-setup"); if (fs) window.CC.freeSetup?.mount?.(fs, { title: "Free AIs on this PC" }); }
   $("#basics-ai-go").addEventListener("click", () => openSettingsMore("#settings-keys"));
-  $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
+  $("#basics-upgrade").addEventListener("click", () => openUpgrade()); // 0.4.38 (Chris: upgrade in the app): the buy box, not only Settings
   $("#basics-more").addEventListener("click", () => openSettingsMore(""));
   renderFeature("settings", "a11y", "#basics-reading-body");
   renderFeature("settings", "memories", "#basics-memories-body");
@@ -3761,6 +4082,7 @@ watchNavLayout((layout) => {
   ensureFeatureTabs();
 });
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
+$("#cc-upgrade-chip")?.addEventListener("click", () => openUpgrade()); // 0.4.38 (Chris: upgrade in the app)
 // 0.4.36 (Chris: "you should be able to make the live feed area minimize to the side if you don't want to look at the feed
 // the entire time"): Hide tucks the feed into a thin tab with a count of new events; the tab brings it back. Remembered.
 const FEED_MIN_KEY = "cc.feed.min";
@@ -3939,7 +4261,7 @@ installClickTracking(document);
 installTips(document); // 0.4.31: hover or Tab to a button and a small box says what it does
 // 0.4.21: a run on screen is re-read when the window comes back and every few seconds, so Live ops is never stale.
 liveSync({ getLive: () => S.live, fetchRun: (id) => api(`/missions/${encodeURIComponent(id)}`), apply: (run) => { if (run.kind === "council") onCouncil(run); else onMission(run); } });
-window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, projectChanged: () => projectSettled(), go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, projectChanged: () => projectSettled(), go: (view) => { S.view = view; S.openProject = null; render(); }, showUpgrade: (message, opts) => showUpgrade(message, opts), openUpgrade: () => openUpgrade(), upgradeOffered: () => upgradeOffered(), updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 if (TEAM_JOIN) { let tries = 0; const t = setInterval(() => { tries++; if (S?.view && S.view !== "setup" && !S.connectWizard && document.querySelector("#view")) { clearInterval(t); window.CC.go("together"); } else if (tries > 40) clearInterval(t); }, 500); }
 installPasswordTip(document, localStorage);
 // featuresReady: set once the feature modules are in and the screen was drawn again with them (tests wait on it before typing)

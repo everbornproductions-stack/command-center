@@ -56,7 +56,9 @@ export async function open() {
   wrap.setAttribute("aria-labelledby", "cc-free-ais-title");
   wrap.style.cssText = "position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px";
   const gb = d.grokbot || {};
-  wrap.innerHTML = `<div class="card" style="max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:16px">
+  // 0.4.38 (panel 0436 item 1): its own solid surface, like the other dialogs (#cc-readers, #cc-whats-new). It had leaned
+  // on the Mac card rule for a background, so when 0.4.36 scoped that rule to the carousel the card turned see-through.
+  wrap.innerHTML = `<div class="card" style="max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:16px;background:var(--panel-solid, #0e1522);color:var(--text, #e5e7eb);border:1px solid var(--line, #1f2937);border-radius:14px">
     <h3 id="cc-free-ais-title" tabindex="-1" style="margin-top:0">Get free AIs</h3>
     <p class="small" style="margin:0 0 6px">Free AIs go first, so a job never stops just because one account ran out. Each key page opens in your browser. Paste the key here and it goes straight to your private vault. Nothing is charged.</p>
     <p class="small dim" id="cc-fa-summary" style="margin:0 0 6px">${esc(d.summary || "")}</p>

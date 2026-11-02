@@ -15,6 +15,8 @@ const CSS = `
 #simple-answer.mk-on > #out-md, #simple-answer.mk-on > #cc-answer-line, #simple-answer.mk-on > #out-follow, #simple-answer.mk-on > #cc-fail-slot, #simple-answer.mk-on > #deliv-extras, #simple-answer.mk-on > h3 { display: none; }
 /* 0.4.37: the Simple Chat card, its four buttons and its Make changes fold give way to the made picture, video or voice */
 #simple-answer.mk-on > .sc-card, #simple-answer.mk-on > .sc-acts, #simple-answer.mk-on > .sc-changes { display: none; }
+/* 0.4.38: the Expert chat card gives way the same way */
+#ex-answer.mk-on > .sc-card, #ex-answer.mk-on > .sc-acts, #ex-answer.mk-on > .sc-changes { display: none; }
 #mk-root { display: flex; flex-direction: column; gap: 14px; }
 .mk-tile { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line-2, var(--line)); border-radius: var(--radius, 10px); background: var(--panel-solid, transparent); color: var(--text); }
 .mk-head { font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
@@ -42,7 +44,8 @@ const blobOf = (url) => { if (!blobs.has(url)) blobs.set(url, apiBlobUrl(url)); 
 const st = () => (S.make ||= { active: false, tiles: [], last: null, seq: 0, again: {} });
 const find = (id) => st().tiles.find((t) => t.id === id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const target = () => document.getElementById("simple-answer") || document.getElementById("deliv-panel");
+// 0.4.38 (Chris: Expert Command as a chat): the Expert chat's answer card (#ex-answer) took the place of #deliv-panel
+const target = () => document.getElementById("simple-answer") || document.getElementById("ex-answer") || document.getElementById("deliv-panel");
 
 function extOf(t) {
   const n = String(t.fileName || "").match(/\.([a-z0-9]{2,4})$/i);
@@ -108,6 +111,7 @@ function reset() {
   S.make = null;
   document.getElementById("mk-root")?.remove();
   document.getElementById("simple-answer")?.classList.remove("mk-on");
+  document.getElementById("ex-answer")?.classList.remove("mk-on");
 }
 
 // ---------- the flow ----------

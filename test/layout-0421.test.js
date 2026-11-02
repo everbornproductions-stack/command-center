@@ -306,12 +306,14 @@ test("6. Live Ops: one status line with See live; the full map is an overlay (Si
       S.live = { id: "m-test2", kind: "mission", status: "running", agents: {}, tasks: { a: { id: "a", title: "Plan", status: "running" }, b: { id: "b", title: "Write", status: "queued" } }, mission: null, council: null, deliverable: "", primary: null };
       window.CC.render();
     });
-    await e.page.waitForSelector("#cc-ops-slim", { timeout: WAIT });
-    assert.match(await e.page.textContent("#cc-ops-expand"), /See live/);
-    assert.equal(await vis(e.page, "#graph"), false, "the slim line is the default in Expert too");
-    await e.page.click("#cc-ops-expand");
-    await e.page.waitForSelector("#cc-live-over #lo-graph svg", { timeout: WAIT });
-    await e.page.keyboard.press("Escape");
+    // 0.4.38 (Chris: Expert Command as a chat): in Expert the steps show inside the answer card (no slim line over
+    // them, no map on screen) and the card's Open live view link opens the Live view page
+    await e.page.waitForFunction(() => [...document.querySelectorAll("#ex-answer .sc-card #tasks .task")].some((x) => /Plan/.test(x.textContent) && x.getBoundingClientRect().height > 0), null, { timeout: WAIT });
+    assert.equal(await e.page.$("#cc-ops-slim"), null, "no slim line over the steps");
+    assert.equal(await vis(e.page, "#graph"), false, "no map on screen in the chat either");
+    assert.equal(await vis(e.page, "#ex-live"), true);
+    await e.page.click("#ex-live");
+    await e.page.waitForFunction(() => window.CC.S.view === "liveview", null, { timeout: WAIT });
   } finally { await e.close(); }
 });
 

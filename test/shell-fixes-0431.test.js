@@ -71,28 +71,31 @@ test("Expert 1366 x 800: the savings card says Estimate at 0 runs, a toast stays
   try {
     await toExpert(t);
     await go(t, "command");
-    // 11b: a new install has no runs yet. "over 0 runs" is gone; the card says Estimate.
+    // 11b: a new install has no runs yet. "over 0 runs" is gone; the card says Estimate. 0.4.38 (Chris: Expert Command
+    // as a chat): the card sits with the other Command tools under the chat box's More options.
+    await t.page.waitForSelector("#ex-more-btn", { timeout: WAIT });
+    await t.page.click("#ex-more-btn");
     await t.page.waitForSelector("[data-cc-saved-card]", { timeout: WAIT });
     const before = await t.page.evaluate(() => document.querySelector("[data-cc-saved-card]").textContent.replace(/\s+/g, " "));
     assert.match(before, /All time \$\d+\.\d{2}/, before);
     assert.doesNotMatch(before, /over 0 runs?/, before);
     assert.match(before, /Estimate/, before);
-    // Send a task to the practice AI so the Deliverable is showing.
+    // Send a task to the practice AI so the answer card (0.4.38: #ex-answer, was the Deliverable) is showing.
     await t.page.waitForSelector("#orders", { timeout: WAIT });
     await t.page.fill("#orders", "Plan a bake sale for Saturday with a full list of steps");
     await t.page.click("#go");
     await t.page.waitForFunction(() => !!window.CC.S.live?.id, null, { timeout: WAIT });
     await t.page.waitForFunction(() => ["done", "done-with-errors"].includes(window.CC.S.live?.status), null, { timeout: RUN });
-    await t.page.waitForSelector("#deliv-panel", { state: "visible", timeout: WAIT });
+    await t.page.waitForSelector("#ex-answer", { state: "visible", timeout: WAIT });
     // 2: the toast sits under the title bar, on screen, clear of the Deliverable and the page.
-    const b = await showToast(t.page, "Answer done · Free", false, ["#deliv-panel", "#view", "#mac-titlebar", "#vt-bar", "#mac-dock"]);
-    assert.ok(b.toast && b["#deliv-panel"] && b["#view"], JSON.stringify(b));
+    const b = await showToast(t.page, "Answer done · Free", false, ["#ex-answer", "#view", "#mac-titlebar", "#vt-bar", "#mac-dock"]);
+    assert.ok(b.toast && b["#ex-answer"] && b["#view"], JSON.stringify(b));
     assert.ok(b.toast.l >= 0 && b.toast.r <= b.vw && b.toast.t >= 0 && b.toast.b <= b.vh, `on screen ${JSON.stringify(b.toast)}`);
     assert.ok(b.toast.t >= b["#mac-titlebar"].b, `under the title bar ${JSON.stringify(b)}`);
-    for (const s of ["#deliv-panel", "#view", "#vt-bar", "#mac-dock"]) assert.equal(overlaps(b.toast, b[s]), false, `toast overlaps ${s}: ${JSON.stringify([b.toast, b[s]])}`);
+    for (const s of ["#ex-answer", "#view", "#vt-bar", "#mac-dock"]) assert.equal(overlaps(b.toast, b[s]), false, `toast overlaps ${s}: ${JSON.stringify([b.toast, b[s]])}`);
     // An error toast is placed the same way.
-    const e = await showToast(t.page, "Could not reach the engine. Try again.", true, ["#deliv-panel", "#view"]);
-    assert.equal(overlaps(e.toast, e["#deliv-panel"]) || overlaps(e.toast, e["#view"]), false, JSON.stringify(e));
+    const e = await showToast(t.page, "Could not reach the engine. Try again.", true, ["#ex-answer", "#view"]);
+    assert.equal(overlaps(e.toast, e["#ex-answer"]) || overlaps(e.toast, e["#view"]), false, JSON.stringify(e));
     // Toasts still close on their own (3.5 s, 6 s for errors).
     await t.page.waitForFunction(() => document.querySelectorAll("#toasts .toast").length === 0, null, { timeout: waitBudget(15000) });
     // 11b: the card repaints after the answer, so it agrees with the title bar pill.

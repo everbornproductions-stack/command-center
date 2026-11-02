@@ -26,10 +26,17 @@ test("browser: Try again keeps Version 1, Version 2 switches, Show steps is hidd
     await t.page.waitForSelector("#cc-precost", { timeout: 10000 });
     assert.match(await t.page.textContent("#cc-precost"), /^Free: Groq/);
     await t.page.click("#go");
-    await t.page.waitForSelector("#cc-v-again", { timeout: WAIT });
+    // 0.4.38 (Chris: Expert Command as a chat): the answer card's own Try again presses the versions Try again
+    // (#cc-v-again), and the version tabs wait behind the card's Make changes with the other Expert extras
+    const AGAIN = "#ex-answer > .sc-acts [data-sc-act='again']", CHANGE = "#ex-answer > .sc-acts [data-sc-act='change']";
+    await t.page.waitForSelector(AGAIN, { timeout: WAIT });
+    await t.page.waitForSelector("#cc-v-again", { state: "attached", timeout: WAIT });
     assert.equal(await t.page.locator("#cc-v-tabs").count(), 0, "one version, no tabs yet");
     const first = await t.page.textContent("#out-md");
-    await t.page.click("#cc-v-again");
+    await t.page.click(AGAIN);
+    await t.page.waitForSelector("#cc-v-tabs [data-n='2']", { state: "attached", timeout: WAIT });
+    await t.page.waitForSelector(CHANGE, { timeout: WAIT });
+    if (await t.page.isHidden("#sc-changes")) await t.page.click(CHANGE);
     await t.page.waitForSelector("#cc-v-tabs [data-n='2']", { timeout: WAIT });
     assert.deepEqual(await t.page.$$eval("#cc-v-tabs [data-n]", (b) => b.map((x) => x.textContent)), ["Version 1", "Version 2"]);
     await t.page.click("#cc-v-tabs [data-n='1']");

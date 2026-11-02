@@ -14,6 +14,7 @@ const TITLEBAR = `
   <button type="button" class="mac-ib" id="mac-sidebtn" aria-expanded="false" aria-label="Show or hide history" title="Show or hide history"><span aria-hidden="true">▤</span><span class="sr-only">Side</span></button>
   <span class="mac-title"><b>Meldmind</b><small id="mac-crumb">Home</small></span>
   <span class="mac-gap"></span>
+  <button type="button" class="mac-upchip" id="mac-upgrade" title="See the paid plans" hidden>Upgrade</button>
   <span class="mac-pill" id="mac-ready" role="status" title="Your AIs right now"><span class="mac-dot" aria-hidden="true"></span><span id="mac-ready-txt">No AIs yet</span></span>
   <span class="mac-toggle" id="mac-toggle" role="group" aria-label="Simple or Expert" data-mode="simple">
     <span class="mac-knob" aria-hidden="true"></span>
@@ -149,13 +150,18 @@ export default {
     const $ = (id) => document.getElementById(id);
     const sideBtn = $("mac-sidebtn"), crumbEl = $("mac-crumb"), readyEl = $("mac-ready-txt");
     const toggle = $("mac-toggle"), simpleBtn = $("mac-simple"), expertBtn = $("mac-expert");
-    const themeBtn = $("mac-theme"), helpBtn = $("mac-help"), flash = $("mac-flash");
+    const themeBtn = $("mac-theme"), helpBtn = $("mac-help"), flash = $("mac-flash"), upBtn = $("mac-upgrade");
 
     let disposed = false, live = false, lastMode = "", lastView = "";
     CLEANUPS.push(() => { disposed = true; clearTimeout(FLASH_TIMER); });
 
     // ---- theme: light or dark, remembered on this computer ----
-    const storedTheme = () => { const saved = CC.S?.settings?.theme; if (saved === "light" || saved === "dark") return saved; try { return localStorage.getItem(THEME_KEY); } catch { return null; } };
+    // 0.4.38 (Chris, 0.4.37: "clicking Just chat everything is completely unreadable"): the Mac look had its own light/dark
+    // switch beside the theme in Settings > Look (html[data-theme]). With the theme dark and the Mac switch light, pages
+    // painted light surfaces under the theme's light text (white menu on beige). The saved theme is now the one source:
+    // the Mac look follows it, and the Mac button changes it.
+    const classicTheme = () => { const t = document.documentElement.dataset.theme; return t === "light" || t === "dark" ? t : null; };
+    const storedTheme = () => { const c = classicTheme(); if (c) return c; const saved = CC.S?.settings?.theme; if (saved === "light" || saved === "dark") return saved; try { return localStorage.getItem(THEME_KEY); } catch { return null; } };
     function applyTheme(value, emit) {
       const theme = value === "light" ? "light" : "dark";
       document.body.dataset.theme = theme;
@@ -164,7 +170,18 @@ export default {
       themeBtn?.setAttribute("aria-label", dark ? "Switch to light" : "Switch to dark");
       const glyph = themeBtn?.querySelector("[data-glyph]");
       if (glyph) glyph.textContent = dark ? "☀" : "☾";
-      if (emit) { bus.emit("theme", theme); CC.api?.("/settings", { method: "POST", body: { theme } }).then(() => { if (CC.S?.settings) CC.S.settings.theme = theme; }).catch(() => {}); }
+      if (emit) {
+        bus.emit("theme", theme);
+        CC.api?.("/settings", { method: "POST", body: { theme } }).then(() => { if (CC.S?.settings) CC.S.settings.theme = theme; }).catch(() => {});
+        // the theme in Settings > Look changes with it, so the two can never disagree again
+        if (classicTheme() !== theme) { try { CC.themes?.set?.({ mode: theme }); } catch { /* the Mac look still switches */ } }
+      }
+    }
+    // Settings > Look (or the saved theme arriving from the server) changes html[data-theme]: the Mac look follows it
+    if (typeof MutationObserver === "function") {
+      const themeObs = new MutationObserver(() => { const c = classicTheme(); if (c && c !== document.body.dataset.theme) applyTheme(c, false); });
+      themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      CLEANUPS.push(() => themeObs.disconnect());
     }
 
     // ---- 0.4.36: window style, "fill" (the whole app window, the default) or "framed" (the 0.4.23 inner window) ----
@@ -246,6 +263,13 @@ export default {
       }
       sideBtn?.setAttribute("aria-expanded", String(document.body.classList.contains("mac-sideopen")));
       paintReady();
+      paintUpgrade();
+    }
+    // 0.4.38 (Chris: upgrade in the app): a plain Upgrade chip on Free, next to the saved-money pill. It opens the
+    // Pro box with the buy buttons. Never on a paid plan or the owner license.
+    function paintUpgrade() {
+      const show = !!CC.upgradeOffered?.();
+      if (upBtn && upBtn.hidden === show) upBtn.hidden = !show;
     }
 
     // Parts talk through the bus too: a view or mode another part announces repaints the bar.
@@ -265,6 +289,7 @@ export default {
     paintMode(CC.uiMode?.() || "simple");
     paintCrumb();
     paintReady();
+    paintUpgrade();
     paintGlass();
     applyTheme(storedTheme() || (document.documentElement.dataset.theme === "light" ? "light" : "dark"), false);
     lastMode = CC.uiMode?.() || "simple";
@@ -308,6 +333,7 @@ export default {
     on(expertBtn, "click", () => document.getElementById("mode-expert")?.click());
     on(themeBtn, "click", () => applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark", true));
     on(helpBtn, "click", () => CC.go?.("help"));
+    on(upBtn, "click", () => CC.openUpgrade?.());
 
     const onKey = (e) => {
       if (e.key !== "Escape" || !document.body.classList.contains("mac-sideopen")) return;

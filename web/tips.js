@@ -94,7 +94,8 @@ function factsOf(el) {
   const group = el.closest("[role=group], .seg, .mac-runbar-seg");
   // 0.4.35 (panel 0431 item 5): the Mac run bar's Priority is a list box, not buttons; its tip is the chosen priority's
   // (so "Max quality" has a tip on keyboard focus too).
-  const pick = el.tagName === "SELECT" && el.id === "mac-rb-priority";
+  // 0.4.38 (Chris: Expert Command as a chat): the run bar folded into the chat box, whose Priority list is #cost-mode
+  const pick = el.tagName === "SELECT" && (el.id === "mac-rb-priority" || el.id === "cost-mode");
   return {
     tip: el.dataset.tip || "", title: el.getAttribute("title") || "", label: el.getAttribute("aria-label") || "",
     text: el.textContent || "", m: el.dataset.m || (pick ? el.value : ""), groupId: pick ? el.id : group?.id || "",

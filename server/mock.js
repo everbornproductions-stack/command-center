@@ -239,6 +239,14 @@ function answerFor(model, system, user, messages = []) {
   return practiceAnswer(u, model, lead);
 }
 
+// 0.4.38 (panel 0437 item 3): the text the practice AI answers. In a chat that goes on, the newest message is the request:
+// the practice AI read the first line of all of them joined, so a follow-up got the first answer again word for word.
+// The earlier messages still come after it, for anything that reads the whole thread.
+export function userTextOf(messages = []) {
+  const users = (messages || []).filter((m) => m?.role === "user").map((m) => (typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.filter((c) => c?.type === "text").map((c) => c.text).join("\n") : ""));
+  return users.length > 1 ? [users.at(-1), ...users.slice(0, -1)].join("\n") : (users[0] || "");
+}
+
 // Demo is per user: the pretend providers are registered once for the process, and a user "has"
 // them when a demo key sits in their vault (so one hosted user's demo never shows up for another).
 export function demoActive() { return !!server && hasSecret(DEMO[0].id); }
@@ -281,7 +289,7 @@ export async function startDemo() {
       return res.end(JSON.stringify({ error: { message: "insufficient_quota: You exceeded your current quota, please check your plan and billing details.", type: "insufficient_quota" } }));
     }
     const system = j.messages.find((m) => m.role === "system")?.content || "";
-    const user = j.messages.filter((m) => m.role === "user").map((m) => (typeof m.content === "string" ? m.content : Array.isArray(m.content) ? m.content.filter((c) => c?.type === "text").map((c) => c.text).join("\n") : "")).join("\n");
+    const user = userTextOf(j.messages);
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
     // MCP tools (Phase 16): when tools are offered and the orders mention one, the pretend AI calls it
     // once, then answers with the result. Lets Settings > Tools be tried end to end without a key.

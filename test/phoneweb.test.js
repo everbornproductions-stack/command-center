@@ -79,7 +79,7 @@ test("unit: Flow stages, client queue resolution, and registry rules", () => {
   assert.equal(resolved.superseded.length, 1);
 
   // Light mode on command must remain empty; normal command and settings include phoneweb.
-  assert.deepEqual(idsFor("command", { light: true }), []);
+  assert.deepEqual(idsFor("command", { light: true }), ["answer-check"], "0.4.38: the answer check is the one module Light mode loads on Chat");
   assert.ok(idsFor("command").includes("phoneweb"));
   assert.ok(idsFor("settings").includes("phoneweb"));
 

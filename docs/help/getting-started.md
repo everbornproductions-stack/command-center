@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.37
+lastUpdatedVersion: 0.4.38
 ---
 
 # Getting started
@@ -240,3 +240,7 @@ Start a project has 8 more kinds: spreadsheet or budget, document or report, sli
 ## A clean chat in Simple, and History that works (0.4.37)
 
 Chat in Simple is one clean column, like Expert: your message, then the answer in a card, with the chat box at the bottom. Under each answer: Copy, Try again, Make changes and Save as file. Everything else sits behind Make changes. The History drawer works: clicks inside it no longer close it, a chat opens when you click it or press Enter, and search keeps every letter you type. A spreadsheet the AI lays out as cells, or gives as CSV text, is saved as a real spreadsheet with its formulas. When an AI answers a spreadsheet, Word or slides request with code instead of the content, Meldmind asks it once more for the real thing. A file that gets cut off is finished as code only, and a JSON file that still does not read is asked for again in a smaller form. Practice answers fit what you asked: scripts stay scripts in every language, PowerShell is real PowerShell, JSON has the number of records you asked for, and a guest list has people in it. The Just chat bar is readable in dark, and the first screen says key far less, with no rows you cannot act on. The What's new note keeps its Got it button in view, and the window waits for the dock to slide away before it grows.
+
+## Expert Command is a chat, and upgrading is one click (0.4.38)
+
+Expert Command is a chat now, like Simple: your orders as a message, the answer in a card, and the marching orders box pinned at the bottom with the run modes, priority, when, and Free only right in it. While the AIs work, each step, the AI on it and the cost so far show inside the answer card. A clear New chat button sits at the top of the sidebar in Simple and Expert. Upgrade to a paid plan from inside the app: an Upgrade button in the title bar on Free, and every Pro feature opens the same box with the plans and buy buttons. Meldmind unlocks by itself when it sees the payment, or you can type a license key. PowerShell scripts are checked by PowerShell's own reader (never run), so a script that would not work is fixed before it is saved. The answer check shows in Light mode too, and flags a placeholder left in, such as Hi [Name], in any answer. The Get free AIs card has a solid background again, and a request for a script about photos no longer makes a picture. Make changes opens with a short list first, the Saved note no longer covers your buttons, and on a phone the newest reply stays above the chat box. In practice mode, a follow-up gets its own answer instead of repeating the first one.

@@ -55,6 +55,10 @@ export function makeIntent(text) {
   // Requests for words that accompany a video are writing tasks, not video generation.
   const VIDEO_WORDS = /\b(?:titles?|title ideas?|ideas?|scripts?|hooks?|captions?|descriptions?|tags?|thumbnail text|outlines?)\b.{0,80}\b(?:for (?:a|my|the) (?:youtube )?video|for my channel)\b|\b(?:for (?:a|my|the) (?:youtube )?video|for my channel)\b.{0,80}\b(?:titles?|title ideas?|ideas?|scripts?|hooks?|captions?|descriptions?|tags?|thumbnail text|outlines?)\b/i;
   if (VIDEO_WORDS.test(t)) return null;
+  // 0.4.38 (panel 0437 item 1): "A Node.js script that renames every photo" is code about photos, not a picture; a request
+  // for a script, a program, code or a file of data is never turned into a picture, a video or a voice
+  // ("a logo for my app" is still a picture: an app, tool or extension counts only when the request says what it does)
+  if (/\b(?:scripts?|programs?|code|functions?|python|node(?:\.js)?|javascript|typescript|powershell|bash|sql|regex|spreadsheet|excel|csv|json|macro)\b|\.(?:js|mjs|py|ps1|sh|bat|sql|csv|json|xlsx?)\b|\b(?:apps?|tool|extension|bot)\s+(?:that|which|to)\b/i.test(t)) return null;
 
   // a video or a clip, with or without a verb: "a 5 second video of waves"
   if (RE_VIDEO.test(t) && (hasVerb || /^(?:an?|the|\d)/i.test(rest)) && !/\b(?:music video|lyric video|reels?)\b/i.test(t)) {

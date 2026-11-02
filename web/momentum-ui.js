@@ -253,9 +253,10 @@ export function syncBar() {
   const show = momentumOn() && BAR_VIEWS.includes(S.view) && S.view !== "publish" && !S.openProject && !mem.exitedKeys.has(keyNow());
   // 0.4.37 (Chris: Simple chat layout): on the Simple Chat page nothing stacks above the chat. The Next bar sits behind
   // the answer's Make changes (#sc-mm-slot), and only once there is an answer; the resume offer is one quiet line.
-  const chatPage = !expert() && S.view === "command" && document.querySelector("#view .sc-chat");
+  // 0.4.38 (Chris: Expert Command as a chat): the Expert chat page does the same, behind its answer's Make changes
+  const chatPage = S.view === "command" && document.querySelector(expert() ? "#view .ex-chat" : "#view .sc-chat");
   const slot = chatPage ? document.getElementById("sc-mm-slot") : null;
-  const answered = !!(slot && S.live?.id && !document.getElementById("simple-answer")?.hidden);
+  const answered = !!(slot && S.live?.id && !document.getElementById(expert() ? "ex-answer" : "simple-answer")?.hidden);
   if (!show || (chatPage && !answered)) { bar?.remove(); if (show && chatPage) paintResumeLine(); return; }
   wireOnce();
   if (mem.server?.key !== keyNow()) { loadServer().then(() => syncBar()); return; }

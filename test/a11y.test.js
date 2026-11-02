@@ -23,8 +23,11 @@ test("page shell: accessibility, error states and empty states", () => {
   assert.match(app, /setAttribute\("aria-current", "page"\)/);
   assert.match(app, /t\.setAttribute\("role", "alert"\)/);
   assert.match(app, /aria-pressed/);
-  for (const id of ["run-mode", "cost-mode", "when-mode"]) assert.match(app, new RegExp(`id="${id}" role="group" aria-label="`));
-  assert.match(app, /<textarea id="orders" aria-label="Marching orders"/);
+  // 0.4.38 (Expert Command as a chat): the run modes are still a labelled group of pressed buttons; Priority and When are
+  // labelled selects in the chat box's bottom row
+  assert.match(app, /id="run-mode" role="group" aria-label="/);
+  for (const id of ["cost-mode", "when-mode"]) assert.match(app, new RegExp(`<select id="${id}"[^>]*aria-label="`));
+  assert.match(app, /<textarea id="orders"[^>]*aria-label="Marching orders"/);
   // clickable cards and rows work from the keyboard
   assert.match(app, /class="tile [^`]*role="button" tabindex="0" aria-label=/);
   assert.match(app, /class="pcard"[^`]*role="button" tabindex="0"/);

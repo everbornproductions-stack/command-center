@@ -159,6 +159,22 @@ function renderSide() {
   col.addEventListener("click", () => setCollapsed(true));
   head.append(box, col);
   inner.append(head);
+  // 0.4.38 (0.4.37 panel item 2): every order goes on in the same chat, so New chat is a clear button at the top.
+  // It starts an empty Command chat; the next order is a new run and a new History row.
+  const nc = el("button", "mx-new");
+  nc.type = "button";
+  nc.id = "mx-new-chat";
+  nc.title = "Start a new chat. This one stays in History.";
+  const ncIc = el("span", "mx-ic", "+");
+  ncIc.setAttribute("aria-hidden", "true");
+  nc.append(ncIc, el("span", "mx-nm", "New chat"));
+  nc.addEventListener("click", () => {
+    if (CC.layout?.newChat) CC.layout.newChat();
+    else { CC.S.live = { id: null, kind: null, status: null, agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; CC.S.lastOrders = ""; CC.go("command"); }
+    st?.bus?.emit("view", "command");
+    if (isPhone() && st && !st.collapsed) setCollapsed(true);
+  });
+  inner.append(nc);
   const shown = q ? search(st.items, q) : st.items;
   const groups = groupsOf(shown);
   if (!groups.length) inner.append(el("div", "mx-none", "Nothing matches. Try a shorter word."));

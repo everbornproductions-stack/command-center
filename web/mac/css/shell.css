@@ -256,6 +256,33 @@ body[data-style="mac"] .mac-dot {
   background: var(--mac-ok);
 }
 body[data-style="mac"] .mac-pill.mac-wait .mac-dot { background: var(--mac-dim); }
+/* 0.4.38 (Chris: upgrade in the app): the Upgrade chip on Free. The same solid blue as the "3 steps" button with
+   white text (5.6 : 1 in light and dark), a fixed 12.5 px like the saved-money pill. It stays at phone width when the
+   other pills hide; there the bar has room for it only in place of the page name, the way "3 steps" does it
+   (flow.css). When "3 steps" shows too, that button keeps the room and Upgrade stays in Settings and the Pro box. */
+body[data-style="mac"] .mac-upchip {
+  flex: none;
+  min-height: 26px;
+  padding: 4px 11px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--mac-acc-btn, #0062d6);
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px !important;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+body[data-style="mac"] .mac-upchip:hover { background: var(--mac-acc-btn-hover, #0053b5); }
+body[data-style="mac"] .mac-upchip:focus-visible { outline: 2px solid var(--mac-acc); outline-offset: 2px; }
+body[data-style="mac"] .mac-upchip[hidden] { display: none; }
+@media (max-width: 760px) {
+  body[data-style="mac"] #mac-titlebar:has(.mac-upchip:not([hidden])) .mac-title { display: none; }
+  body[data-style="mac"] #mac-titlebar:has(.mf-return:not([hidden])) .mac-upchip { display: none; }
+  body[data-style="mac"] .mac-upchip { padding: 4px 10px; }
+}
 
 /* ---------- the Simple / Expert switch ---------- */
 body[data-style="mac"] .mac-toggle {

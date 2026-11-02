@@ -37,7 +37,9 @@ test("source check: runbar part files exist, no em/en dashes, no observer, no di
   assert.equal(/CC\.S\.[A-Za-z_$]+\s*=[^=]/.test(part), false);
 });
 
-test("browser: runbar exists in Expert command view, clicking Council updates state, absent in Simple", { skip }, async () => {
+// 0.4.38 (Chris: Expert Command as a chat): the run bar folded into the chat box. Its controls are the box's own: the
+// run modes as pills on top (#run-mode) and Priority, When and Free only in the bottom row. No second row over the box.
+test("browser: in the Expert chat the run bar folds into the box, the pills and Priority set the state, absent in Simple", { skip }, async () => {
   const t = await bootMac({ mode: "expert" });
   try {
     // The saved mode can be overridden by the sample project, so switch with the real
@@ -48,23 +50,21 @@ test("browser: runbar exists in Expert command view, clicking Council updates st
       return false;
     }, null, { timeout: 20000, polling: 700 });
 
-    // 1. Command view in Expert shows the bar above #orders.
+    // 1. Command view in Expert: the chat box carries the run modes; no run bar row above it (a second later too).
     await t.page.evaluate(() => window.CC.go("command"));
-    await t.page.waitForFunction(() => {
-      const bar = document.getElementById("mac-runbar");
-      const orders = document.getElementById("orders");
-      return !!orders && !!bar && bar.style.display !== "none" && bar.getBoundingClientRect().height > 0;
-    }, null, { timeout: 20000 });
+    await t.page.waitForFunction(() => !!document.querySelector(".ex-box #run-mode") && !!document.getElementById("orders"), null, { timeout: 20000 });
+    await t.page.waitForTimeout(1500);
+    assert.equal(await t.page.evaluate(() => !!document.getElementById("mac-runbar") || !!document.getElementById("mac-rb-modes")), false, "the bar folded into the box");
 
-    // 2. Clicking Council in the bar clicks #run-mode, which sets CC.S.cmdMode.
-    await t.page.click('#mac-runbar button[data-m="council"]');
+    // 2. Clicking the Council pill sets CC.S.cmdMode and lights only that pill.
+    await t.page.click('.ex-box #run-mode button[data-m="council"]');
     await t.page.waitForFunction(() => window.CC.S.cmdMode === "council", null, { timeout: 20000 });
+    assert.deepEqual(await t.page.evaluate(() => [...document.querySelectorAll("#run-mode button.on")].map((b) => b.dataset.m)), ["council"]);
 
-    // 3. Choosing a priority clicks #cost-mode, which sets CC.S.costMode and marks the button.
-    await t.page.selectOption("#mac-rb-priority", "max");
+    // 3. Choosing a priority in the box's select sets CC.S.costMode.
+    await t.page.selectOption("#cost-mode", "max");
     await t.page.waitForFunction(() => window.CC.S.costMode === "max", null, { timeout: 20000 });
-    const maxOn = await t.page.evaluate(() => document.querySelector('#cost-mode button[data-m="max"]')?.classList.contains("on") === true);
-    assert.equal(maxOn, true);
+    assert.equal(await t.page.inputValue("#cost-mode"), "max");
 
     // 4. Simple mode hides the bar.
     // The Mac shell hides the old top bar, so use its Simple/Expert switch (it clicks #mode-simple).
