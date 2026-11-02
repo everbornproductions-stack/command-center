@@ -291,6 +291,10 @@ function syncChat() {
   document.body.dataset.chat = run ? "run" : "empty";
   const isBusy = busy();
   cmd.dataset.busy = isBusy ? "1" : "0";
+  // 0.4.38 (panel 0437 item 7): a run that just finished goes into the sidebar History list now, not after the next
+  // redraw (loadRecent waits 15 s between looks otherwise); a short wait lets the server write the row first
+  if (st.wasBusy && !isBusy) setTimeout(() => loadRecent(true), 600);
+  st.wasBusy = isBusy;
   const slim = document.getElementById("sc-live");
   if (slim) {
     slim.hidden = !isBusy;
