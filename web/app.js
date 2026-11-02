@@ -2907,6 +2907,7 @@ async function sendOrders() {
   const byPerson = !!S.sendByPerson; S.sendByPerson = false;
   if (runBusy()) return;
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
+  try { window.CC?.promptSuggest?.sent?.(); } catch {} // the suggestions list closes on Send
   // 0.4.37 (Chris: one chat column): typed after a finished answer, it goes on in the same chat's thread
   if (byPerson && scFollowOk(prompt)) { if (!(await confirmRisky(prompt))) return; return sendSimpleFollow(prompt); }
   if (!(await confirmRisky(prompt))) return;
