@@ -243,7 +243,7 @@ function fitAnswer(req, v, kind) {
   const titleSubject = kind === "titles" ? req.match(/\b(?:stream\s+)?titles?\s+for\s+(?:(?:my|our|the|a|an)\s+)?([a-z][a-z' -]{1,30}?)(?=[.,!?;:]|$|\s+(?:about|on|for)\b)/i)?.[1]?.trim() : "";
   // 0.4.38 (panel 0436 item 5): only a count of lines is dropped ("3 short lines"); "a 2-star review" keeps its 2, and the
   // asking words ("Reply to") are not part of the subject
-  const subject = titleSubject || subjectOf(req) || req.replace(/^\s*(?:reply|respond|answer)\s+to\s+/i, "").replace(/\b(?:write|make|draft|create|give me|please|in|\d+(?=\s+(?:short\s+)?lines?\b)|short|lines?|about|three)\b/ig, "").replace(/\s+/g, " ").trim().slice(0, 60) || "your request";
+  const subject = titleSubject || subjectOf(req) || req.replace(/^\s*(?:reply|respond|answer)\s+to\s+/i, "").replace(/\b(?:write|make|draft|create|give me|please|in|\d+(?=\s+(?:short\s+)?lines?\b)|short|lines?|about|three)\b/ig, "").replace(/\s+/g, " ").trim().replace(/^(.{0,60})(?:\s.*)?$/s, "$1").replace(/[\s,.;:-]+$/, "") || "your request"; // 0.4.38 (panel 0437 item 8): cut at a word, not mid-word ("Saturday 1 t")
   const n = requestedCount(req, kind === "howto" ? 3 : 3);
   const lines = Array.from({ length: n }, (_, i) => {
     // 0.4.37 (panel 0435 item 6): keep the action phrase intact in how-to steps.
