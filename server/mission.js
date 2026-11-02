@@ -49,6 +49,7 @@ import { askedFolder, copyToAskedFolder } from "./asked-folder.js";
 import { exportNames, compareExports, exportLossLine, KEEP_EXPORTS_LINE } from "./export-check.js";
 import { wantsSqlCheck, sqlCheck, sqlIssueLine } from "./sql-check.js";
 import { psTraps, psIssueLine } from "./ps-lint.js";
+import { psParse, psParseLine } from "./ps-parse.js";
 import { runNodeTest, runReport, isRunStep, findNodeCommand, asksOtherCommand, NOT_RUN_LINE, findPythonCommand, runPython } from "./run-node-test.js";
 import { isLocalSaveStep, SAVE_LINE, savePost, splitPost, stripHelperNotes } from "./mindmedia-step.js";
 import { dryRunBanner, preflight, mediaStatus, neededMedia } from "./media-preflight.js";
@@ -1185,6 +1186,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         // 0.4.32: a SQLite script is run once in memory; an error fails this step's check so the AI fixes it
         // 0.4.32: known PowerShell traps are read from the text (AI-written scripts are never run to test them)
         if (/\.ps1$/i.test(j.name)) { const traps = psTraps(j.code); t.psIssue = traps.length ? psIssueLine(j.name, traps) : null; if (traps.length) log(`Checked ${j.name}: ${traps[0]}`, { level: "error" }); }
+        // 0.4.38 (dogfood 0436 batch-rename): no known trap, so PowerShell's own parser reads it (never runs it); waited
+        // for with the SQLite checks below
+        if (/\.ps1$/i.test(j.name) && !t.psIssue) {
+          const name = j.name;
+          sqlChecks.push(psParse(j.code).then((pp) => {
+            if (!pp.ok) { t.psIssue = psParseLine(name, pp.errors); log(`Checked ${name}: ${t.psIssue}`, { level: "error" }); }
+            else if (!pp.skipped) log(`Checked ${name} with the PowerShell parser: it parses.`);
+          }));
+        }
         // (codeWrite is not async: the check is started here and the caller waits for sqlChecks before the step's check)
         if (wantsSqlCheck(j.name, goal, j.code)) {
           const name = j.name;
