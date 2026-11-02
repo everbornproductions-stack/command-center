@@ -6,7 +6,7 @@ import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory
 import { failureHtml, wireLimitButtons } from "./failure-cause.js";
 import { costLineText } from "./cost-line.js";
 import { runCheck as runSendCheck, showBanner as showSendBanner, clearBanner as clearSendBanner, splitNote } from "./send-check.js";
-import { EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
+import { ANSWER_BUTTONS, CHAT_EMPTY, EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, REPLY_CHANGES, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, answerFileName, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
@@ -239,6 +239,8 @@ function placeToasts() {
     body.dataset.toastAt = "bottom";
     return true;
   };
+  // 0.4.37 (Chris: Simple chat layout): on a phone the Simple chat box sits right above the Talk bar, so toasts go to the top
+  if (phone && simple && document.querySelector("#view .sc-chat")) { delete body.dataset.toastAt; return; }
   if (phone) { if (!bottomAbove(["#vt-bar"])) delete body.dataset.toastAt; return; }
   if (simple) {
     const bars = ["#mac-titlebar", "#notices", "#fpbar", "#mmbar", "#projbar"].map((s) => shown(document.querySelector(s))).filter((r) => r && r.top < innerHeight * 0.4);
@@ -667,8 +669,11 @@ function onMission(m) {
         const failed = m.status === "failed";
         const practice = String(m.provider || (m.tasks || []).find((t) => t.provider)?.provider || "").startsWith("demo-");
         const costWord = practice || !(cost > 0) ? "Free" : money(m.cost, 4);
-        const base = replyTurns(m) > 0 ? `Reply in · ${costWord}` : `${noun} ${stateWord} · ${costWord}`;
-        toast(failed && m.error ? m.error : base, failed);
+        const base = replyTurns(m) > 0 ? `Reply ready · ${costWord}` : `${noun} ${stateWord} · ${costWord}`;
+        // 0.4.37 (Chris: "Expert mode's interface is a lot cleaner"): on the Simple chat page the answer is already in
+        // the conversation, so a "done" toast only covers it; a failure still shows
+        const onChat = S.uiMode === "simple" && S.view === "command" && !failed;
+        if (!onChat) toast(failed && m.error ? m.error : base, failed);
       }
       maybeNotifyFinish("Meldmind finished a run", m.status === "failed" && cost === 0 ? "Nothing was charged" : `${noun} ${stateWord}`);
     }
@@ -692,7 +697,7 @@ function onCouncil(c) {
     if (S.live.finishStamp !== stamp) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
-      toast(replyTurns(c) > 0 ? `Reply in · ${money(c.cost, 4)}` : `Council done · ${money(c.cost, 4)}`);
+      toast(replyTurns(c) > 0 ? `Reply ready · ${money(c.cost, 4)}` : `Council done · ${money(c.cost, 4)}`);
       maybeNotifyFinish("Meldmind finished a run", "Council done");
     }
   }
@@ -1590,16 +1595,72 @@ function freeOnlyHtml() { const on = !!S.freeOnly?.on; return `<label class="row
 const AUTO_MODES = [["auto", "Auto", "Meldmind picks Single, Mission or Council for you"], ["single", "Single", "One AI answers"], ["council", "Council", "Several AIs answer and one writes the verdict"], ["mission", "Mission", "Plan, split across AIs, check, assemble"]];
 function teamLabel() { const m = AUTO_MODES.find((x) => x[0] === (S.simpleRunMode || "auto")); return m && m[0] !== "auto" ? `${esc(m[1])} mode` : "Auto team"; }
 function simpleModeHtml() { const cur = S.simpleRunMode || "auto"; return `<div class="sc-mode" id="sc-mode"><div class="lbl">More options: how to run it</div><div class="seg" id="simple-run-mode" role="group" aria-label="How to run it">${AUTO_MODES.map(([id, label, tip]) => `<button type="button" data-m="${id}" class="${cur === id ? "on" : ""}" title="${esc(tip)}">${esc(label)}${id === "mission" && !S.license?.limits?.missions ? ' <span class="cc-pro-mark" aria-label="Part of Pro">Pro</span>' : ""}</button>`).join("")}</div></div>`; }
+// 0.4.37 (Chris, 2026-11-01: "Why does simple mode not look like expert mode when you click on chat? Expert mode's
+// interface is a lot cleaner."): the Simple Chat page is one centred column on a flat background, like Expert. The
+// question is a bubble on the right, the answer a card with four buttons under it (Copy, Try again, Make changes,
+// Save as file), the follow-ups below in the same chat, and the chat box pinned at the bottom. Everything the Next bar
+// and More actions offered waits behind Make changes. Make something (the Mac look's Simple home, or this page with
+// S.scPage = "make" in the classic look) keeps the picture, video, website and campaign starts.
+function scMakePage() { return S.scPage === "make" && !S.live?.id && !S.make?.active && !S.awaitingRun; }
+function scState() { return S.live?.id || S.make?.active || S.awaitingRun ? "run" : "empty"; }
+function scEmptyHtml() {
+  if (scMakePage()) return `<div class="sc-empty sc-make" id="sc-empty">
+      <h2 class="sc-hello" id="sc-hello">What do you want to make?</h2>
+      <div class="sc-chips" id="sc-chips" role="group" aria-label="Start with">
+        <button type="button" class="btn sm" data-sc-chip="image">Image</button><button type="button" class="btn sm" data-sc-chip="video">Video</button><button type="button" class="btn sm" data-sc-chip="website">Website</button><button type="button" class="btn sm" data-sc-chip="campaign">Campaign</button>
+      </div>
+      <div id="simple-home"><div id="simple-continue"></div>${simpleDayHtml()}<div id="simple-recent"></div></div>
+    </div>`;
+  return `<div class="sc-empty" id="sc-empty">
+      <h2 class="sc-hello" id="sc-hello">${esc(CHAT_EMPTY.title)}</h2>
+      <p class="sc-sub">${esc(CHAT_EMPTY.line)}</p>
+      <div class="sc-starters" id="cc-starters" role="group" aria-label="Try one">${CHAT_EMPTY.chips.map((c) => `<button type="button" class="sc-try" data-sc-try="${esc(c.id)}">${esc(c.label)}</button>`).join("")}</div>
+    </div>`;
+}
+// The four buttons. turn is "" for the first answer, or the index of a reply in the chat's thread.
+function scButtonsHtml(turn, open) {
+  const t = turn === "" ? "" : ` data-turn="${turn}"`;
+  return `<div class="sc-acts" role="group" aria-label="Answer actions"${t}>${ANSWER_BUTTONS.map((b) => `<button type="button" class="btn sm${b.id === "save" ? " primary" : ""}" data-sc-act="${b.id}"${b.id === "change" ? ` aria-expanded="${open ? "true" : "false"}"` : ""}>${esc(b.label)}</button>`).join("")}</div>`;
+}
 function renderSimpleChat(v) {
+  const mainOpen = !!S.scOpen?.[`main:${S.live?.id || ""}`];
+  // a redraw keeps the reading place (or stays at the newest message when it was there)
+  const was = $("#sc-scroll");
+  const keep = was ? { top: was.scrollTop, end: was.scrollHeight - was.scrollTop - was.clientHeight < 6 } : null;
   v.innerHTML = `
-  <div class="cmd simple-chat" data-state="${S.live?.id || S.make?.active ? "run" : "empty"}"${S.scFold ? ' data-fold="1"' : ""}>
+  <div class="sc-chat" id="sc-chat" data-state="${scState()}" data-page="${scMakePage() ? "make" : "chat"}">
+    <div class="sc-scroll" id="sc-scroll">
+      <div class="sc-col">
+        <div class="sc-resume" id="sc-resume"></div>
+        ${scEmptyHtml()}
+        <div class="sc-thread" id="sc-thread">
+          <div class="sc-head"><button type="button" class="sc-new" id="sc-new" title="Start a new chat. This one stays in History.">New chat</button></div>
+          <div class="sc-me" id="sc-q" hidden></div>
+          <div class="sc-ai" id="simple-answer" ${S.live?.id || S.make?.active ? "" : "hidden"}>
+            <div class="sc-card">
+              <h3 class="sc-who"><b>Answer</b><span id="out-head"></span></h3>
+              <div class="md" id="out-md"></div>
+              <div class="sc-check" id="sc-check"></div>
+              <div id="cc-fail-slot"></div>
+              <div id="out-follow"></div>
+            </div>
+            ${scButtonsHtml("", mainOpen)}
+            <div class="sc-changes" id="sc-changes" ${mainOpen ? "" : "hidden"}>
+              <div id="cc-answer-line" class="answer-line small"></div>
+              <div id="sc-mm-slot"></div>
+              <div id="deliv-extras"></div>
+            </div>
+          </div>
+          <div id="sc-turns" aria-live="polite"></div>
+        </div>
+      </div>
+    </div>
     <div class="orders">
-      <div class="panel sc-panel" style="display:flex;flex-direction:column;gap:10px">
-        <h2 class="sc-hello" id="sc-hello">What do you want to make?</h2>
+      <div class="panel sc-panel">
         <h3>Chat</h3>
         <div class="sc-live" id="sc-live" role="status" hidden><span class="dock-pulse" aria-hidden="true"></span><span id="sc-live-text"></span><button type="button" class="btn sm" id="sc-live-open" aria-haspopup="dialog">See live</button></div>
         <div class="sc-box">
-          <textarea id="orders" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
+          <textarea id="orders" rows="2" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
           <div class="row simple-send-row">
             <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
             <button type="button" class="sc-team" id="sc-team" aria-expanded="false" aria-controls="sc-more" title="Auto team picks the AIs, the price and the way to run it for you. Open More options to change it.">Auto team</button>
@@ -1610,9 +1671,6 @@ function renderSimpleChat(v) {
           </div>
           <div class="small dim" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</div>
         </div>
-        <div class="sc-chips" id="sc-chips" role="group" aria-label="Start with">
-          <button type="button" class="btn sm" data-sc-chip="image">Image</button><button type="button" class="btn sm" data-sc-chip="video">Video</button><button type="button" class="btn sm" data-sc-chip="website">Website</button><button type="button" class="btn sm" data-sc-chip="campaign">Campaign</button>
-        </div>
         <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
         <div id="cc-emp-hint" aria-live="polite"></div>
         <div class="sc-more" id="sc-more">
@@ -1620,7 +1678,7 @@ function renderSimpleChat(v) {
           <div class="row"><button class="btn sm" type="button" id="cc-get-free-simple">Get free AIs</button></div>
           <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
           <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
-          <div class="row" id="cc-starters" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
+          <div class="row" id="cc-starters-more" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
           ${projectField()}
           <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
           <div class="row"><button class="btn sm" type="button" id="cc-show-ais" title="Show or hide the bar of your connected AIs at the bottom">${S.settings?.simpleStrip ? "Hide my AIs" : "Show my AIs"}</button></div>
@@ -1628,35 +1686,18 @@ function renderSimpleChat(v) {
         <div id="cmd-extras"></div>
       </div>
     </div>
-    <div class="panel output" id="simple-answer" ${S.live?.id ? "" : "hidden"}>
-      <h3>Answer <span class="right" id="out-head"></span><button class="ghost small" id="copy">copy</button></h3>
-      <div class="md" id="out-md"></div>
-      <div id="cc-answer-line" class="answer-line small"></div>
-      <div id="out-follow"></div>
-      <div id="cc-fail-slot"></div>
-      <div id="deliv-extras"></div>
-    </div>
-    <div id="simple-home"><div id="simple-continue"></div>${simpleDayHtml()}<div id="simple-recent"></div></div>
   </div>`;
   wireProjectPicker();
   paintContinueCard();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
-  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendOrders(); } });
+  // 0.4.37: Ctrl+Enter in the box is the person sending, so it can go on in the same chat (see scFollowOk)
+  $("#orders").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); S.sendByPerson = true; sendOrders(); } });
   $("#go").addEventListener("click", pressSend);
-  // 0.4.28: typing or clicking in the folded box opens it again (Send itself does not, so it never opens and folds at once).
-  const unfold = (e) => { if (S.scFold && !e.target?.closest?.("#go")) foldSimpleBox(false); };
-  for (const ev of ["input", "pointerdown"]) v.querySelector(".cmd.simple-chat .orders")?.addEventListener(ev, unfold);
+  v.querySelector(".sc-chat").addEventListener("click", onSimpleChatClick);
   $$("[data-day]", v).forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.day; S.navMenu = "more"; S.openProject = null; render(); }));
   $$("[data-starter]", v).forEach((b) => b.addEventListener("click", () => {
     const item = STARTERS.find((s) => s.id === b.dataset.starter);
-    if (!item) return;
-    const box = $("#orders");
-    box.value = item.text;
-    S.lastOrders = item.text;
-    paintStarters();
-    const note = $("#mask-line");
-    if (note) note.textContent = maskNotice(item.text);
-    box.focus();
+    if (item) scFillBox(item.text);
   }));
   $("#cc-show-ais")?.addEventListener("click", async () => {
     const on = !S.settings?.simpleStrip;
@@ -1679,18 +1720,213 @@ function renderSimpleChat(v) {
   $("#cc-get-free-simple")?.addEventListener("click", () => window.CC.freeAis?.open?.());
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
-  $("#copy").addEventListener("click", () => copyDeliverable());
   paintStarters();
   renderOutput();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+  const sc = $("#sc-scroll");
+  if (keep && sc) sc.scrollTop = keep.end ? sc.scrollHeight : keep.top;
 }
-// 0.4.28 (panel item 3a): after a Simple send the docked chat box folds to its short size (flow.css keys on data-fold), so
-// it no longer sits over the answer's Copy, Double-check and Try again buttons.
-function foldSimpleBox(on) {
-  S.scFold = !!on;
-  const c = document.querySelector("#view .cmd.simple-chat");
-  if (c) { if (on) c.dataset.fold = "1"; else delete c.dataset.fold; }
+// Puts words in the chat box (nothing is sent) and puts the cursor at the end.
+function scFillBox(text) {
+  const box = $("#orders");
+  if (!box) return;
+  box.value = text;
+  S.lastOrders = text;
+  const note = $("#mask-line");
+  if (note) note.textContent = maskNotice(text);
+  paintStarters();
+  box.focus();
+  try { box.setSelectionRange(text.length, text.length); } catch { /* fine */ }
+}
+// The text of one turn in the chat's thread (a council or mission reply can be several AIs' parts).
+function scTurnText(t) {
+  if (!t) return "";
+  if (t.text) return String(t.text);
+  return (t.parts || []).map((p) => p?.text || "").filter(Boolean).join("\n\n");
+}
+// The replies after the first answer, oldest first. They live on the run, so History reopens the whole chat.
+function scTurns(l) {
+  if (!l?.id) return [];
+  if (l.kind === "single") return mergedSingleTurns({ answerThread: l.mission?.answerThread, thread: l.mission?.thread || l.thread });
+  if (l.kind === "council") return l.council?.thread || [];
+  if (l.kind === "mission") return l.mission?.thread || [];
+  return [];
+}
+function scPrompt(l) {
+  const p = String(l?.mission?.prompt || l?.council?.prompt || l?.mission?.goal || "").trim();
+  if (p && !isInternalRunText(p)) return p;
+  return l?.id || S.awaitingRun || S.make?.active || l?.status === "running" ? String(S.lastPrompt || "") : "";
+}
+// The quick changes under a reply. Each one is the next message in this chat.
+function scQuickHtml(turn) {
+  return `<div class="sc-quick" role="group" aria-label="Make changes">${REPLY_CHANGES.map((c) => `<button type="button" class="btn sm" data-sc-quick="${esc(c.id)}" data-turn="${turn}">${esc(c.label)}</button>`).join("")}<button type="button" class="btn sm" data-sc-quick="other" data-turn="${turn}">Something else</button></div>`;
+}
+// Long code inside an answer folds: the card stays short and the code opens under the answer when clicked.
+function scFoldCode(el) {
+  if (!el) return;
+  for (const pre of [...el.querySelectorAll(":scope > pre, :scope > p > pre")]) {
+    const lines = String(pre.textContent || "").replace(/\n+$/, "").split("\n").length;
+    if (lines < 7 || pre.parentElement?.tagName === "DETAILS") continue;
+    const d = document.createElement("details");
+    d.className = "sc-code";
+    d.innerHTML = `<summary>Show the code (${lines} lines)</summary>`;
+    pre.replaceWith(d);
+    d.appendChild(pre);
+  }
+}
+function paintTurns() {
+  const box = $("#sc-turns");
+  if (!box) return;
+  const l = S.live || {};
+  const turns = scTurns(l);
+  const replying = !!l.replying && (l.replying.scope || "job") === "job";
+  if (!replying) S.scAsk = "";
+  const open = S.scOpen || {};
+  const sig = JSON.stringify([l.id || "", turns.length, turns.map((t) => (t.text || "").length + (t.error ? "e" : "")), replying, S.scAsk || "", Object.keys(open).filter((k) => open[k] && k.startsWith(`turn:${l.id}:`))]);
+  if (box.dataset.sig === sig) return;
+  box.dataset.sig = sig;
+  const html = turns.map((t, i) => {
+    if (t.role === "user") return `<div class="sc-me">${esc(t.text || "")}</div>`;
+    const on = !!open[`turn:${l.id}:${i}`];
+    const who = t.label || (t.provider ? pname(t.provider) : "");
+    const body = t.error ? `<div class="small" style="color:var(--red)">${esc(t.error)}</div>` : `<div class="md">${md(scTurnText(t))}</div>`;
+    return `<div class="sc-ai sc-reply" data-turn="${i}"><div class="sc-card"><h3 class="sc-who"><b>Answer</b>${who ? `<span>${esc(who)}</span>` : ""}</h3>${body}</div>${t.error ? "" : `${scButtonsHtml(i, on)}<div class="sc-changes" ${on ? "" : "hidden"}>${scQuickHtml(i)}</div>`}</div>`;
+  }).join("");
+  const live = Object.values(l.agents || {}).find((a) => a?.role === "followup" && !a.done && a.text);
+  const pending = replying ? `${S.scAsk ? `<div class="sc-me">${esc(S.scAsk)}</div>` : ""}<div class="sc-ai sc-pending"><div class="sc-card"><h3 class="sc-who"><b>Answer</b><span>Writing...</span></h3><div class="reply-live md" data-reply-live="job:">${live ? md(live.text) : `<p class="dim">Writing the answer...</p>`}</div></div></div>` : "";
+  box.innerHTML = html + pending;
+  box.querySelectorAll(".sc-reply .md").forEach(scFoldCode);
+  if (S.scStick) {
+    const last = box.lastElementChild;
+    const scroller = $("#sc-scroll");
+    if (last && scroller) {
+      const tall = last.getBoundingClientRect().height > scroller.clientHeight - 40;
+      try { last.scrollIntoView({ block: tall ? "start" : "end", behavior: "auto" }); } catch { /* fine */ }
+    }
+    if (!replying) S.scStick = false;
+  }
+}
+// The parts of the Chat page that follow the run: empty or in use, the question bubble, the replies.
+function scFrame(l) {
+  const chat = $("#view .sc-chat");
+  if (!chat) return;
+  const st = scState();
+  if (chat.dataset.state !== st) chat.dataset.state = st;
+  const q = $("#sc-q");
+  if (q) { const p = scPrompt(l); if (q.textContent !== p) q.textContent = p; q.hidden = !p; }
+  // the answer check belongs to a finished answer; a new run starts without the last one's warning
+  const chk = $("#sc-check");
+  if (chk?.firstChild && !REPLIED.has(l?.status)) chk.innerHTML = "";
+  paintTurns();
+}
+// 0.4.37: is this send the next message in the same chat? Only when the person typed it after a finished answer, it is
+// not a picture, video or project request, and no feature pressed Send for them (Try again and the Make something steps
+// fill the box and press Send, and those start a new answer as before).
+function scFollowOk(prompt) {
+  if (S.uiMode !== "simple" || S.view !== "command" || !$("#view .sc-chat")) return false;
+  const l = S.live;
+  if (!l?.id || !["single", "council", "mission"].includes(l.kind) || S.make?.active) return false;
+  if (!["done", "done-with-errors"].includes(l.status)) return false;
+  if (!(l.deliverable || l.agents?.[l.primary]?.text)) return false;
+  if (projectIntent(prompt) || window.CC.makeChat?.intent?.(prompt)) return false;
+  return true;
+}
+async function sendSimpleFollow(text) {
+  if (S.live?.replying) return toast("Still writing the last answer. It shows here when it is done.");
+  const box = $("#orders");
+  if (box) box.value = "";
+  S.lastOrders = "";
+  const note = $("#mask-line"); if (note) note.textContent = maskNotice("");
+  S.live.replying = { scope: "job", target: "" };
+  S.scAsk = text;
+  S.scStick = true;
+  renderOutput();
+  try { document.activeElement?.blur?.(); } catch { /* fine */ }
+  try {
+    await api("/followup", { method: "POST", body: { runId: S.live.id, text, scope: "job" } });
+  } catch (err) {
+    S.live.replying = null;
+    S.scAsk = "";
+    if (box && box.isConnected) box.value = text;
+    S.lastOrders = text;
+    renderOutput();
+    toast(err.message, true);
+  }
+}
+async function scCopy(text) {
+  const t = String(text || "");
+  if (!t.trim()) return toast("Nothing to copy yet", true);
+  if (!(await confirmRisky(t))) return;
+  try { await navigator.clipboard.writeText(t); toast("Copied"); }
+  catch { toast("Could not copy: select the text and press Ctrl+C", true); }
+}
+// Save as file: the same saver as a chat that names a file (server named-file.js, never overwrites, kept in MindMedia).
+async function scSave(text, prompt, btn) {
+  const t = String(text || "");
+  if (!t.trim()) return toast("There is nothing to save yet.", true);
+  if (btn) btn.disabled = true;
+  try {
+    const r = await api("/chat/save-file", { method: "POST", body: { runId: S.live?.id || "", text: t, name: answerFileName(prompt, t) } });
+    toast(`Saved ${r.name}${r.where ? ` in ${r.where}` : ""}.`);
+    window.dispatchEvent(new CustomEvent("cc:mindmedia-saved"));
+  } catch (e) { toast(e.message, true); }
+  finally { if (btn) btn.disabled = false; }
+}
+function scToggle(key, wrap, btn) {
+  const fold = wrap?.querySelector(":scope > .sc-changes");
+  if (!fold) return;
+  const on = fold.hidden;
+  fold.hidden = !on;
+  S.scOpen = { ...(S.scOpen || {}), [key]: on };
+  btn?.setAttribute("aria-expanded", String(on));
+  if (on) { try { fold.scrollIntoView({ block: "nearest" }); } catch { /* fine */ } }
+}
+function onSimpleChatClick(e) {
+  const t = e.target;
+  const tryChip = t.closest?.("[data-sc-try]");
+  if (tryChip) { const c = CHAT_EMPTY.chips.find((x) => x.id === tryChip.dataset.scTry); if (c) scFillBox(c.text); return; }
+  if (t.closest?.("#sc-new")) { if (window.CC.layout?.newChat) window.CC.layout.newChat(); else { S.live = newLive(); S.lastOrders = ""; render(); } return; }
+  const quick = t.closest?.("[data-sc-quick]");
+  if (quick) {
+    if (quick.dataset.scQuick === "other") { $("#orders")?.focus(); return; }
+    const c = REPLY_CHANGES.find((x) => x.id === quick.dataset.scQuick);
+    if (c) sendSimpleFollow(c.text);
+    return;
+  }
+  const act = t.closest?.("[data-sc-act]");
+  if (!act) return;
+  const row = act.closest(".sc-acts");
+  const wrap = act.closest(".sc-ai");
+  const l = S.live || {};
+  const which = act.dataset.scAct;
+  if (!row?.hasAttribute("data-turn")) {
+    // the first answer of this chat: the run's own deliverable, with every old action behind Make changes
+    const text = l.deliverable || l.agents?.[l.primary]?.text || "";
+    if (which === "copy") return void copyDeliverable();
+    if (which === "save") return void scSave(text, scPrompt(l), act);
+    if (which === "change") return void scToggle(`main:${l.id || ""}`, wrap, act);
+    if (which === "again") {
+      const again = $("#cc-v-again");
+      if (again) { again.click(); return; }
+      const p = scPrompt(l);
+      if (!p) return void toast("Type the question again, then Send.", true);
+      const box = $("#orders");
+      if (box) { box.value = p; S.lastOrders = p; }
+      sendOrders();
+    }
+    return;
+  }
+  const i = Number(row.dataset.turn);
+  const turns = scTurns(l);
+  const turn = turns[i];
+  if (which === "copy") return void scCopy(scTurnText(turn));
+  if (which === "save") return void scSave(scTurnText(turn), scPrompt(l), act);
+  if (which === "change") return void scToggle(`turn:${l.id}:${i}`, wrap, act);
+  if (which === "again") {
+    const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user");
+    if (ask?.text) sendSimpleFollow(ask.text);
+  }
 }
 // 0.4.28 (panel item 3a): when an answer finishes, bring its action buttons into view above the docked chat box (0.4.31:
 // a long answer too, as long as the first button row stays on screen).
@@ -1709,14 +1945,15 @@ function revealAnswer(id) {
     if (!card || card.hidden) return;
     // 0.4.35 (panel 0431 item 6): at phone width the chat page does not scroll itself; the page box (#view) does, with
     // the chat box at the top. Use whichever box around the answer really scrolls.
-    const chat = card.closest(".cmd.simple-chat");
+    // 0.4.37: the chat column (#sc-scroll) scrolls and the chat box sits under it, so walk up from the answer itself.
+    const chat = card.closest(".sc-chat");
     const box = chat?.querySelector(".orders");
     const scrolls = (el) => !!el && el.scrollHeight > el.clientHeight + 2 && /(auto|scroll)/.test(getComputedStyle(el).overflowY);
-    let scroller = scrolls(chat) ? chat : null;
-    for (let el = chat?.parentElement; !scroller && el && el !== document.body; el = el.parentElement) if (scrolls(el)) scroller = el;
+    let scroller = null;
+    for (let el = card.parentElement; !scroller && el && el !== document.body; el = el.parentElement) if (scrolls(el)) scroller = el;
     if (!scroller) return;
     // 0.4.31 (panel 0428 item 1b): Copy, Double-check, Try again and Finish (the Next bar and the finish pair) count too.
-    const acts = [...card.querySelectorAll(".answer-main, #cc-v-again, [data-feature='next-actions'] .na-bar, [data-feature='finishpath'] > *")].filter((e) => e.getBoundingClientRect().height > 0);
+    const acts = [...card.querySelectorAll(":scope > .sc-acts, .answer-main, #cc-v-again, [data-feature='next-actions'] .na-bar, [data-feature='finishpath'] > *")].filter((e) => e.getBoundingClientRect().height > 0);
     if (!acts.length) return;
     const sr = scroller.getBoundingClientRect();
     const boxTop = box && getComputedStyle(box).position === "sticky" ? Math.min(box.getBoundingClientRect().top, sr.bottom) : sr.bottom;
@@ -2062,13 +2299,15 @@ function renderOutput() {
   // Simple: the answer sits right under the chat box, and only when there is one.
   const simpleAnswer = $("#simple-answer");
   if (simpleAnswer) simpleAnswer.hidden = !l.id && !S.make?.active;
+  scFrame(l);
   window.CC.makeChat?.mount();
   paintAnswerLine(l, text);
   const wait = $("#deliv-wait");
   if (wait && panel) wait.hidden = !panel.hidden;
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
   if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want in the box. Meldmind picks an AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble. Second opinion asks two AIs and keeps both answers.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
-  h.textContent = prim ? `Written by ${pname(prim.provider)} · ${prim.model}` : "";
+  // 0.4.37: the Simple card says "Answer · Nova"; Expert keeps who and which model
+  h.textContent = prim ? (S.uiMode === "expert" ? `Written by ${pname(prim.provider)} · ${prim.model}` : pname(prim.provider)) : "";
   // out of API credits: the waiting box (single chat, and council seats in Simple mode, where seats are not shown)
   const subWait = subWaitingHtml(l);
   if (subWait) {
@@ -2094,6 +2333,7 @@ function renderOutput() {
     return;
   }
   o.innerHTML = text ? md(text) : "";
+  if (S.uiMode !== "expert") scFoldCode(o);
   if (prim && !prim.done && prim.role !== "followup") o.classList.add("cursor"); else o.classList.remove("cursor");
   paintFollow(`${outputFollowHtml()}${chargeNote(l)}`);
   paintFailure();
@@ -2178,9 +2418,8 @@ function outputFollowHtml() {
   const l = S.live;
   const simple = S.uiMode !== "expert";
   if (simple) {
-    const has = !!(l.deliverable || (l.primary && l.agents[l.primary]?.text));
-    if (!has) return "";
-    return jobReply();
+    // 0.4.37: no reply box under a Simple answer; the chat box at the bottom sends the next message in the same chat
+    return "";
   }
   const blocks = [];
   if (l.kind === "single") {
@@ -2331,7 +2570,8 @@ function askNotify() {
 // guard so one press never sends twice.
 let lastGoClick = 0, goDownAt = 0;
 // a real click always sends (sendOrders ignores a press while a run is busy)
-function pressSend() { lastGoClick = Date.now(); sendOrders(); }
+// 0.4.37: a press the person made (not a feature calling go.click()) may go on in the same Simple chat (scFollowOk)
+function pressSend(e) { lastGoClick = Date.now(); S.sendByPerson = e ? !!e.isTrusted : true; sendOrders(); }
 document.addEventListener("pointerdown", (e) => { if (e.button === 0 && e.target?.closest?.("#go")) goDownAt = Date.now(); }, true);
 document.addEventListener("pointerup", (e) => {
   // the button was rebuilt between press and release, so the browser never made a click: send on the release
@@ -2347,8 +2587,11 @@ document.addEventListener("keydown", (e) => {
 }, true);
 document.addEventListener("keyup", (e) => { if (e.target?.closest?.("#go") && (e.key === " " || e.code === "Space")) e.preventDefault(); }, true);
 async function sendOrders() {
+  const byPerson = !!S.sendByPerson; S.sendByPerson = false;
   if (runBusy()) return;
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
+  // 0.4.37 (Chris: one chat column): typed after a finished answer, it goes on in the same chat's thread
+  if (byPerson && scFollowOk(prompt)) { if (!(await confirmRisky(prompt))) return; return sendSimpleFollow(prompt); }
   if (!(await confirmRisky(prompt))) return;
   S.lastPrompt = prompt;
   S.answerAsked = true; // 0.4.28: the answer to this send is brought into view once (revealAnswer, showExpertAnswer)
@@ -2486,9 +2729,7 @@ async function sendOrders() {
       if (box && box.value.trim() === prompt) box.value = "";
       S.lastOrders = "";
       const note = $("#mask-line"); if (note) note.textContent = maskNotice("");
-      // 0.4.28 (panel item 3a): the box folds to its short size until the person types or clicks in it again. The fold
-      // used to wait for focus to leave the box, but the box (or Send) keeps focus after a send, so it never folded.
-      foldSimpleBox(true);
+      // 0.4.37: the box is always the short pinned box now (the 0.4.28 fold is gone), so it only lets go of the focus.
       try { document.activeElement?.blur?.(); } catch { /* fine */ }
     }
   } catch (e) {
@@ -3812,7 +4053,8 @@ function welcomeAiHtml(st) {
   const envDetected = Object.keys(st.detectedKeys || {}).map((id) => pname(id)).filter((n) => !connectedNames.includes(n));
   const cliDetected = (st.detectedCli || S.cli || []).filter(Boolean);
   const detectedList = [...new Set([...connectedNames, ...envDetected, ...cliDetected])];
-  const detectedRow = detectedList.length ? `<div class="route small" id="su-detected-ais" style="margin-bottom:10px"><b>Detected on this PC:</b> ${detectedList.map((n) => `<span class="chip green" style="margin-left:4px">${esc(n)}</span>`).join("")}</div>` : `<div class="dim small" id="su-detected-ais" style="margin-bottom:8px">Detected on this PC: checking for connected AIs and keys...</div>`;
+  const detectedRow = detectedList.length ? `<div class="route small" id="su-detected-ais" style="margin-bottom:10px"><b>Detected on this PC:</b> ${detectedList.map((n) => `<span class="chip green" style="margin-left:4px">${esc(n)}</span>`).join("")}</div>` : `<div class="dim small" id="su-detected-ais" style="margin-bottom:8px">Detected on this PC: checking for connected AIs...</div>`;
+  // 0.4.37 (panel 0435 item 8): fewer "key" words on the first screen (Save, Sign up free, the council line)
   return `<div class="welcome-block" id="su-ai"><h3>${esc(WELCOME.aiTitle)}</h3>
     ${detectedRow}
     <button type="button" class="btn primary" id="su-try">${esc(WELCOME.tryIt)}</button>
@@ -3820,10 +4062,10 @@ function welcomeAiHtml(st) {
     <div class="lbl" style="margin-top:12px">${esc(WELCOME.keyLabel)}</div>
     ${keyed ? `<span class="chip green">OpenRouter connected</span>` : `<div class="row" style="gap:8px;flex-wrap:wrap">
       <input type="password" id="su-or-key" autocomplete="off" placeholder="sk-or-..." aria-label="OpenRouter key" value="${esc(st.orKey || "")}" style="flex:1;min-width:12rem">
-      <button type="button" class="btn sm" id="su-or-save">Save key</button>
+      <button type="button" class="btn sm" id="su-or-save" aria-label="Save the OpenRouter key">Save</button>
       <a class="btn sm" href="https://openrouter.ai/keys" target="_blank" rel="noopener">${esc(WELCOME.getKey)}</a>
     </div>`}
-    <div class="dim small" style="margin-top:6px">${esc(WELCOME.keyLine)} One key from one AI company gives one AI. A council needs two AI companies, or one OpenRouter key.</div>
+    <div class="dim small" style="margin-top:6px">${esc(WELCOME.keyLine)} One AI company gives one AI. A council needs two AI companies, or OpenRouter.</div>
   </div>`;
 }
 function welcomeAppsHtml() {

@@ -33,18 +33,24 @@ export function requestOf(user) {
 }
 
 const KINDS = [
-  ["website", /\b(website|web ?page|landing page|html page)\b/i],
+  // 0.4.37 (panel 0435 item 6): named HTML files are website requests, including plumber.html.
+  ["website", /\b(website|web ?page|landing page|html page|[\w-]+\.html?)\b/i],
+  // 0.4.37 (panel 0435 item 1): a run instruction at the end must not hide the requested code.
+  ["code", /\b(code|script|program|function|python|javascript|typescript|powershell|apps script|google sheets script|bash|shell|sql|json|regex|bug|html|css|api endpoint|snippet)\b/i],
   ["howto", /\b(how (?:do|can|to)|steps? to|instructions? for|explain how)\b/i],
   ["review", /\b(reply|respond)\b.{0,30}\b(review|rating)\b|\b(review|rating)\b.{0,30}\b(reply|response)\b/i],
   ["legal", /\b(opposing counsel|attorney|lawyer|legal note|case file)\b/i],
   ["credit", /\b(credit repair|credit update|credit report)\b/i],
   ["listing", /\b(listing|open house|flyer|property description)\b/i],
   ["sop", /\b(sop|standard operating procedure|checklist)\b/i],
-  ["titles", /\b(title ideas?|ideas? for (?:a|my|the) video|video hooks?|thumbnail text|outline for (?:a|my|the) video)\b/i],
+  // 0.4.37 (panel 0435 item 6): route stream titles and headline requests to counted title output.
+  ["titles", /\b(title ideas?|titles? for|stream titles?|ideas? for (?:a|my|the) video|video hooks?|thumbnail text|headlines?|outline for (?:a|my|the) video)\b/i],
+  // 0.4.37 (panel 0435 item 6): explicit line requests need short subject text, not a generic answer.
+  ["lines", /\b\d{1,2}\s+(?:short\s+)?lines?\b/i],
   ["howto", /\bhow\b/i],
-  ["code", /\b(code|script|function|python|javascript|typescript|sql|regex|bug|html|css|api endpoint|snippet)\b/i],
   // 0.4.31: a spreadsheet or a data list is a table, so the Spreadsheet and List or data paths really save a file in demo
-  ["table", /\b(spread ?sheets?|excel|xlsx|xlsm|csv|(?:in|as|into) a table|table of|columns?)\b/i],
+  // 0.4.37 (panel 0435 item 6): price lists are data tables even without a file extension.
+  ["table", /\b(spread ?sheets?|excel|xlsx|xlsm|csv|price list|guest list|(?:in|as|into) a table|table of|columns?)\b/i],
   ["email", /\b(e-?mail|follow[ -]?up|reply to|write to|renewal|letter|message to|thank[- ]you note|cold outreach)\b/i],
   ["post", /\b(posts?|caption|instagram|tiktok|tweet|reel|linkedin|facebook|social media|hashtags?)\b/i],
   ["summary", /\b(summar\w*|recap|tl;?dr|key points|main points|sum up)\b/i],
@@ -58,6 +64,8 @@ const SAVES_TABLE = /\b(?:save|saved|name|call|export|as)\b[^.\n]{0,40}?\b[\w-]+
 export function kindOf(text) {
   const t = String(text || "");
   if (SAVES_TABLE.test(t)) return "table";
+  // 0.4.37 (panel 0435 item 1): generated script prompts append "how to run it" after their task.
+  if (/\b(?:script|program|function|code|python|javascript|typescript|powershell|apps script|bash|shell|sql|json)\b/i.test(t)) return "code";
   for (const [kind, re] of KINDS) if (re.test(t)) return kind;
   return "answer";
 }
@@ -65,6 +73,14 @@ export function kindOf(text) {
 // "for my bakery" -> "bakery". Falls back to a neutral phrase.
 export function subjectOf(text) {
   const t = String(text || "").toLowerCase();
+  // 0.4.37 (panel 0435 item 6): a named creator is the topic of a title request.
+  const titleFor = String(text || "").match(/\b(?:stream\s+)?titles?\s+for\s+(?:(?:my|our|the|a|an)\s+)?([a-z][a-z' -]{1,30}?)(?=[.,!?;:]|$|\s+(?:about|on|for)\b)/i);
+  if (titleFor?.[1]) return titleFor[1].trim().split(/\s+/).slice(0, 4).join(" ");
+  // 0.4.37 (panel 0435 item 6): titles and short lines can name a topic without an article.
+  const topic = t.match(/\b(?:about|on|for)\s+(?:my|our|the|a|an)\s+([a-z][a-z' -]{1,40}?)(?=[.,!?;:]|$|\s+(?:under|with|who|that|this|next)\b)/);
+  // (the day is said elsewhere in the answer, as below: "our Saturday bakery special" is "bakery special")
+  const topicWords = topic?.[1] ? topic[1].replace(/\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|weekly|daily)\b/g, " ").replace(/\s+/g, " ").trim() : "";
+  if (topicWords) return topicWords.split(/\s+/).slice(0, 4).join(" ");
   const m = t.match(/\b(?:for|about|at|of) (?:my|our|the|a|an) ([a-z][a-z' -]{1,40}?)(?=[.,!?;:]|$| (?:about|to|on|that|this|next|for|with|in|and|who)\b)/);
   // The day is said elsewhere in the answer ("our Saturday bakery special" becomes "bakery special").
   const s = m ? m[1].replace(/\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|weekly|daily)\b/g, " ").replace(/\s+/g, " ").trim() : "";
@@ -107,6 +123,8 @@ function post(req, v) {
 function email(req, v) {
   const about = subjectOf(req);
   const topic = about ? `the ${about}` : "what we discussed";
+  // 0.4.37 (panel 0435 item 6): renewal drafts mention the renewal decision and requested details.
+  if (/renewal|renew|policy|insurance/i.test(req)) return `**Subject:** Insurance renewal\n\nHi [Name],\n\nI am writing about the upcoming renewal. Please send the updated premium, coverage details, and the date you need my decision.\n\nCould you share the renewal options by [date]?\n\nThank you,\n[Your name]`;
   if (v === 1) {
     return [
       `**Subject:** Next steps on ${topic}`,
@@ -164,9 +182,22 @@ function code(req, v) {
   if (sql) {
     return "```sql\n-- Customers who ordered in the last 30 days, newest first\nSELECT c.name, MAX(o.created_at) AS last_order\nFROM customers c\nJOIN orders o ON o.customer_id = c.id\nWHERE o.created_at >= CURRENT_DATE - INTERVAL '30 days'\nGROUP BY c.name\nORDER BY last_order DESC;\n```" + (v === 1 ? "\n\n**Note:** add an index on orders(customer_id, created_at) if this is slow." : "");
   }
+  // 0.4.37 (panel 0435 item 6): Python requests get task shaped Python, not an unrelated CSV reader.
   if (py) {
-    return "```python\nimport csv\n\ndef read_rows(path):\n    \"\"\"Read a CSV file and return a list of dicts, skipping empty rows.\"\"\"\n    with open(path, newline=\"\", encoding=\"utf-8\") as f:\n        return [row for row in csv.DictReader(f) if any(row.values())]\n\nif __name__ == \"__main__\":\n    print(len(read_rows(\"data.csv\")), \"rows\")\n```" + (v === 1 ? "\n\n**Test it:** run it on a file with one blank line and check the count." : "");
+    // a CSV request still gets the CSV reader: that one fits it (the panel's complaint was every request getting it)
+    const sample = /renam(?:e|es|ing).*photo|photo.*renam/i.test(req)
+      ? "from pathlib import Path\n\nfolder = Path(\"photos\")\nfor path in sorted(folder.iterdir()):\n    if path.is_file():\n        target = path.with_name(f\"{path.stem}-renamed{path.suffix}\")\n        print(f\"{path.name} -> {target.name}\")\n        # Uncomment after checking the preview.\n        # path.rename(target)"
+      : /\bcsv\b/i.test(req)
+        ? "import csv\n\ndef read_rows(path):\n    \"\"\"Read a CSV file and return a list of dicts, skipping empty rows.\"\"\"\n    with open(path, newline=\"\", encoding=\"utf-8\") as f:\n        return [row for row in csv.DictReader(f) if any(row.values())]\n\nif __name__ == \"__main__\":\n    print(len(read_rows(\"data.csv\")), \"rows\")"
+        : "def main():\n    # Replace this sample value with your input.\n    value = \"sample\"\n    print(value)\n\nif __name__ == \"__main__\":\n    main()";
+    return `\`\`\`python\n${sample}\n\`\`\``;
   }
+  // 0.4.37 (panel 0435 item 6): JSON is valid data rather than prose.
+  if (/\bjson\b/i.test(t)) return jsonSample(req);
+  // 0.4.37 (panel 0435 item 7): PowerShell output uses native comments and a parameter block.
+  if (/\bpowershell\b|\.ps1\b/i.test(t)) return "```powershell\nparam(\n    [string]$Source = \".\\sermons\",\n    [string]$Destination = \".\\backup\"\n)\n\n# Copy sermon files while keeping their names.\nNew-Item -ItemType Directory -Path $Destination -Force | Out-Null\nGet-ChildItem -Path $Source -File | Copy-Item -Destination $Destination -WhatIf\n```";
+  // 0.4.37 (panel 0435 item 7): shell samples use shell comments.
+  if (/\b(?:bash|shell)\b|\.sh\b/i.test(t)) return "```sh\n#!/usr/bin/env sh\n# Show files in the source folder.\nsource_dir=\"${1:-.}\"\nfind \"$source_dir\" -maxdepth 1 -type f -print\n```";
   const body = "```js\n// Remove duplicates by email, keeping the first one seen\nexport function uniqueByEmail(people) {\n  const seen = new Set();\n  return people.filter((p) => {\n    const key = String(p.email || \"\").trim().toLowerCase();\n    if (!key || seen.has(key)) return false;\n    seen.add(key);\n    return true;\n  });\n}\n```";
   if (v === 2) return body;
   if (v === 1) return `${body}\n\n**Why this way:** a Set check is one pass, so it stays fast on large lists.\n**Edge case:** blank emails are dropped. Keep them if you need every row.`;
@@ -195,30 +226,65 @@ function answer(req, v) {
   return `**Short answer:** for most people, the best first step is a small test you can finish in a week.\n\n**Why:** a small test shows you what works before you spend real time or money.\n\n**What to do next:**\n1. Write down the one result you want.\n2. Pick the smallest step that would show progress.\n3. Check back in a week and keep what worked.`;
 }
 
+// 0.4.37 (panel 0435 item 6): a JSON sample with as many records as were asked for ("15 product records"), valid JSON
+function jsonSample(req) {
+  const m = String(req || "").match(/\b(\d{1,2})\s+(?:\w+\s+){0,2}(?:items?|products?|records?|entries|rows?|objects?)\b/i);
+  const n = Math.min(15, Math.max(1, m ? Number(m[1]) : 3));
+  const names = ["Classic tee", "Coffee mug", "Tote bag", "Sticker pack", "Gift card", "Candle", "Notebook", "Water bottle", "Cap", "Phone case", "Poster", "Keychain", "Socks", "Hoodie", "Pin set"];
+  const rows = Array.from({ length: n }, (_, i) => ({ id: `SKU-${String(i + 1).padStart(3, "0")}`, name: names[i % names.length], price: 5 + ((i * 7) % 30), inStock: i % 4 !== 3 }));
+  return "```json\n" + JSON.stringify(rows, null, 2) + "\n```";
+}
 function requestedCount(req, fallback = 3) {
-  const m = String(req).match(/\b(\d{1,2})\s+(?:(?:youtube|video|title|content|social)\s+){0,3}(?:lines?|steps?|titles?|ideas?|posts?|items?)\b/i);
+  const m = String(req).match(/\b(\d{1,2})\s+(?:(?:short|youtube|video|stream|title|headline|content|social)\s+){0,3}(?:lines?|steps?|titles?|headlines?|ideas?|posts?|items?)\b/i);
   return m ? Math.min(20, Number(m[1])) : fallback;
 }
 function fitAnswer(req, v, kind) {
-  const subject = subjectOf(req) || req.replace(/\b(?:write|make|draft|create|give me|please)\b/ig, "").trim().slice(0, 60) || "your request";
+  // 0.4.37 (panel 0435 item 6): retain the topic after common requested counts and plain-language verbs.
+  const titleSubject = kind === "titles" ? req.match(/\b(?:stream\s+)?titles?\s+for\s+(?:(?:my|our|the|a|an)\s+)?([a-z][a-z' -]{1,30}?)(?=[.,!?;:]|$|\s+(?:about|on|for)\b)/i)?.[1]?.trim() : "";
+  const subject = titleSubject || subjectOf(req) || req.replace(/\b(?:write|make|draft|create|give me|please|in|\d+|short|lines?|about|three)\b/ig, "").trim().slice(0, 60) || "your request";
   const n = requestedCount(req, kind === "howto" ? 3 : 3);
   const lines = Array.from({ length: n }, (_, i) => {
-    if (kind === "howto") return `${i + 1}. ${["Check the instructions for", "Gather what you need for", "Do the next step for", "Check the result for"][i % 4]} ${subject}.`;
-    if (kind === "titles") return `${i + 1}. ${subject}: ${["A simple guide", "What to know", "The best tips", "A closer look"][i % 4]}`;
-    if (kind === "sop") return `${i + 1}. ${["Check", "Record", "Tell the owner", "Follow up on"][i % 4]} ${subject}.`;
+    // 0.4.37 (panel 0435 item 6): keep the action phrase intact in how-to steps.
+    if (kind === "howto") {
+      const action = req.match(/how (?:do|can) i\s+(.+?)(?:[?.]|$)/i)?.[1];
+      const topic = action || subject;
+      return `${i + 1}. ${["First, prepare to", "Next, follow the steps to", "Then check that you can", "Finally, try to"][i % 4]} ${topic}.`;
+    }
+    if (kind === "titles") return `${i + 1}. ${["A simple guide to", "What to know about", "The best tips for", "A closer look at"][i % 4]} ${subject}`;
+    if (kind === "sop") {
+      const topic = req.match(/\bfor\s+(?:(?:my|our|the|a|an)\s+)?(.+?)(?:[?.]|$)/i)?.[1] || subject;
+      return `${i + 1}. ${["Check", "Record", "Tell the owner", "Follow up on"][i % 4]} ${topic.replace(/^(?:an?\s+)?SOP\s+checklist\s+(?:for\s+)?/i, "")}.`;
+    }
+    if (kind === "lines") {
+      const topic = req.match(/\babout\s+(.+?)(?:[?.]|$)/i)?.[1] || subject;
+      return `${i + 1}. ${topic}: ${["A small change can make a big difference", "Look closely and ask a good question", "Keep learning one step at a time"][i % 3]}.`;
+    }
     return `${i + 1}. ${subject}: ${["A clear first step", "What to check", "A helpful update", "Next steps"][i % 4]}.`;
   });
   if (kind === "website") {
     const named = String(req).match(/\b(?:called|named)\s+([A-Z][\w &'’-]*(?:\s+[A-Z][\w &'’-]*){0,3})/);
     const biz = (named?.[1] || subjectOf(req) || "Your business").replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c]);
-    return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${biz}</title></head><body><header><h1>${biz}</h1><p>A simple page for ${biz}.</p></header><main><h2>What we offer</h2><p>Learn more about ${biz} and get in touch.</p><a href="mailto:hello@example.com">Contact us</a></main></body></html>`;
+    // 0.4.37 (panel 0435 item 6): include a working contact form and a phone link for service pages.
+    const plumber = /plumb/i.test(req);
+    return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${biz}</title></head><body><header><h1>${biz}</h1><p>${plumber ? "Local plumbing service and repairs." : `A simple page for ${biz}.`}</p>${plumber ? '<a href="tel:5550100">Call (555) 0100</a>' : ""}</header><main><h2>${plumber ? "Request service" : "What we offer"}</h2><p>Learn more about ${biz} and get in touch.</p><form action="#" method="get"><label>Name <input name="name" required></label><label>Email <input type="email" name="email" required></label><label>How can we help? <textarea name="message"></textarea></label><button type="submit">Send request</button></form><a href="mailto:hello@example.com">Contact us</a></main></body></html>`;
   }
   if (kind === "code") {
     const t = req.toLowerCase();
+    // 0.4.37 (panel 0435 item 6): code-routed JSON stays JSON instead of becoming JavaScript.
+    if (/\bjson\b/i.test(t)) return jsonSample(req);
     const isPy = /\bpython\b/.test(t);
-    const lang = isPy ? "python" : /\b(?:node(?:\.js)?|javascript|\bjs\b)\b/.test(t) ? "js" : /\bpowershell\b/.test(t) ? "powershell" : "js";
+    // 0.4.37 (panel 0435 item 7): keep fallback samples valid in the requested language.
+    const isPs = /\bpowershell\b|\.ps1\b/.test(t);
+    const isSh = /\b(?:bash|shell)\b|\.sh\b/.test(t);
+    const isGs = /\b(?:apps script|google sheets script)\b/.test(t);
+    const lang = isPy ? "python" : isPs ? "powershell" : isSh ? "sh" : /\b(?:node(?:\.js)?|javascript|js)\b/.test(t) ? "js" : "js";
     const task = req.replace(/[\r\n]+/g, " ").replace(/`/g, "");
-    return lang === "python" ? `\`\`\`python\n# Practice answer for: ${task}\ndef run():\n    # Add the ${subject} steps here.\n    pass\n\nif __name__ == "__main__":\n    run()\n\`\`\`` : `\`\`\`${lang}\n// Practice answer for: ${task}\nfunction run() {\n  // Add the ${subject} steps here.\n}\n\nrun();\n\`\`\``;
+    if (lang === "python") return `\`\`\`python\n# Sample task: ${task}\ndef main():\n    print(${JSON.stringify(subject)})\n\nif __name__ == "__main__":\n    main()\n\`\`\``;
+    if (lang === "powershell") return `\`\`\`powershell\nparam(\n    [string]$InputPath = ".",\n    [string]$OutputPath = ".\\output"\n)\n\n# Sample task: ${task}\nNew-Item -ItemType Directory -Path $OutputPath -Force | Out-Null\nGet-ChildItem -Path $InputPath -File | Select-Object Name, Length\n\`\`\``;
+    if (lang === "sh") return `\`\`\`sh\n#!/usr/bin/env sh\n# Sample task: ${task}\nprintf '%s\\n' "${subject.replace(/["\\$`]/g, "")}"\n\`\`\``;
+    // 0.4.37 (panel 0435 item 1): Sheets scripts use the Apps Script spreadsheet service.
+    if (isGs) return `\`\`\`javascript\n// Mark rows with a value in column A.\nfunction markRows() {\n  const sheet = SpreadsheetApp.getActiveSheet();\n  const count = sheet.getLastRow();\n  if (!count) return;\n  const values = sheet.getRange(1, 1, count, 1).getValues();\n  values.forEach((row, index) => {\n    if (row[0]) sheet.getRange(index + 1, 2).setValue("Ready");\n  });\n}\n\`\`\``;
+    return `\`\`\`${lang}\n// Sample task: ${task}\nfunction run() {\n  console.log(${JSON.stringify(subject)});\n}\n\nrun();\n\`\`\``;
   }
   if (kind === "review") return `Sample review reply about ${subject}: Thank you for sharing your feedback. We appreciate you taking the time to let us know, and we will follow up on your comments.`;
   if (kind === "legal") return `Sample note to opposing counsel about ${subject}: I am writing to confirm receipt and ask that we coordinate the next steps and relevant dates. Please let me know if anything needs correction.`;
@@ -286,6 +352,13 @@ export function tableFor(req) {
   const t = String(req || "");
   const csv = /\bcsv\b/i.test(t);
   const cols = columnsOf(t);
+  // 0.4.37 (panel 0435 item 6): wedding guest files use guest columns, not shop inventory fields.
+  if (/guest.?list|wedding/i.test(t) && !cols.length) {
+    const head = ["Name", "RSVP", "Meal", "Table"];
+    const names = ["Alex Morgan", "Jamie Lee", "Riley Chen", "Taylor Jones", "Jordan Patel"];
+    const rows = names.map((name, i) => [name, ["Yes", "Pending", "Yes", "No", "Pending"][i], ["Vegetarian", "Standard", "Vegan", "Standard", "Gluten free"][i], String(i + 1)]);
+    return { kind: "person", table: mdTable(head, rows), total: null };
+  }
   if (/\binvoices?\b/i.test(t)) {
     const items = itemsOf(t).length ? itemsOf(t) : ["Design work", "Printing", "Delivery"];
     const qty = [3, 2, 1, 4, 2, 1, 3, 2], price = [80, 45, 25, 30, 60, 15, 40, 20];
@@ -303,10 +376,11 @@ export function tableFor(req) {
     return { kind: "budget", table: mdTable(["Item", "Monthly amount"], rows), total: sum };
   }
   let kind = "product", head = cols;
-  if (/\b(contacts?|leads?|customers?|clients?|people|members?)\b/i.test(t)) {
+  // (guests, attendees and RSVPs are people too: a guest list with its own columns got shop products as names)
+  if (/\b(contacts?|leads?|customers?|clients?|people|members?|guests?|attendees?|invitees?|rsvps?|wedding|students?|volunteers?|staff|employees?)\b/i.test(t)) {
     kind = "person";
     if (!head.length) head = /\bleads?\b/i.test(t) ? ["Name", "Email", "Status", "Next step"] : ["Name", "Phone", "Email"];
-  } else if (/\b(tracker|track|tasks?|habits?|hours|to-?do)\b/i.test(t)) {
+  } else if (/\b(tracker|track|tasks?|habits?|hours|to-?do|schedule|jobs?)\b/i.test(t)) {
     kind = "task";
     if (!head.length) head = ["Task", "Owner", "Due", "Status"];
   } else if (!head.length) head = ["Name", "Price", "Stock"];
@@ -328,7 +402,8 @@ function table(req, v) {
   return `Here is a starting ${what} you can change. Swap in your own numbers and names.\n\n${tbl}\n\n${total != null ? "Check each amount against a real bill before you rely on the total." : "Add a row for each new item and keep the header row as it is."}`;
 }
 
-const BUILDERS = { post, email, plan, summary, code, list, answer, table, website: fitAnswer, howto: fitAnswer, review: fitAnswer, legal: fitAnswer, credit: fitAnswer, listing: fitAnswer, sop: fitAnswer, titles: fitAnswer };
+// 0.4.37 (panel 0435 item 6): route counted educational lines to the short-line builder.
+const BUILDERS = { post, email, plan, summary, code, list, answer, table, website: fitAnswer, howto: fitAnswer, review: fitAnswer, legal: fitAnswer, credit: fitAnswer, listing: fitAnswer, sop: fitAnswer, titles: fitAnswer, lines: fitAnswer };
 
 // The heading over a practice answer (0.4.25). It used to be the first 70 characters, which cut
 // "Write a week of Instagram posts for my two-location bakery. Save them as posts.md." to "...Save them".
@@ -373,7 +448,7 @@ export function practiceBody(user, model) {
   const req = requestOf(user);
   const kind = kindOf(req);
   if (kind === "code" && /\bsqlite\b|\.sql\b/i.test(req)) return code(req, voiceOf(model));
-  if (kind === "code" && /\b(?:node(?:\.js)?|javascript|\bjs\b|powershell|apps script|google sheets script|sqlite|bash|shell)\b/i.test(req)) return fitAnswer(req, voiceOf(model), "code");
+  if (kind === "code" && /\b(?:node(?:\.js)?|javascript|\bjs\b|powershell|apps script|google sheets script|bash|shell|json)\b/i.test(req)) return fitAnswer(req, voiceOf(model), "code");
   return BUILDERS[kind] === fitAnswer ? BUILDERS[kind](req, voiceOf(model), kind) : BUILDERS[kind](req, voiceOf(model), user);
 }
 

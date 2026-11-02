@@ -49,10 +49,13 @@ const onScreen = (page, sel) => page.evaluate(hitTest, sel);
 // The Finish button: the Next bar's Finish, else the finish pair under the answer.
 const FINISH = "[data-feature='next-actions'] [data-na='finish'], [data-feature='finishpath'] [data-fp-good]";
 
-// ---------- item 1: the folded box is one line and the answer's buttons come up above it ----------
+// ---------- item 1: the answer's buttons come up above the chat box ----------
+// 0.4.37 (Chris: Simple chat layout): the one-line fold is gone. The short chat box is pinned under the chat column with
+// Mic, Auto team and Free only always in it, and the answer's four buttons (Copy, Try again, Make changes, Save as file)
+// come up above it. Finish waits behind Make changes.
 
 for (const [width, height] of [[1366, 800], [1024, 768]]) {
-  test(`item 1: Simple chat at ${width} x ${height}, after a long demo answer Copy, Try again and Finish are on top and the folded box is under 70 px`, { skip }, async () => {
+  test(`item 1: Simple chat at ${width} x ${height}, after a long demo answer Copy, Try again and Send are on top, and Finish is behind Make changes`, { skip }, async () => {
     const t = await bootSimple({ width, height });
     try {
       await t.page.click("#mf-chat"); // Just chat instead
@@ -61,45 +64,42 @@ for (const [width, height] of [[1366, 800], [1024, 768]]) {
       await t.page.click("#go");
       await t.page.waitForFunction(() => !!window.CC.S.live?.id, null, { timeout: WAIT });
       await t.page.waitForFunction(() => ["done", "done-with-errors"].includes(window.CC.S.live?.status), null, { timeout: RUN });
-      await t.page.waitForSelector("#cc-copy-main", { timeout: WAIT });
-      await t.page.waitForSelector("#cc-v-again", { timeout: WAIT });
-      // The answer is taller than the room above the box (the case 0.4.28 left at its start).
-      const tall = await t.page.evaluate(() => { const c = document.querySelector(".cmd.simple-chat"); return { card: Math.round(document.getElementById("simple-answer").getBoundingClientRect().height), room: c.clientHeight }; });
-      assert.ok(tall.card > tall.room, `the answer is taller than the scroller ${JSON.stringify(tall)}`);
-      // A slow PC draws the buttons and folds the box over a few seconds: wait, with a real deadline, until Copy, Try
-      // again and Finish are all on top. The asserts below decide.
+      const COPY = "#simple-answer > .sc-acts [data-sc-act='copy']", AGAIN = "#simple-answer > .sc-acts [data-sc-act='again']";
+      await t.page.waitForSelector(COPY, { timeout: WAIT });
+      // 0.4.37: the 780 px column holds the practice answer without the 0.4.28 overflow; the buttons must still be clear of
+      // the box, which the hit tests below decide.
+      const card = await t.page.evaluate(() => Math.round(document.getElementById("simple-answer").getBoundingClientRect().height));
+      assert.ok(card > 100, `an answer card (${card}px)`);
+      // A slow PC draws the buttons over a few seconds: wait, with a real deadline, until Copy and Try again are on top.
       await t.page.waitForFunction((sels) => sels.every((sel) => {
         const el = document.querySelector(sel);
-        if (!el) return sel.includes("finish") || sel.includes("fp-good");
+        if (!el) return false;
         const r = el.getBoundingClientRect();
         if (!(r.height > 0 && r.top >= 0 && r.bottom <= innerHeight)) return false;
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return !!hit && (hit === el || el.contains(hit));
-      }) && document.querySelector(".cmd.simple-chat")?.dataset.fold === "1", ["#cc-copy-main", "#cc-v-again", FINISH], { timeout: WAIT, polling: 250 }).catch(() => {});
+      }), [COPY, AGAIN], { timeout: WAIT, polling: 250 }).catch(() => {});
       const g = await t.page.evaluate(() => {
-        const c = document.querySelector(".cmd.simple-chat");
-        const card = c.querySelector(".orders").getBoundingClientRect();
-        const box = document.getElementById("orders").getBoundingClientRect();
-        const go = document.getElementById("go").getBoundingClientRect();
+        const box = document.querySelector("#view .sc-chat .sc-box").getBoundingClientRect();
         const shown = (id) => { const e = document.getElementById(id); return !!e && e.getBoundingClientRect().height > 0; };
-        return { ui: document.body.dataset.ui, fold: c.dataset.fold || "", card: Math.round(card.height), boxH: Math.round(box.height), sameRow: Math.abs((go.top + go.bottom) / 2 - (box.top + box.bottom) / 2) < 12 && go.left > box.right - 2, mic: shown("vo-mic"), team: shown("sc-team"), free: shown("cc-freeonly-wrap") };
+        return { ui: document.body.dataset.ui, boxH: Math.round(box.height), mic: shown("vo-mic"), team: shown("sc-team"), free: shown("cc-freeonly-wrap") };
       });
       assert.equal(g.ui, "simple");
-      assert.equal(g.fold, "1", "the chat box is folded after Send");
-      assert.ok(g.card < 70, `the folded box card is under 70 px (${g.card}px)`);
-      assert.ok(g.boxH <= 60, `the folded text box is one line (${g.boxH}px)`);
-      assert.equal(g.sameRow, true, `Send sits beside the one-line box ${JSON.stringify(g)}`);
-      assert.deepEqual([g.mic, g.team, g.free], [false, false, false], "Mic, the team picker and Free only fold away");
-      for (const sel of ["#go", "#cc-copy-main", "#cc-v-again", FINISH]) {
+      assert.ok(g.boxH <= 130, `the chat box is short (${g.boxH}px)`);
+      assert.deepEqual([g.mic, g.team, g.free], [true, true, true], "Mic, the team picker and Free only stay in the box");
+      for (const sel of ["#go", COPY, AGAIN]) {
         const r = await onScreen(t.page, sel);
-        if (sel === FINISH && !r.found) continue; // the Finish flags are off on this build
         assert.ok(r.found && r.inside && r.top, `${width}: ${sel} is on screen and on top: ${JSON.stringify(r)}`);
       }
-      // Clicking in the box opens it again with Mic and the team picker.
-      await t.page.click("#orders");
-      await t.page.keyboard.type("And one more");
-      await t.page.waitForFunction(() => !document.querySelector(".cmd.simple-chat")?.dataset.fold, null, { timeout: WAIT });
-      await t.page.waitForFunction(() => document.getElementById("vo-mic").getBoundingClientRect().height > 0, null, { timeout: WAIT });
+      // Finish (the Next bar's, or the finish pair) is behind Make changes and can be reached there.
+      await t.page.click("#simple-answer > .sc-acts [data-sc-act='change']");
+      await t.page.waitForFunction(() => !document.getElementById("sc-changes").hidden, null, { timeout: WAIT });
+      const fin = await t.page.evaluate((sel) => { const e = document.querySelector(`#sc-changes :is(${sel})`); if (!e) return null; e.scrollIntoView({ block: "center" }); return true; }, FINISH);
+      if (fin) {
+        await t.page.waitForTimeout(300);
+        const r = await onScreen(t.page, `#sc-changes [data-fp-good], #sc-changes [data-na='finish']`);
+        assert.ok(r.found && r.inside && r.top, `${width}: Finish behind Make changes: ${JSON.stringify(r)}`);
+      }
       assert.deepEqual(t.errors, []);
     } finally { await t.close(); }
   });
@@ -180,7 +180,9 @@ test("item 7: Simple at 390 keeps the swipe row and its arrows", { skip }, async
 
 test("source: the 0.4.31 fold, reveal, prompts and cards changes stay, with no dashes", () => {
   const css = read("web", "mac", "css", "flow.css");
-  assert.match(css, /\[data-fold="1"\] \.sc-box \.simple-send-row > #vo-mic/);
+  // 0.4.37 (Simple chat layout): the one-line fold gave way to the short pinned box in web/chat.css
+  assert.doesNotMatch(css, /\[data-fold="1"\]/);
+  assert.match(read("web", "chat.css"), /\.sc-chat \.simple-send-row \{/);
   assert.match(css, /@media \(min-width: 1000px\) \{\s*body\[data-style="mac"\] #mac-flow \.mf-paths \{ display: grid;/);
   const app = read("web", "app.js");
   assert.match(app, /\[data-feature='next-actions'\] \.na-bar/);

@@ -44,7 +44,11 @@ test("1. first screen: greeting, one big box, four chips, Auto team line, filled
   const t = await bootPage({ mode: "simple", width: 1280, height: 800 });
   try {
     await goChat(t.page);
-    await t.page.waitForSelector("#sc-hello", { timeout: WAIT });
+    // 0.4.37 (Simple chat layout): this first screen lives on as Make something; the Chat page is "Ask anything"
+    // (test/simple-chat-0437.test.js)
+    await t.page.waitForSelector("#side-make", { timeout: WAIT });
+    await t.page.click("#side-make");
+    await t.page.waitForFunction(() => document.querySelector("#sc-hello")?.textContent.trim() === "What do you want to make?", null, { timeout: WAIT });
     await t.page.waitForTimeout(1500);
     const r = await t.page.evaluate(() => {
       const q = (s) => document.querySelector(s);
@@ -75,17 +79,17 @@ test("1. first screen: greeting, one big box, four chips, Auto team line, filled
     assert.doesNotMatch(r.text, /Council|Mission|Second opinion|Live Ops/i, "no mode choice or Live Ops on the first screen");
     for (const [sel, on] of r.gone) assert.equal(on, false, `${sel} is not on the first screen`);
     // the clutter is grouped, not removed: Project tools row, the hints, Prompts and the starters are behind the Auto team control
-    const hidden = ["#projbar", "#send-hint", "#mask-line", ".pd-btn", "#cc-starters", "#proj"];
+    const hidden = ["#projbar", "#send-hint", "#mask-line", ".pd-btn", "#cc-starters-more", "#proj"];
     for (const s of hidden) assert.equal(await vis(t.page, s), false, `${s} starts hidden`);
     await t.page.click("#sc-team");
-    for (const s of ["#send-hint", "#cc-starters", "#proj"]) assert.equal(await vis(t.page, s), true, `${s} is behind Auto team`);
+    for (const s of ["#send-hint", "#cc-starters-more", "#proj"]) assert.equal(await vis(t.page, s), true, `${s} is behind Auto team`);
     await t.page.click("#sc-team");
     assert.equal(await vis(t.page, "#send-hint"), false);
     // each chip fills a starter request and puts the cursor in the box; nothing is sent
     const want = { image: /^Make an image of /, video: /^Make a 5 second video of /, website: /^Build a website for /, campaign: /^Plan a marketing campaign for / };
     for (const k of Object.keys(want)) {
       await t.page.click(`[data-sc-chip="${k}"]`);
-      const v = await t.page.evaluate(() => ({ v: document.querySelector("#orders").value, focus: document.activeElement?.id, run: document.querySelector(".cmd.simple-chat").dataset.state }));
+      const v = await t.page.evaluate(() => ({ v: document.querySelector("#orders").value, focus: document.activeElement?.id, run: document.querySelector(".sc-chat").dataset.state }));
       assert.match(v.v, want[k]);
       assert.equal(v.focus, "orders");
       assert.equal(v.run, "empty", "a chip never sends");
@@ -107,10 +111,11 @@ test("2/3/5. 'a woman on a beach': the box drops to the bottom, the image is in 
   const t = await bootPage({ mode: "simple", width: 1920, height: 1080 });
   try {
     await demo(t);
-    const before = await t.page.evaluate(() => { const b = document.querySelector("#orders").getBoundingClientRect(); const v = document.querySelector("#view").getBoundingClientRect(); return { gap: v.bottom - b.bottom, state: document.querySelector(".cmd.simple-chat").dataset.state, panel: document.body.classList.contains("mm-panel-open") }; });
+    const before = await t.page.evaluate(() => { const b = document.querySelector(".sc-chat .sc-box").getBoundingClientRect(); const v = document.querySelector("#view").getBoundingClientRect(); return { gap: v.bottom - b.bottom, state: document.querySelector(".sc-chat").dataset.state, panel: document.body.classList.contains("mm-panel-open") }; });
     assert.equal(before.state, "empty");
     assert.equal(before.panel, false, "nothing to show, so no panel yet");
-    assert.ok(before.gap > 120, `the box is not docked on the empty first screen (gap ${before.gap})`);
+    // 0.4.37 (Simple chat layout): the Chat page keeps the short box pinned at the bottom from the start (approved mockup)
+    assert.ok(before.gap < 40, `the box is pinned at the bottom of the Chat page (gap ${before.gap})`);
     await send(t.page, "a woman on a beach");
     await newestImage(t.page);
     await t.page.waitForTimeout(1200);
@@ -123,7 +128,7 @@ test("2/3/5. 'a woman on a beach': the box drops to the bottom, the image is in 
       const card = document.querySelector(".sc-box").getBoundingClientRect();
       return {
         boxGap: v.bottom - card.bottom, w: img.naturalWidth, inCol: q.left >= col.left - 1 && q.right <= col.right + 1, above: q.top < box.top, gap: v.bottom - box.bottom,
-        hello: getComputedStyle(document.querySelector("#sc-hello")).display, state: document.querySelector(".cmd.simple-chat").dataset.state,
+        hello: document.querySelector("#sc-hello").getBoundingClientRect().height > 0 ? "shown" : "none", state: document.querySelector(".sc-chat").dataset.state,
         panel: !!cv && !cv.hidden && cv.classList.contains("docked"), pw: pimg ? pimg.naturalWidth : 0, pr: cv ? cv.getBoundingClientRect() : null,
         chatShare: col.width / (innerWidth - side.width), maxH: getComputedStyle(img).maxHeight, vh: innerHeight, sx: document.documentElement.scrollWidth, iw: innerWidth,
       };
@@ -133,11 +138,22 @@ test("2/3/5. 'a woman on a beach': the box drops to the bottom, the image is in 
     assert.equal(r.hello, "none", "the greeting leaves after the first Send");
     assert.ok(r.boxGap < 40, `the box card is docked at the bottom of the chat column (gap ${r.boxGap})`);
     assert.ok(Math.abs(parseFloat(r.maxH) - r.vh * 0.7) < 2, `result tiles may grow to 70vh (${r.maxH})`);
-    assert.equal(r.panel, true, "at 1920 the Build panel is open by default when there is a result");
-    assert.ok(r.pw > 0, "the panel shows the finished image too");
-    assert.ok(r.chatShare >= 0.33 && r.chatShare <= 0.45, `chat is about 35 to 40 percent (${r.chatShare.toFixed(2)})`);
-    assert.ok(r.pr.width >= 700, `the panel gets the rest (${r.pr.width}px)`);
+    // 0.4.37 (Chris: "the answer opening as a big code panel on the right"): on the Chat page the Build panel no longer
+    // opens by itself, even at 1920; it opens on request (Preview, CC.layout.openInPanel) with the same split as before.
+    assert.equal(r.panel, false, "the Build panel waits for Preview on the Chat page");
     assert.ok(r.sx <= r.iw, "no sideways scroll");
+    await t.page.evaluate(() => window.CC.layout.openInPanel());
+    await t.page.waitForFunction(() => document.body.classList.contains("mm-panel-open") && !!document.querySelector("#cc-canvas .cv-view img"), null, { timeout: WAIT });
+    await t.page.waitForTimeout(600);
+    const o = await t.page.evaluate(() => {
+      const cv = document.querySelector("#cc-canvas"); const pimg = cv.querySelector(".cv-view img");
+      const col = document.querySelector(".view-col").getBoundingClientRect(); const side = document.querySelector("#cc-side").getBoundingClientRect();
+      return { pw: pimg ? pimg.naturalWidth : 0, pr: cv.getBoundingClientRect(), chatShare: col.width / (innerWidth - side.width), sx: document.documentElement.scrollWidth, iw: innerWidth };
+    });
+    assert.ok(o.pw > 0, "the panel shows the finished image too");
+    assert.ok(o.chatShare >= 0.33 && o.chatShare <= 0.45, `chat is about 35 to 40 percent (${o.chatShare.toFixed(2)})`);
+    assert.ok(o.pr.width >= 700, `the panel gets the rest (${o.pr.width}px)`);
+    assert.ok(o.sx <= o.iw, "no sideways scroll");
     // MindMedia has it: in the data and on the screen
     const hub = (await t.api("/mindmedia?project=all")).json;
     assert.ok((hub.items || hub.flatItems || []).some((i) => i.name === "A woman on a beach"), "a MindMedia item named from the prompt");
@@ -169,14 +185,15 @@ test("5b. at 1280 a small result stays inline, and chat plus the panel still fit
 });
 
 // ---------- 4. the sidebar ----------
-test("4. slim left sidebar: New, Projects, MindMedia, Recent chats, profile menu; icons only when narrow or collapsed; the old nav stays in the page", { skip }, async () => {
+test("4. slim left sidebar: Chat, Make something, Projects, MindMedia, Recent chats, profile menu; icons only when narrow or collapsed; the old nav stays in the page", { skip }, async () => {
   const t = await bootPage({ mode: "simple", width: 1280, height: 800 });
   try {
     await goChat(t.page);
     await t.page.waitForSelector("#cc-side", { timeout: WAIT });
     const open = await t.page.evaluate(() => { const s = document.querySelector("#cc-side").getBoundingClientRect(); const texts = [...document.querySelectorAll("#cc-side .side-nav .side-item span")].map((b) => b.textContent.trim()); return { w: s.width, texts, recent: !!document.querySelector("#side-recent"), tabsHidden: getComputedStyle(document.querySelector("#tabs")).display === "none", tabButtons: document.querySelectorAll("#tabs button[data-view]").length, rail: (() => { const r = document.querySelector("#cc-rail"); return !r || r.getBoundingClientRect().width === 0; })() }; });
     assert.ok(open.w >= 200, `expanded at 1280 (${open.w})`);
-    assert.deepEqual(open.texts.slice(0, 3), ["New", "Projects", "MindMedia"]);
+    // 0.4.37 (Simple chat layout): Chat, Make something, Projects, MindMedia (New became Chat plus the New chat button)
+    assert.deepEqual(open.texts.slice(0, 4), ["Chat", "Make something", "Projects", "MindMedia"]);
     assert.ok(open.recent);
     assert.equal(open.tabsHidden, true, "the top menu is tucked away in Simple");
     assert.ok(open.tabButtons >= 5, "but its buttons are still in the page (restyled, not deleted)");
@@ -192,19 +209,22 @@ test("4. slim left sidebar: New, Projects, MindMedia, Recent chats, profile menu
     await t.page.waitForFunction(() => window.CC.S.view === "projects", null, { timeout: WAIT });
     await t.page.click("#side-mindmedia");
     await t.page.waitForFunction(() => window.CC.S.view === "mindmedia", null, { timeout: WAIT });
-    await t.page.click("#side-new");
+    await t.page.click("#side-chat");
     await t.page.waitForFunction(() => window.CC.S.view === "command", null, { timeout: WAIT });
     // the profile menu holds the rest
     await t.page.click("#side-profile");
     await t.page.waitForSelector("#side-menu:not([hidden])", { timeout: WAIT });
     const menu = await t.page.evaluate(() => document.querySelector("#side-menu").innerText);
     for (const w of ["Settings", "Keys and connections", "Look and theme", "Expert mode", "Community", "Help"]) assert.ok(menu.includes(w), `${w} is in the profile menu`);
-    assert.equal(menu.includes("AI News"), false, "AI News has its own sidebar item, not a profile menu entry");
+    // 0.4.37: AI News and Create moved from the sidebar into this menu
+    assert.ok(menu.includes("AI News") && menu.includes("Create"), "AI News and Create are in the profile menu");
     await t.page.click('#side-menu [data-menu-act="settings"]');
     await t.page.waitForFunction(() => window.CC.S.view === "settings", null, { timeout: WAIT });
     // Create lists the create pages, and a click goes through the hidden menu's own button
-    await t.page.click("#side-create");
-    await t.page.click('#side-create-list button:has-text("Images")');
+    await t.page.click("#side-profile");
+    await t.page.waitForSelector("#side-menu:not([hidden])", { timeout: WAIT });
+    await t.page.click("#side-create summary");
+    await t.page.click('#side-create button:has-text("Images")');
     await t.page.waitForFunction(() => window.CC.S.view === "images", null, { timeout: WAIT });
     // Expert keeps its top menu and has no sidebar
     await t.page.click("#mode-expert");
@@ -327,7 +347,7 @@ test("7b. pure: an AI that is working always has an icon, and only while it work
 });
 
 // ---------- 8. big builds open the Build panel ----------
-test("8. a web page build opens the Build panel by itself with version arrows, Preview, Download and one Publish", { skip }, async () => {
+test("8. a web page build opens the Build panel from Preview with version arrows, Preview, Download and one Publish", { skip }, async () => {
   const t = await bootPage({ mode: "simple", width: 1280, height: 800 });
   try {
     await demo(t);
@@ -341,6 +361,12 @@ test("8. a web page build opens the Build panel by itself with version arrows, P
       S.live = { id: "r-site", kind: "single", status: "done", agents: { x: { provider: "demo-nova", model: "m", text: html, done: true, role: "answer" } }, tasks: {}, mission: null, council: null, deliverable: html, primary: "x" };
       window.CC.render();
     }, SITE);
+    // 0.4.37 (Chris: "the answer opening as a big code panel on the right"): on the Chat page a web page answer is a card
+    // with Preview; the Build panel opens from Preview, not by itself.
+    await t.page.waitForSelector("#sc-built-open", { timeout: WAIT });
+    assert.equal(await t.page.textContent("#sc-built-open"), "Preview");
+    assert.equal(await t.page.evaluate(() => document.body.classList.contains("mm-panel-open")), false, "not opened by itself");
+    await t.page.click("#sc-built-open");
     await t.page.waitForFunction(() => document.body.classList.contains("mm-panel-open") && document.querySelector("#cc-canvas.docked:not([hidden])"), null, { timeout: WAIT });
     await t.page.waitForSelector("#cc-canvas.docked #cv-view iframe", { timeout: WAIT });
     assert.match(await t.page.getAttribute("#cc-canvas.docked #cv-view iframe", "srcdoc"), /Fresh bread daily/);
@@ -381,18 +407,18 @@ test("8b. Start a project hands its build to the Build panel as it is made", { s
   } finally { await t.close(); }
 });
 
-// ---------- 5c. AI News has one home: its own item in the sidebar ----------
-test("5c. AI News is its own sidebar item, not in the profile menu, and opens its page", { skip }, async () => {
+// ---------- 5c. AI News has one home ----------
+// 0.4.37 (Simple chat layout): that home moved from the sidebar list into Settings and more
+test("5c. AI News is one item in Settings and more, not in the sidebar list, and opens its page", { skip }, async () => {
   const t = await bootPage({ mode: "simple", width: 1500, height: 900 });
   try {
     await goChat(t.page);
     await t.page.waitForSelector("#cc-side", { timeout: WAIT });
     await t.page.waitForTimeout(1200);
     assert.equal(await vis(t.page, "#cc-rail"), false, "no floating News card");
-    assert.equal(await vis(t.page, "#side-news"), true, "AI News sits in the sidebar");
+    assert.equal(await t.page.locator("#cc-side .side-nav #side-news").count(), 0, "not in the sidebar list");
     await t.page.click("#side-profile");
-    assert.equal(await t.page.locator('#side-menu [data-menu-act="news"]').count(), 0, "not repeated in the profile menu");
-    await t.page.keyboard.press("Escape");
+    assert.equal(await t.page.locator('#side-menu [data-menu-act="news"]').count(), 1, "one entry in Settings and more");
     await t.page.click("#side-news");
     await t.page.waitForFunction(() => window.CC.S.view === "ai-news", null, { timeout: WAIT });
     await t.page.waitForSelector('#view [data-ai-news="1"]', { timeout: WAIT });

@@ -40,9 +40,12 @@ test("AI News appears in exactly one place, in Simple", { skip, timeout: 240000 
     await goChat(t.page);
     await t.page.waitForSelector("#cc-side", { timeout: WAIT });
     await t.page.waitForTimeout(1200);
-    // the sidebar: exactly one AI News item
+    // the sidebar: exactly one AI News item (0.4.37, Simple chat layout: it moved into Settings and more)
+    await t.page.click("#side-profile");
+    await t.page.waitForSelector("#side-menu:not([hidden])", { timeout: WAIT });
     const side = await t.page.evaluate(() => [...document.querySelectorAll("#cc-side button, #side-menu button")].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && /AI News/.test(b.textContent); }).length);
     assert.equal(side, 1, "one sidebar item");
+    await t.page.keyboard.press("Escape");
     // every other screen shows no news at all
     for (const v of ["command", "projects", "mindmedia", "community", "help"]) {
       await open(t, v);
@@ -65,7 +68,9 @@ test("AI News appears in exactly one place, in Simple", { skip, timeout: 240000 
       assert.ok(kinds.labels.some((l) => /Show AI News/.test(l)));
       for (const topic of ["Newest in AI", "New in Meldmind", "Top voted prompts", "Community highlights"]) assert.ok(kinds.labels.some((l) => l.includes(topic)), topic);
     }
-    // the one home
+    // the one home (0.4.37: in Settings and more)
+    await t.page.click("#side-profile");
+    await t.page.waitForSelector("#side-menu:not([hidden]) #side-news", { timeout: WAIT });
     await t.page.click("#side-news");
     await t.page.waitForFunction(() => window.CC.S.view === "ai-news", null, { timeout: WAIT });
     await t.page.waitForSelector('[data-ai-news="1"]', { timeout: WAIT });
@@ -80,7 +85,10 @@ test("AI News appears in exactly one place, in Simple", { skip, timeout: 240000 
     // turning AI News off hides the sidebar item and the page says so
     await open(t, "settings", false);
     await t.page.uncheck("#cc-news-on");
-    await t.page.waitForFunction(() => document.querySelector("#side-news")?.hidden === true, null, { timeout: WAIT });
+    await t.page.click("#side-profile");
+    await t.page.waitForSelector("#side-menu:not([hidden])", { timeout: WAIT });
+    assert.equal(await t.page.locator("#side-news").count(), 0, "the menu leaves AI News out while it is off");
+    await t.page.keyboard.press("Escape");
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }
 });
@@ -117,6 +125,8 @@ test("source: the old floating panel and its Settings switch are gone; Community
   assert.equal((comm.match(/\$\{mailBox\(/g) || []).length, 1, "the email switch is drawn in Settings only");
   assert.equal(/[–—]/.test(comm), false);
   const layout = read("web", "features", "layout.js");
-  assert.match(layout, /id="side-news"/);
-  assert.equal(/data-menu-act="news"|\["news", "AI News"\]/.test(layout), false);
+  // 0.4.37 (Simple chat layout): AI News is one item in Settings and more, no longer in the sidebar list
+  assert.match(layout, /id="side-news" data-menu-act="news"/);
+  assert.equal((layout.match(/>AI News</g) || []).length, 1, "one AI News entry");
+  assert.equal(/data-side="news"/.test(layout), false, "not a sidebar item");
 });

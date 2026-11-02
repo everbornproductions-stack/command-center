@@ -125,40 +125,37 @@ for (const [width, height] of [[1366, 800], [1440, 900]]) {
 
 // ---------- item 3: Simple chat keeps Send and the answer's buttons clear ----------
 
-test("item 3a: Simple chat at 1366 x 800, after Send the chat box folds and the answer's Copy and Try again buttons are on top", { skip }, async () => {
+// 0.4.37 (Chris: Simple chat layout): the 0.4.28 fold is gone. The box is always the short pinned box under the chat
+// column, so after Send the answer's Copy and Try again (the first of its four buttons) sit above it, on top.
+test("item 3a: Simple chat at 1366 x 800, after Send the short chat box sits under the answer and its Copy and Try again buttons are on top", { skip }, async () => {
   const t = await bootNew({ theme: "dark", width: 1366, height: 800 });
   try {
     assert.equal(await t.page.evaluate(() => document.body.dataset.ui), "simple");
     await t.page.click("#mf-chat"); // Just chat instead
     await sendAndWait(t, "Write a week of Instagram posts for my bakery");
-    await t.page.waitForSelector("#cc-copy-main", { timeout: WAIT });
-    await t.page.waitForSelector("#cc-v-again", { timeout: WAIT });
-    await t.page.waitForTimeout(1500);
-    // A slow runner folds the box and moves the answer up over a few seconds (CI 0.4.28 caught Copy under the box's Mic
-    // at 1500 ms). Wait, with a real deadline, for the fold and for Copy to be the top element; the asserts below still decide.
-    await t.page.waitForFunction(() => {
-      const c = document.querySelector(".cmd.simple-chat"), el = document.getElementById("cc-copy-main");
-      if (c?.dataset.fold !== "1" || !el) return false;
+    const COPY = "#simple-answer > .sc-acts [data-sc-act='copy']", AGAIN = "#simple-answer > .sc-acts [data-sc-act='again']";
+    await t.page.waitForSelector(COPY, { timeout: WAIT });
+    // A slow runner draws the answer over a few seconds: wait, with a real deadline, for Copy to be the top element.
+    await t.page.waitForFunction((sel) => {
+      const el = document.querySelector(sel);
+      if (!el) return false;
       const r = el.getBoundingClientRect();
       if (!(r.height > 0 && r.top >= 0 && r.bottom <= innerHeight)) return false;
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       return !!hit && (hit === el || el.contains(hit));
-    }, null, { timeout: WAIT, polling: 250 }).catch(() => {});
+    }, COPY, { timeout: WAIT, polling: 250 }).catch(() => {});
     assert.equal(await t.page.evaluate(() => document.body.dataset.ui), "simple");
-    const fold = await t.page.evaluate(() => ({ fold: document.querySelector(".cmd.simple-chat")?.dataset.fold || "", box: Math.round(document.getElementById("orders").getBoundingClientRect().height) }));
-    assert.equal(fold.fold, "1", "the chat box is folded after Send");
-    assert.ok(fold.box <= 60, `the folded box is short (${fold.box}px)`);
+    const box = Math.round(await t.page.evaluate(() => document.querySelector("#view .sc-chat .sc-box").getBoundingClientRect().height));
+    assert.ok(box <= 130, `the chat box is short (${box}px)`);
     await shot(t, "simple-1366-answer-buttons.png");
-    for (const sel of ["#cc-copy-main", "#cc-check", "#cc-v-again"]) {
+    for (const sel of [COPY, AGAIN]) {
       const r = await onScreen(t.page, sel);
-      if (sel === "#cc-check" && !r.found) continue;
       assert.ok(r.found && r.inside && r.top, `${sel} is on top: ${JSON.stringify(r)}`);
     }
-    // Clicking in the box opens it again for the next message.
+    // The box takes the next message right away.
     await t.page.click("#orders");
     await t.page.keyboard.type("And one more");
-    await t.page.waitForFunction(() => !document.querySelector(".cmd.simple-chat")?.dataset.fold, null, { timeout: WAIT });
-    assert.ok(await t.page.evaluate(() => document.getElementById("orders").getBoundingClientRect().height) > 50, "the box opens when the person types");
+    assert.equal(await t.page.inputValue("#orders"), "And one more");
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }
 });
@@ -414,8 +411,8 @@ test("item 10: no text under 12 px on Command, Credits, Live view and Subscripti
 
 test("source: the fixes stay in place and add no dashes", () => {
   assert.match(read("web", "mac", "css", "inside.css"), /#app #view:has\(> \.cmd\) \{\s*overflow-x: hidden;\s*overflow-y: auto;/);
-  assert.match(read("web", "mac", "css", "flow.css"), /\[data-fold="1"\] \.sc-box #orders/);
-  assert.match(read("web", "app.js"), /foldSimpleBox\(true\);/);
+  // 0.4.37 (Simple chat layout): the folding chat box (item 3a) gave way to the short pinned box in web/chat.css
+  assert.match(read("web", "chat.css"), /\.sc-chat \.orders \{ flex: none;/);
   assert.match(read("web", "app.js"), /cc\.keepModeNote:/);
   for (const f of [["web", "mac", "css", "shell.css"], ["web", "mac", "css", "inside.css"], ["web", "mac", "css", "flow.css"], ["web", "mac", "parts", "flow.js"], ["web", "mac", "data", "flow.js"]]) {
     assert.equal(/[–—]/.test(read(...f)), false, `${f.join("/")} has no dashes`);

@@ -198,7 +198,9 @@ export default {
       sideBtn?.setAttribute("aria-expanded", String(document.body.classList.contains("mac-sideopen")));
     }
     function paintCrumb() {
-      const text = crumbFor(CC.S?.view, LABELS);
+      // 0.4.37 (Chris: Simple chat layout): Simple calls its chat page Chat, as the sidebar does
+      const simpleChat = (CC.uiMode?.() || "simple") === "simple" && CC.S?.view === "command";
+      const text = simpleChat ? "Chat" : crumbFor(CC.S?.view, LABELS);
       if (crumbEl && crumbEl.textContent !== text) crumbEl.textContent = text;
     }
     // 0.4.27 (panel item 5): while the engine does not answer, the pill says "Starting..." with a grey dot,
@@ -234,6 +236,7 @@ export default {
       if (mode !== lastMode) {
         lastMode = mode;
         paintMode(mode);
+        paintCrumb();
         if (live) { flashMode(mode); bus.emit("mode", mode); }
       }
       if (view !== lastView) {

@@ -195,6 +195,28 @@ function isLayoutTable(rows) {
   return letters >= 2 && letters >= head.length - 1;
 }
 
+// 0.4.37 (dogfood 0435 food-truck-xlsx): "| | A | B | ... |" over rows numbered "| **1** | ... |" is the sheet itself, drawn
+// as cells, and its formulas (=C9*$B$3) point at those cells. Each value goes to the row and column it names, so the
+// formulas stay right. Returns the rows, or null when the first column is not row numbers (a layout description).
+const colIndex = (letters) => [...letters].reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
+function gridSheet(rows) {
+  const head = rows[0].map((c) => stripInline(c).trim());
+  const body = rows.slice(1).filter((r) => r.some((c) => stripInline(c).trim()));
+  const numbered = body.filter((r) => /^\d{1,4}$/.test(stripInline(r[0]).trim()));
+  if (!numbered.length || numbered.length < body.length * 0.8) return null;
+  const cols = head.map((h, k) => (k > 0 && /^[A-Z]{1,2}$/.test(h) ? colIndex(h) : -1));
+  const width = Math.max(...cols) + 1;
+  const out = [];
+  for (const r of numbered) {
+    const at = Number(stripInline(r[0]).trim()) - 1;
+    const row = Array(width).fill("");
+    cols.forEach((c, k) => { if (c >= 0) row[c] = r[k] ?? ""; });
+    out[at] = row;
+  }
+  for (let i = 0; i < out.length; i++) if (!out[i]) out[i] = Array(width).fill("");
+  return out.length >= 2 ? out : null;
+}
+
 /**
  * The table(s) in an AI answer to put in a spreadsheet: [{ name, rows }].
  * ```csv blocks win. Otherwise markdown tables: several titled tables become several sheets, else the largest table.
@@ -212,7 +234,11 @@ export function tablesFromAnswer(text) {
     return csv.map((rows, i) => ({ name: titles[i] || `Sheet${i + 1}`, rows }));
   }
   const md = parts.map((p) => (!p.fence ? p.text : ["markdown", "md", ""].includes(p.lang) && !BUILD_SCRIPT.test(p.text) ? `\n${p.text}\n` : "\n")).join("");
-  const tables = markdownTables(md).filter((t) => t.rows.length >= 2 && t.rows[0].length >= 1 && !isLayoutTable(t.rows));
+  const tables = markdownTables(md).map((t) => {
+    if (!isLayoutTable(t.rows)) return t;
+    const grid = gridSheet(t.rows);
+    return grid ? { ...t, rows: grid, grid: true } : null;
+  }).filter((t) => t && t.rows.length >= 2 && t.rows[0].length >= 1);
   if (!tables.length) return [];
   const titled = tables.filter((t) => t.title);
   if (tables.length >= 2 && titled.length === tables.length && new Set(titled.map((t) => t.title.toLowerCase())).size === tables.length) {

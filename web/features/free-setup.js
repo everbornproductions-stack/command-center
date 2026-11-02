@@ -21,6 +21,16 @@ const PAGE = { antigravity: "https://antigravity.google/download" };
 // Codex and Claude Code use a plan the person may already pay for; the others are free to everyone.
 const PLAN_NOTE = { codex: "Uses your ChatGPT plan", "claude-code": "Uses your Claude plan" };
 export const SIGNIN_WAIT_MS = 10 * 60 * 1000;
+// 0.4.37 (panel 0435 item 8): Grok Bot and the Browser helper are not free AIs to set up here (Grok Bot is set up under
+// Connect, the Browser helper needs nothing), and their rows had no button. They stay in Settings, not in this step.
+export const NOT_HERE = new Set(["grokbot", "browser-helper"]);
+// Three free sign-ups show; the rest sit under "More free sign-ups" so the first screen stays short.
+export const KEYS_SHOWN = 3;
+/** True when a helper row belongs in the setup step: it has a button, or it says Ready or Resting. Pure, so tests import it. */
+export function showsInSetup(w) {
+  if (!w || NOT_HERE.has(w.id) || w.status === "retired") return false;
+  return !!appAction(w) || w.status === "ready" || w.status === "resting";
+}
 
 /** What the row's button does for this helper, or null when it is ready. Pure, so tests import it. */
 export function appAction(w) {
@@ -54,11 +64,18 @@ function appRow(w) {
 function keyRow(p) {
   if (p.catalogStatus === "retired") return `<div class="row cc-fs-row"><b style="min-width:120px">${esc(p.name)}</b><span class="chip">Retired</span><span class="dim small" style="flex:1">${esc(p.retiredNote || "")}</span>${p.replacedBy && p.replacementPage ? `<button type="button" class="btn sm" data-fs-page="${esc(p.replacementPage)}">Get ${esc(p.replacedBy)}</button>` : ""}</div>`;
   return `<div class="row cc-fs-row" data-fs-key="${esc(p.provider)}" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">
-    <b style="min-width:120px">${esc(p.name)}</b>${p.connected ? `<span class="chip green">Connected</span>` : `<span class="chip">No key yet</span>`}<span class="dim small" style="flex:1;min-width:10rem">${esc(p.what || "")}</span>
+    <b style="min-width:120px">${esc(p.name)}</b>${p.connected ? `<span class="chip green">Connected</span>` : `<span class="chip">Not set up yet</span>`}<span class="dim small" style="flex:1;min-width:10rem">${esc(p.what || "")}</span>
     ${p.connected ? "" : `<button type="button" class="btn sm" data-fs-page="${esc(p.url)}">${esc(p.buttonLabel || "Get key")}</button>${p.connectable === false ? "" : `
     <input type="password" autocomplete="off" spellcheck="false" class="cc-fs-key" data-provider="${esc(p.provider)}" placeholder="${esc(p.placeholder || "Paste it here")}" aria-label="Paste the ${esc(p.name)} key" style="width:12rem">
     <button type="button" class="btn sm primary" data-fs-save="${esc(p.provider)}">Save</button>`}`}
   </div>`;
+}
+
+// 0.4.37 (panel 0435 item 8): the first three free sign-ups, then the rest folded under "More free sign-ups".
+function keyRows(keys) {
+  const row = (p) => keyRow({ ...p, buttonLabel: "Get it", placeholder: "Paste it here" });
+  const more = keys.slice(KEYS_SHOWN);
+  return keys.slice(0, KEYS_SHOWN).map(row).join("") + (more.length ? `<details class="cc-fs-more" style="margin-top:8px"><summary class="small">More free sign-ups (${more.length})</summary>${more.map(row).join("")}</details>` : "");
 }
 
 /** Draw the step into `box`. Reloads itself after each action. */
@@ -74,14 +91,16 @@ export function mountFreeSetup(box, { title = "Save money with free AIs", keys: 
     const appIds = catalog.apps?.map((e) => e.id) || APPS;
     const apps = appIds.map((id) => { const w = workers.find((row) => row.id === id); const e = catalog.apps?.find((row) => row.id === id); return w ? { ...w, retiredNote: e?.retiredNote || w.retiredNote, replacedBy: e?.replacedBy || w.replacedBy, page: e?.page } : e?.page ? { id, label: e.label, good: e.good, status: e.status === "retired" ? "retired" : "missing", statusLabel: e.retiredNote, retiredNote: e.retiredNote, replacedBy: e.replacedBy, page: e.page, enabled: false } : null; }).filter(Boolean)
       // a retired helper (Gemini CLI) is not offered to someone setting up; Settings still shows it with its note
-      .filter((w) => w.status !== "retired" && !(catalog.apps || []).some((e) => e.id === w.id && e.status === "retired"));
+      .filter((w) => w.status !== "retired" && !(catalog.apps || []).some((e) => e.id === w.id && e.status === "retired"))
+      // 0.4.37 (panel 0435 item 8): no row without a button (Grok Bot and Browser helper had none)
+      .filter(showsInSetup);
     const keys = (catalog.keys?.length ? catalog.keys : pages).map((e) => { const p = pages.find((row) => row.provider === (e.provider || e.id) || row.id === e.id); const replacement = [...(catalog.keys || []), ...(catalog.apps || [])].find((row) => row.id === e.replacedBy); return p ? { ...p, name: e.label || p.name, what: e.good || p.what, url: e.page || p.url, catalogStatus: e.status, retiredNote: e.retiredNote, replacedBy: e.replacedBy, replacementPage: replacement?.page, connectable: e.connectable } : { id: e.id, provider: e.provider || e.id, name: e.label, what: e.good, url: e.page, catalogStatus: e.status, retiredNote: e.retiredNote, replacedBy: e.replacedBy, replacementPage: replacement?.page, connectable: e.connectable }; }).filter((e) => e.url);
     const todo = apps.filter((w) => appAction(w) && appAction(w).kind !== "page").length;
     box.innerHTML = `<div class="welcome-block" id="cc-free-setup" style="grid-column:1/-1"><h3>${esc(title)}</h3>
-      <div class="dim small">Free AIs do the work first, so a job keeps going when a paid AI runs out. Each button opens the right window: an install, the app's own sign-in, or the page for a free key.</div>
+      <div class="dim small">Free AIs do the work first, so a job keeps going when a paid AI runs out. Each button opens the right window: an install, the app's own sign-in, or a free sign-up page.</div>
       <div class="lbl" style="margin-top:10px">Apps on this PC</div>
       ${apps.map(appRow).join("") || `<div class="dim small">Checking this PC...</div>`}
-      ${showKeys ? `<div class="lbl" style="margin-top:12px">Free sign-up (Gemini, Groq, OpenRouter)</div>${keys.map((p) => keyRow({ ...p, buttonLabel: "Get it", placeholder: "Paste it here" })).join("")}` : ""}
+      ${showKeys ? `<div class="lbl" style="margin-top:12px">Free sign-up (Gemini, Groq, OpenRouter)</div>${keyRows(keys)}` : ""}
       <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
         <button type="button" class="btn primary" id="cc-fs-all" ${todo && !busy ? "" : "disabled"}>${todo ? `Set up all free AIs (${todo})` : "All apps are set up"}</button>
         <button type="button" class="btn sm" id="cc-fs-again">Check again</button>

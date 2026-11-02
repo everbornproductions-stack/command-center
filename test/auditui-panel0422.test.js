@@ -12,8 +12,9 @@ test("S14. the sidebar item for the open page carries aria-current=page and the 
   try {
     await goChat(t.page);
     const cur = () => t.page.evaluate(() => [...document.querySelectorAll("#cc-side [data-side][aria-current]")].map((e) => e.dataset.side + "=" + e.getAttribute("aria-current")));
-    await t.page.waitForFunction(() => document.querySelector("#side-new")?.getAttribute("aria-current") === "page", null, { timeout: WAIT });
-    assert.deepEqual(await cur(), ["new=page"]);
+    // 0.4.37 (Simple chat layout): the sidebar's first item is Chat (it was New)
+    await t.page.waitForFunction(() => document.querySelector("#side-chat")?.getAttribute("aria-current") === "page", null, { timeout: WAIT });
+    assert.deepEqual(await cur(), ["chat=page"]);
     await t.page.evaluate(() => window.CC.go("projects"));
     await t.page.waitForFunction(() => document.querySelector("#side-projects")?.getAttribute("aria-current") === "page", null, { timeout: WAIT });
     assert.deepEqual(await cur(), ["projects=page"]);

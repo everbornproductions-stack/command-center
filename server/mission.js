@@ -40,8 +40,8 @@ import { consumeQueuedForRun } from "./phoneweb.js";
 import { isNavStateEnabled } from "./web-config.js";
 import { plainMessage } from "./plain-error.js";
 import { unavailableNamed, replanLine, scrubUnavailable, cleanCapability, stepAgentName, handToWorkingAI } from "./plan-safe.js";
-import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, saysComplete, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, namedFiles, isSavableName, NO_SAVE_STEP_LINE, FILE_BLOCK_LINE, dropSaveOnlySteps, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine } from "./step-guard.js";
-import { saveNamedFile, writeProjectFile, codeFor, fileBody, NOT_SAVED_LINE, wantedFile, officeNote } from "./named-file.js";
+import { claimCheck, stripSaveClaims, judgeStep, continuePrompt, joinContinuation, saysComplete, wantsSearch, diskCheck, onDisk, removedApiNotes, NO_REMOVED_APIS_LINE, stripSearchLeaks, namedFile, namedFiles, isSavableName, NO_SAVE_STEP_LINE, FILE_BLOCK_LINE, dropSaveOnlySteps, fileExt, CODE_TOKEN_CAP, WORK_TOKEN_CAP, MAX_CONTINUES, checkTruncation, isEmptyOutput, missingInputs, inputMissingLine, jsonBody, validJson } from "./step-guard.js";
+import { saveNamedFile, writeProjectFile, codeFor, fileBody, NOT_SAVED_LINE, wantedFile, officeNote, needsOfficeContentFix } from "./named-file.js";
 import { bodyForFile, looksLikeCode } from "./code-files.js";
 import { saveEveryNamedFile, isCheckStep, fullReplacement } from "./save-named-files.js";
 import { checkSavedScripts } from "./saved-file-checks.js";
@@ -1121,7 +1121,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
     };
     // the code of a code step goes to the file the step names, inside the project folder only
     const sqlChecks = []; // 0.4.32: SQLite checks started by codeWrite, awaited before deterministicQa
-    const codeWrite = (t) => {
+    const codeWrite = (t, { defer = false } = {}) => {
       if (t.save || t.run || t.media || t.agent) return;
       const folders = writeFolders();
       const names = stepFileNames(t).filter((n) => codeFolders().length || !/\.html?$/i.test(n)); // a page with no folder is still kept as a MindMedia item at the end
@@ -1200,7 +1200,7 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         t.output = `${t.output}\n\n${t.notSaved.line}`; outputs[t.id] = t.output;
         log(`"${t.title}": ${t.notSaved.line}`, { level: "error" });
       }
-      emit("task.update", { missionId: id, task: pubTask(t) }); update();
+      if (!defer) { emit("task.update", { missionId: id, task: pubTask(t) }); update(); }
     };
     // Claims need proof: "saved" with no write record, "test output" with no run record, or a lost export, fail the step
     const deterministicQa = (t) => {
@@ -1452,6 +1452,15 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         t.stopReason = r.stop || null;
         if (String(r.stop || "").match(/length|max_tokens/)) continue;
       }
+      // 0.4.37 (dogfood 0434): one compact full-file retry repairs JSON that stayed invalid after carry-on.
+      if (stepExt(t) === "json") {
+        const name = stepFileNames(t)[0] || namedFile(t.instructions || t.title) || "file.json";
+        const body = jsonBody(cur);
+        if (body !== null && !validJson(body) && !ctl.signal.aborted) {
+          const r = await callOnce(t, { provider: t.provider, model: t.model, system, maxTokens: CODE_TOKEN_CAP, role: "continue", messages: [...messages, { role: "user", content: `Return the entire ${name} again as one valid JSON file, in a smaller form. Output only the JSON code block. No explanation.` }] });
+          if (r.text.trim()) cur = r.text;
+        }
+      }
       return cur;
     };
     // The check, the carry-on, and up to two retries on another AI. Leaves the step "failed" with a plain reason when none works.
@@ -1531,7 +1540,8 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
             const score = Number(j.score);
             return { provider: r.provider, model: r.model, pass: j.pass === true || (j.pass === undefined && Number.isFinite(score) && score >= 7), score: Number.isFinite(score) ? score : null, issues: Array.isArray(j.issues) ? j.issues.slice(0, 6) : [], fix: j.fix || null, ms };
           }
-          log(`${reviewer.providerName} sent back a check that could not be read${attempt ? "" : ". Asking once more"}.`);
+          // 0.4.37 (dogfood 0434): after two unreadable replies, hand QA to the next reviewer.
+          log(`${reviewer.providerName} sent back a check that could not be read${attempt ? ". Trying the next reviewer, if one is ready." : ". Asking once more."}`);
         }
         emit("agent.error", { agent: ragent, provider: reviewer.provider, model: reviewer.model, missionId: id, taskId: t.id, error: "unreadable check" });
         return { unreadable: true, provider: reviewer.provider, model: reviewer.model };
@@ -1747,7 +1757,24 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (t.status === "review" || t.status === "done") await settleStep(t, { system: workSystem, messages: workMessages, stop: stopReason, inputs });
         // 0.4.21 (dogfood 12): the code goes into the project folder, and what really happened is checked against what the step says
         if (t.status === "review" || t.status === "done") {
-          try { codeWrite(t); } catch (e) { t.notSaved = { files: t.wantFiles || [], line: `Not saved: ${String(e.message || e).slice(0, 120)}` }; }
+          const officeFile = /\.(?:xlsx|xlsm|docx|pptx)$/i.test(String(stepFileNames(t)[0] || ""));
+          try { codeWrite(t, { defer: officeFile }); } catch (e) { t.notSaved = { files: t.wantFiles || [], line: `Not saved: ${String(e.message || e).slice(0, 120)}` }; }
+          // 0.4.37 (dogfood 0434): office code gets one same-step correction before its Done card.
+          if (t.notSaved && officeFile && needsOfficeContentFix(t.notSaved.line, t.output || "", t.wantFiles[0])) {
+            const ext = fileExt(t.wantFiles[0]);
+            const instruction = ext === "xlsx" || ext === "xlsm" ? "Give the sheet itself as a markdown table, not code." : ext === "docx" ? "Give the document itself in Markdown, not code." : "Give the slides themselves in Markdown, not code.";
+            log(`"${t.title}" did not make ${t.wantFiles[0]} because the answer had code instead of content. Asking once for the file itself.`);
+            const fix = await callOnce(t, { provider: t.provider, model: t.model, system: workSystem, maxTokens: tokenCap(t), role: "fix", messages: [...workMessages, { role: "assistant", content: t.output }, { role: "user", content: instruction }] });
+            if (String(fix.text || "").trim()) {
+              const before = t.output;
+              t.output = fix.text; outputs[t.id] = fix.text; t.notSaved = null;
+              try { codeWrite(t, { defer: true }); } catch (e) { t.notSaved = { files: t.wantFiles || [], line: `Not saved: ${String(e.message || e).slice(0, 120)}` }; }
+              if (!t.notSaved) log(`"${t.title}" saved after the correction.`);
+              else { t.output = before; outputs[t.id] = before; t.notSaved.line = `${t.notSaved.line} The one correction still failed.`; }
+            } else t.notSaved.line = `${t.notSaved.line} The one correction came back empty.`;
+          }
+          // the deferred step update (an Office step waits for its one correction before it is shown)
+          if (officeFile) { emit("task.update", { missionId: id, task: pubTask(t) }); update(); }
           if (sqlChecks.length) await Promise.all(sqlChecks.splice(0));
           const det = deterministicQa(t);
           if (det) { t.review = det; log(`QA failed "${t.title}": ${det.issues[0]}`, { level: "error" }); emit("task.update", { missionId: id, task: pubTask(t) }); }
@@ -1923,6 +1950,18 @@ Keep it tight: no task that just restates the goal. Research tasks need needWeb 
         if (saysComplete(r.text)) { mission.assemblerSaidComplete = true; log(`${PROVIDERS[r.provider]?.name || r.provider} said the final answer was already complete, so Meldmind kept it as it was.`); break; }
         text = joinContinuation(text, r.text);
         asmStop = r.stop || null;
+      }
+      // 0.4.37 (dogfood 0434): validate assembled JSON and request one smaller whole-file replacement.
+      if (fext === "json") {
+        const name = want || "file.json";
+        const body = jsonBody(text);
+        if (body !== null && !validJson(body) && !ctl.signal.aborted) {
+          const s7 = Date.now();
+          const r = await completeFallback({ allowStandIn: true, provider: asm.provider, model: asm.model, maxTokens: CODE_TOKEN_CAP, signal: ctl.signal, system: asmSystem, messages: [...asmMessages, { role: "user", content: `Return the entire ${name} again as one valid JSON file, in a smaller form. Output only the JSON code block. No explanation.` }] },
+            { missionId: id, role: "continue", tools: false, cls: { capability: "code", difficulty: 2 }, mode: planning, avoid: held, skipProviders: skipSet, onTrouble: runTrouble });
+          spend(recordCall({ provider: r.provider, model: r.model, usage: r.usage, missionId: id, role: "continue", ms: Date.now() - s7 }));
+          if (r.text.trim()) text = r.text;
+        }
       }
       mission.assemblerStop = asmStop;
       mission.deliverable = text;

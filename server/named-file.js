@@ -23,6 +23,13 @@ export const OFFICE_EXT = new Set(["xlsx", "xlsm", "docx", "pptx"]);
 export const NO_TABLE_LINE = "Not saved: there was no table to put in the spreadsheet.";
 export const NO_SLIDES_LINE = "Not saved: there were no slides to put in the deck.";
 export const SCRIPT_ONLY_LINE = "Not saved: the answer was a script that would build the document, not the document itself.";
+// 0.4.37 (dogfood 0434): only repair an Office save when code was offered instead of the file content.
+export function needsOfficeContentFix(error, answer, name) {
+  const e = String(error || "");
+  // a Word file whose answer was a generator script (SCRIPT_ONLY_LINE) is the same case: code instead of the content
+  if (e === SCRIPT_ONLY_LINE) return true;
+  return /no (?:table|content|slides?)/i.test(e) && extractCodeFiles(answer).length > 0;
+}
 const OFFICE_NAMED_RE = /\b(?:save|saved|write|export|name|call|put|store|output|as|into|to|file(?:name)?|named)\b[^.\n]{0,40}?\b([A-Za-z0-9][\w-]{0,60}\.(?:xlsx|xlsm|docx|pptx))\b/i;
 const OFFICE_ANY_RE = /\b([A-Za-z0-9][\w-]{0,60}\.(?:xlsx|xlsm|docx|pptx))\b/i;
 /** The file a task asks for, including .xlsx, .xlsm, .docx and .pptx (an Office file wins over a text file named in the same task). */

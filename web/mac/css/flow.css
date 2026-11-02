@@ -72,9 +72,10 @@ body[data-style="mac"] #mac-flow .mf-ver.on { background: var(--mf-acc-solid); c
 body[data-style="mac"] #mac-flow .mf-meta { margin: 0; color: var(--mf-dim); font-size: calc(13px * var(--mf-scale, 1)); }
 /* the borrowed result: show the picture, the page or the words big, and keep only the helpers a person needs */
 body[data-style="mac"] #mac-flow #simple-answer { display: block !important; background: transparent; border: 0; box-shadow: none; padding: 0; margin: 0; max-width: none; width: auto; }
-body[data-style="mac"] #mac-flow #simple-answer > h3, body[data-style="mac"] #mac-flow #simple-answer #copy, body[data-style="mac"] #mac-flow #simple-answer #out-head { display: none; }
+body[data-style="mac"] #mac-flow #simple-answer > h3, body[data-style="mac"] #mac-flow #simple-answer .sc-who, body[data-style="mac"] #mac-flow #simple-answer #copy, body[data-style="mac"] #mac-flow #simple-answer #out-head { display: none; }
 body[data-style="mac"] #mac-flow #simple-answer .mk-head, body[data-style="mac"] #mac-flow #simple-answer .mk-how, body[data-style="mac"] #mac-flow #simple-answer .mk-link, body[data-style="mac"] #mac-flow #simple-answer .rh-main-row, body[data-style="mac"] #mac-flow #simple-answer .rh-more, body[data-style="mac"] #mac-flow #simple-answer .rh-card .rh-main-row, body[data-style="mac"] #mac-flow #simple-answer .rh-card > .rh-more { display: none; }
 body[data-style="mac"] #mac-flow #simple-answer .mk-tile { border: 0; padding: 0; background: transparent; }
+body[data-style="mac"] #mac-flow #simple-answer .sc-card { border: 0; padding: 0; background: transparent; box-shadow: none; } /* 0.4.37: the chat card inside the Done screen */
 body[data-style="mac"] #mac-flow #simple-answer .mk-tile[hidden] { display: none; }
 body[data-style="mac"] #mac-flow #simple-answer .mk-media img, body[data-style="mac"] #mac-flow #simple-answer .mk-media video { max-height: 62vh; border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.2); }
 body[data-style="mac"] #mac-flow #simple-answer .rh-card { border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.15); }
@@ -98,36 +99,8 @@ body[data-style="mac"] #mac-flow #simple-answer .rh-card iframe.rh-site { height
   body[data-style="mac"] #mac-flow .mf-art { height: 92px; }
   body[data-style="mac"] #mac-flow .mf-path, body[data-style="mac"] #mac-flow .mf-card { min-height: 190px; }
 }
-/* 0.4.27 (panel item 10, Dana): while an answer shows, the chat box stays at the bottom but sat over the end of the
-   answer card (its helper line and AI row made it tall). Until the person uses it again, the box is two lines and the
-   helper line and AI row fold away; clicking or typing in it brings them back. */
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .orders:not(:focus-within) .sc-box #orders { min-height: 44px; height: 44px; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .orders:not(:focus-within) #cc-emp-hint,
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] .orders:not(:focus-within) #cc-composer-ais { display: none; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"] #simple-answer { scroll-margin-bottom: 120px; }
-/* 0.4.28 (panel item 3a): the box keeps focus after Send, so the rule above never folded it. app.js now sets data-fold
-   after a send and clears it when the person types or clicks in the box. Folded, the helper lines and the chips hide too. */
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box #orders { min-height: 44px; height: 44px; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] #cc-emp-hint,
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] #cc-composer-ais,
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] #cc-auto-line:empty { display: none; }
-/* 0.4.31 (panel 0428 item 1a): folded, the box card was still 157 px (Mic, team picker and "Free only" stayed), so the
-   answer had about 300 px and its buttons sat under the box. Folded, the box is one line with Send beside it (about
-   64 px); Mic, the team picker, "Free only" and the auto line come back as soon as the person clicks or types in it.
-   Stop stays when a run shows it. */
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .orders { padding-top: 4px; padding-bottom: 8px; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-panel { gap: 0 !important; } /* the panel sets gap inline */
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-live:not([hidden]) { margin-bottom: 6px; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 12px; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .orders .sc-box #orders { flex: 1 1 auto; min-width: 0; min-height: 40px; height: 40px; padding-top: 9px; padding-bottom: 5px; overflow: hidden; white-space: nowrap; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .orders .sc-box #orders::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .simple-send-row { flex: none; flex-wrap: nowrap; gap: 6px; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .simple-send-row > #vo-mic,
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .simple-send-row > #sc-team,
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .simple-send-row > span,
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box #cc-auto-line,
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box .pd-wrap { display: none; }
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat[data-state="run"][data-fold="1"] .sc-box #go { min-height: 38px; padding-top: 6px; padding-bottom: 6px; margin-left: 0; }
+/* 0.4.37 (Chris: Simple chat layout): the 0.4.27 to 0.4.31 folding chat box rules are gone. The Chat page is one column
+   with the short box pinned under it (web/chat.css), so the box never sits over an answer. */
 body[data-style="mac"][data-mac-flow="on"] #cc-canvas { display: none !important; }
 /* 0.4.28: five more paths (Spreadsheet, Document, Slides, App or script, List or data). Simple drawn pictures, no images. */
 body[data-style="mac"] #mac-flow .mf-art-sheet { background: linear-gradient(0deg, rgba(255,255,255,.55) 1px, transparent 1px) 0 0 / 100% 22px, linear-gradient(90deg, rgba(255,255,255,.55) 1px, transparent 1px) 0 0 / 46px 100%, linear-gradient(135deg,#30d158,#0a7d3c); }
@@ -174,6 +147,10 @@ body[data-style="mac"] #mac-flow .mf-chat-wide:hover, body[data-style="mac"] #ma
 body[data-style="mac"] #mac-flow .mf-chat-wide b { font-size: 1rem; }
 body[data-style="mac"] #mac-flow .mf-chat-wide small { color: var(--mac-dim, #4b5563); font-size: 0.875rem; }
 body[data-style="mac"] #mac-flow .mf-chat-ico { font-size: 1.25rem; }
+/* 0.4.37 (panel 0435 item 5): --mac-card is not set anywhere, so dark painted the light fallback under light text
+   ("Just chat" 1.84 : 1, the line under it 1.11 : 1). Dark uses the path cards' dark surface and the 3-step dim text. */
+body[data-style="mac"].dark #mac-flow .mf-chat-wide, body[data-style="mac"][data-theme="dark"] #mac-flow .mf-chat-wide { background: var(--mf-chat-dark, #2c2c34); border-color: var(--mf-line); color: var(--mf-tx); }
+body[data-style="mac"].dark #mac-flow .mf-chat-wide small, body[data-style="mac"][data-theme="dark"] #mac-flow .mf-chat-wide small { color: var(--mf-dim); }
 /* 0.4.35 (panel 0431 item 8): Settings > Reading > Large set the page to 20 px, but the 3-step home kept its px sizes.
    Every text size on the 3-step pages now follows the reading size (a11y.js sets html[data-text]). */
 body[data-style="mac"]:is([data-text="small"] *) #mac-flow { --mf-scale: .875; }
@@ -205,4 +182,4 @@ body[data-style="mac"]:is([data-text="xlarge"] *) #mac-flow { --mf-scale: 1.4; }
 body[data-style="mac"] #simple-answer p, body[data-style="mac"] #simple-answer li { max-width: 75ch; }
 /* 0.4.35 (panel 0431 item 12): a pasted or "Use this" prompt is capped at about 6 lines with its own scroll, so Send
    stays on screen. */
-body[data-style="mac"][data-ui="simple"] .cmd.simple-chat .sc-box #orders { max-height: calc(6 * 1.5em + 20px); overflow-y: auto; }
+body[data-style="mac"][data-ui="simple"] .sc-chat .sc-box #orders { max-height: calc(6 * 1.5em + 20px); overflow-y: auto; }

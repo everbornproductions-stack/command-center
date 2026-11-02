@@ -13,6 +13,8 @@ const LABEL = { image: "Picture", video: "Video", audio: "Voice" };
 const MAKING = { image: "Making your image...", video: "Making your video...", audio: "Making your voice..." };
 const CSS = `
 #simple-answer.mk-on > #out-md, #simple-answer.mk-on > #cc-answer-line, #simple-answer.mk-on > #out-follow, #simple-answer.mk-on > #cc-fail-slot, #simple-answer.mk-on > #deliv-extras, #simple-answer.mk-on > h3 { display: none; }
+/* 0.4.37: the Simple Chat card, its four buttons and its Make changes fold give way to the made picture, video or voice */
+#simple-answer.mk-on > .sc-card, #simple-answer.mk-on > .sc-acts, #simple-answer.mk-on > .sc-changes { display: none; }
 #mk-root { display: flex; flex-direction: column; gap: 14px; }
 .mk-tile { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line-2, var(--line)); border-radius: var(--radius, 10px); background: var(--panel-solid, transparent); color: var(--text); }
 .mk-head { font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
