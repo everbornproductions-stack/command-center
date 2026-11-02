@@ -76,14 +76,15 @@ test("item 2: at 1366 x 768 the Council readers box holds its Send; on Free, Mis
   try {
     const p = t.page;
     await p.evaluate(() => window.CC.go("command"));
-    await p.waitForSelector("#mac-rb-modes [data-m='mission']", { timeout: WAIT });
-    // (c) the Mission button says Pro on Free, in the run bar and the page's own mode row; its tip ends with Part of Pro
-    const marks = await p.evaluate(() => ["#mac-rb-modes", "#run-mode"].map((s) => !!document.querySelector(`${s} [data-m='mission'] .cc-pro-mark`)));
-    assert.deepEqual(marks, [true, true], "both Mission buttons carry the Pro mark");
+    await p.waitForSelector("#run-mode [data-m='mission']", { timeout: WAIT });
+    // (c) the Mission button says Pro on Free; its tip ends with Part of Pro. 0.4.38 (Chris: Expert Command as a chat):
+    // the run bar folded into the chat box, so the box's pill is the one Mission button
+    const marks = await p.evaluate(() => ["#run-mode"].map((s) => !!document.querySelector(`${s} [data-m='mission'] .cc-pro-mark`)));
+    assert.deepEqual(marks, [true], "the Mission pill carries the Pro mark");
     const { TIPS } = await import("../web/tips.js");
     assert.match(TIPS["mode:mission"], /Part of Pro\.$/);
     // (a) Council (allowed on Free): the box sizes to its content and Send is inside the card, on screen
-    await p.click("#mac-rb-modes [data-m='council']");
+    await p.click("#run-mode [data-m='council']");
     await p.fill("#orders", "Should I open a second bakery or grow the first one?");
     await p.click("#go");
     await p.waitForSelector("#cc-readers-go", { timeout: WAIT });
@@ -101,7 +102,7 @@ test("item 2: at 1366 x 768 the Council readers box holds its Send; on Free, Mis
     await p.click("#cc-readers-cancel");
     await p.waitForFunction(() => !document.getElementById("cc-readers"), null, { timeout: WAIT });
     // (b) Mission on Free: Send opens the Pro box, never the readers box
-    await p.click("#mac-rb-modes [data-m='mission']");
+    await p.click("#run-mode [data-m='mission']");
     await p.click("#go");
     await p.waitForSelector("#cc-upgrade", { timeout: WAIT });
     assert.equal(await p.evaluate(() => !!document.getElementById("cc-readers")), false, "no readers box on Free");
@@ -187,16 +188,17 @@ test("item 5: Expert Command, the first hover on Council shows its tip; a Simple
   try {
     const p = t.page;
     await p.evaluate(() => window.CC.go("command"));
-    await p.waitForSelector("#mac-rb-modes [data-m='council']", { timeout: WAIT });
-    await waitOnScreen(p, "#mac-rb-modes [data-m='council']");
+    // 0.4.38 (Chris: Expert Command as a chat): the run modes are pills on the chat box (the run bar folded into it)
+    await p.waitForSelector("#run-mode [data-m='council']", { timeout: WAIT });
+    await waitOnScreen(p, "#run-mode [data-m='council']");
     // a scroll in a box that does not hold the button (the page settling) no longer cancels the waiting tip
-    await p.hover("#mac-rb-modes [data-m='council']");
+    await p.hover("#run-mode [data-m='council']");
     await p.evaluate(() => { const f = document.getElementById("feed") || document.body; f.dispatchEvent(new Event("scroll")); });
     await p.waitForFunction(() => document.getElementById("cc-tip")?.classList.contains("on"), null, { timeout: waitBudget(1500) });
     assert.match(await p.textContent("#cc-tip"), /^Council:/);
-    // the run bar's Priority list shows the chosen priority's tip on keyboard focus
+    // the chat box's Priority list shows the chosen priority's tip on keyboard focus
     await p.mouse.move(5, 5);
-    await p.focus("#mac-rb-priority");
+    await p.focus("#cost-mode");
     await p.keyboard.press("Shift+Tab");
     await p.keyboard.press("Tab");
     await p.waitForFunction(() => document.getElementById("cc-tip")?.classList.contains("on"), null, { timeout: waitBudget(1500) }).catch(() => {});
@@ -295,7 +297,7 @@ test("item 9: Expert at 3440 x 1440, no paragraph in #view runs past 80 characte
 
 // ---------- item 11: one button per action ----------
 
-test("item 11: under a Simple answer no two visible buttons share a label with the Next bar; Expert shows one reply box for one AI", { skip }, async () => {
+test("item 11: under a Simple answer no two visible buttons share a label with the Next bar; Expert replies from the chat box", { skip }, async () => {
   const t = await boot({ width: 1366, height: 800 });
   try {
     const p = t.page;
@@ -321,14 +323,17 @@ test("item 11: under a Simple answer no two visible buttons share a label with t
   try {
     const p = e.page;
     await p.evaluate(() => window.CC.go("command"));
-    await p.waitForSelector("#mac-rb-modes [data-m='single']", { timeout: WAIT });
-    await p.click("#mac-rb-modes [data-m='single']");
+    await p.waitForSelector("#run-mode [data-m='single']", { timeout: WAIT });
+    await p.click("#run-mode [data-m='single']");
     await p.fill("#orders", "Write a two line thank you note for a customer");
     await p.click("#go");
     await p.waitForFunction(() => ["done", "done-with-errors"].includes(window.CC.S.live?.status), null, { timeout: RUN });
-    await p.waitForFunction(() => document.querySelectorAll("form.reply-box").length > 0, null, { timeout: WAIT });
+    // 0.4.38 (Chris: Expert Command as a chat): the marching orders box is the one place to reply (the follow-up goes
+    // on in the same chat), so a one-AI answer has no second reply box under it, only its four buttons
+    await p.waitForFunction(() => document.querySelector("#ex-answer > .sc-acts")?.getBoundingClientRect().height > 0, null, { timeout: WAIT });
     const boxes = await p.evaluate(() => [...document.querySelectorAll("form.reply-box")].filter((f) => f.getBoundingClientRect().height > 0).map((f) => f.querySelector("label")?.textContent.trim()));
-    assert.deepEqual(boxes, ["Reply to this AI"], "one reply box for a one-AI answer");
+    assert.deepEqual(boxes, [], "no second reply box for a one-AI answer");
+    assert.deepEqual(await p.evaluate(() => [...document.querySelectorAll("#ex-answer > .sc-acts button")].map((b) => b.textContent.trim())), ["Copy", "Try again", "Make changes", "Save as file"]);
   } finally { await e.close(); }
 });
 

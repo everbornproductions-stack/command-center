@@ -194,6 +194,9 @@ test("browser 1366 x 800: empty Chat page, two answers in one column, four butto
     await page.click("#simple-answer > .sc-acts [data-sc-act='change']");
     await page.waitForFunction(() => !document.getElementById("sc-changes").hidden, null, { timeout: WAIT });
     await page.waitForFunction(() => !!document.querySelector("#sc-changes #mmbar [data-mm]"), null, { timeout: WAIT }).catch(() => {});
+    // 0.4.38 (0.4.37 panel item 6): Make changes starts short; All options shows every other action in place
+    await page.click("#sc-changes [data-sc-all]");
+    await page.waitForFunction(() => document.getElementById("sc-changes").classList.contains("sc-all"), null, { timeout: WAIT });
     const changes = await page.evaluate(() => {
       const f = document.getElementById("sc-changes");
       const words = f.innerText;
@@ -229,13 +232,13 @@ test("browser 1366 x 800: empty Chat page, two answers in one column, four butto
     assert.equal((await t.api("/chat/save-file", { body: { text: "", name: "x.md" } })).status, 400);
     assert.deepEqual(t.errors, []);
 
-    // ---- Expert Command keeps its old layout ----
+    // ---- Expert Command keeps its own page (0.4.38: its own chat, .ex-chat, with the run modes on its box) ----
     await page.click("#mac-expert");
     await page.waitForFunction(() => document.body.dataset.ui === "expert", null, { timeout: WAIT });
     await page.evaluate(() => window.CC.go("command"));
-    await page.waitForFunction(() => !!document.querySelector("#view .cmd #run-mode"), null, { timeout: WAIT });
-    const ex = await page.evaluate(() => ({ run: !!document.getElementById("run-mode"), orders: !!document.querySelector("#view .cmd .orders-panel #orders"), deliv: !!document.getElementById("deliv-panel"), chat: !!document.querySelector("#view .sc-chat"), acts: document.querySelectorAll("#view .sc-acts").length }));
-    assert.deepEqual(ex, { run: true, orders: true, deliv: true, chat: false, acts: 0 });
+    await page.waitForFunction(() => !!document.querySelector("#view .ex-chat #run-mode"), null, { timeout: WAIT });
+    const ex = await page.evaluate(() => ({ run: !!document.getElementById("run-mode"), orders: !!document.querySelector("#view .ex-chat .ex-box #orders"), deliv: !!document.getElementById("deliv-panel"), chat: !!document.querySelector("#view .sc-chat"), simpleAnswer: !!document.getElementById("simple-answer") }));
+    assert.deepEqual(ex, { run: true, orders: true, deliv: false, chat: false, simpleAnswer: false });
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }
 });

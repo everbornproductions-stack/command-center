@@ -39,26 +39,32 @@ test("Deliverable stays hidden until there is a result", () => {
   assert.equal(showDeliverable({ id: "r1", kind: "mission", status: "running" }, ""), false);
   assert.equal(showDeliverable({ id: "r1", kind: "single", status: "running" }, "Hi"), true);
   assert.equal(showDeliverable({ id: "r1", kind: "research", status: "failed" }, ""), true);
-  assert.match(app, /id="deliv-panel" hidden/);
-  const side = app.slice(app.indexOf('<div class="cmd-side">'));
-  assert.ok(side.indexOf('id="deliv-wait"') < side.indexOf('id="deliv-panel"'), "the short line sits where Deliverable goes");
-  assert.match(app, /wait\.hidden = !panel\.hidden/, "the line shows only while Deliverable is hidden");
-  assert.match(css, /\.cmd-side \.output \{[^}]*flex:\s*1 0 auto/, "Deliverable is not squeezed by Live ops");
+  // 0.4.38 (Chris: Expert Command as a chat): the Deliverable box became the answer card under the order bubble. It is
+  // drawn hidden and shows once there is a run (the empty page shows the heading instead of a waiting line).
+  assert.match(app, /<div class="sc-ai" id="ex-answer" data-steps="none" \$\{S\.live\?\.id \|\| S\.make\?\.active \? "" : "hidden"\}>/);
+  assert.match(app, /exAnswer\.hidden = !l\.id && !S\.make\?\.active/);
+  assert.doesNotMatch(app, /id="deliv-panel"|id="deliv-wait"/, "no separate Deliverable box on the page");
 });
 
 test("Live ops has no inner scrollbar, council answers included", () => {
   assert.match(css, /\.cmd \.ops \.task-answer \.md, \.cmd \.ops \.ans \.body \{ max-height: none; overflow: visible; \}/);
   assert.match(css, /\.cmd \.ops \.council-cols \{[^}]*grid-auto-flow:\s*row[^}]*overflow:\s*visible/);
+  // 0.4.38: the same inside the Expert chat's answer card, where the steps now show while a run works
+  const chat = read("web", "expert-chat.css");
+  assert.match(chat, /\.ex-chat #ops-panel \.task-answer \.md, \.ex-chat #ops-panel \.ans \.body \{ max-height: none; overflow: visible; \}/);
+  assert.match(chat, /\.ex-chat #ops-panel \.council-cols \{[^}]*grid-auto-flow:\s*row[^}]*overflow:\s*visible/);
 });
 
-test("the right column puts Deliverable above Live ops, and the orders box fills the left", () => {
-  const side = app.slice(app.indexOf('<div class="cmd-side">'));
-  assert.ok(side.indexOf('id="deliv-panel"') < side.indexOf('id="ops-panel"'), "Deliverable is on top");
-  assert.match(css, /\.cmd \.orders-panel #orders \{[^}]*flex:\s*1 1 auto/);
-  assert.match(css, /\.cmd \.ops \{[^}]*overflow:\s*visible/);
-  assert.match(css, /\.cmd \.ops\.idle \{[^}]*flex-direction:\s*row/);
-  const stacked = css.slice(css.indexOf("@media (max-width: 1250px)"), css.indexOf("@media (max-width: 760px)"));
-  assert.match(stacked, /\.cmd-side \{ overflow: visible; \}/);
+// 0.4.38 (Chris: Expert Command as a chat): no more columns. The steps (#ops-panel, Live ops) sit at the top of the
+// answer card, above the answer text, and the marching orders box is the chat box pinned under the column.
+test("the answer card puts the steps above the answer, and the orders box is pinned under the chat", () => {
+  const at = app.indexOf('id="ex-answer"');
+  const card = app.slice(at, app.indexOf('id="sc-turns"', at));
+  assert.ok(card.indexOf('id="ops-panel"') > 0 && card.indexOf('id="ops-panel"') < card.indexOf('id="out-md"'), "the steps are on top of the answer");
+  assert.match(card, /<div class="graph-wrap" id="graph"><\/div>\s*<div id="tasks" class="tasks"><\/div>\s*<div id="council"><\/div>/, "the Live Ops page still adopts the graph, steps and council with the panel");
+  const chat = read("web", "expert-chat.css");
+  assert.match(chat, /\.ex-chat \.orders \{ flex: none;/);
+  assert.match(chat, /\.ex-chat #ex-answer:is\(\[data-steps="none"\], \[data-steps="fold"\]\) #ops-panel \{ display: none !important; \}/);
 });
 
 test("Home: Welcome back sits under Live ops, and its rows use theme colours", () => {

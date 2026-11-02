@@ -50,7 +50,8 @@ function writerName() {
 }
 
 function paintHome(host) {
-  const cmd = host.closest?.(".cmd") || document.querySelector("#view .cmd");
+  // 0.4.38 (Chris: Expert Command as a chat): the Expert chat page shows Welcome back on its empty first screen
+  const cmd = host.closest?.(".cmd, .ex-chat") || document.querySelector("#view .cmd, #view .ex-chat");
   const old = document.getElementById("cc-home");
   if (!cmd || S.live?.id) { old?.remove(); return; }
   api("/desk/home").then((card) => {
@@ -62,9 +63,10 @@ function paintHome(host) {
       el.className = "panel";
       // Expert: under Live ops in the right column, so any Live ops strip sits above Welcome back.
       // Simple: under the chat box and My day, so Chat stays at the top.
-      const ops = cmd.querySelector("#ops-panel");
+      const home = cmd.querySelector("#ex-home");
       const recent = cmd.querySelector("#simple-recent");
-      if (ops) ops.after(el); else if (recent) recent.appendChild(el); else cmd.prepend(el);
+      const ops = home ? null : cmd.querySelector("#ops-panel");
+      if (ops) ops.after(el); else if (home) home.appendChild(el); else if (recent) recent.appendChild(el); else cmd.prepend(el);
     }
     const chats = (card.chats || []).map((c) => `<button type="button" class="row" data-chat="${esc(c.id)}"><span class="chip">${esc(c.kind)}</span>${c.private ? `<span class="chip">Private</span>` : ""}<span style="flex:1">${esc(c.title)}</span></button>`).join("");
     const projects = (card.projects || []).map((p) => `<button type="button" class="btn sm" data-proj="${esc(p.id)}">${esc(p.name)}</button>`).join("");

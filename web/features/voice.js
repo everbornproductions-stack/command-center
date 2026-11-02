@@ -381,6 +381,24 @@ function renderCommand(el) {
     syncFromServer();
     return;
   }
+  // 0.4.38 (Chris: Expert Command as a chat): the Expert chat box has its own Mic button in its bottom row. It is the
+  // talk button; the auto-send and stop-on-silence choices stay here, under More options.
+  if (simpleBtn) {
+    if (simpleBtn.dataset.wired !== "1") { simpleBtn.dataset.wired = "1"; wireButton(simpleBtn); }
+    el.innerHTML = `<div class="row small" style="margin-top:8px;gap:8px;flex-wrap:wrap;align-items:center">
+    <span>Voice (the Mic button in the box):</span>
+    <label class="row small" style="gap:4px"><input type="checkbox" id="vo-auto"> auto-send</label>
+    <label class="row small" id="vo-silence-label" style="gap:4px"><input type="checkbox" id="vo-silence"> stop on silence</label>
+    <span class="vo-live-ind" id="vo-live" hidden><i class="vo-dot" aria-hidden="true"></i><span>Recording</span><span id="vo-timer" class="mono">0:00</span></span>
+    <span class="dim" id="vo-status" aria-live="polite"></span>
+  </div>
+  <div class="dim small" id="vo-hint" style="margin-top:4px"></div>`;
+    el.querySelector("#vo-auto").addEventListener("change", (e) => { savePrefs({ autoSend: e.target.checked }).catch(() => { e.target.checked = !!session.autoSend; }); });
+    el.querySelector("#vo-silence").addEventListener("change", (e) => { savePrefs({ silenceStop: e.target.checked }).catch(() => { e.target.checked = !!session.silenceStop; }); });
+    paint();
+    syncFromServer();
+    return;
+  }
   if (!SR() && !window.ccDesktop?.desktop && typeof MediaRecorder === "undefined") {
     el.innerHTML = `<div class="dim small" style="margin-top:6px">Voice orders need Chrome, Edge or the desktop app (no speech recognition in this browser). Wispr Flow dictation works in the box above.</div>`;
     return;

@@ -43,8 +43,12 @@ export default {
     }
 
     // The Command view rebuilds #view, which drops the bar, so it is placed again when missing.
+    // 0.4.38 (Chris: Expert Command as a chat): the chat box has the run modes as pills on top and Priority, When and
+    // Free only in its bottom row, so the bar folds into it: no second row over the box. A page without those still
+    // gets the bar.
     function place() {
       const orders = document.getElementById("orders");
+      if (orders?.closest(".ex-box")) return null;
       const box = orders?.parentElement;
       if (!box?.parentNode) return null;
       let bar = document.getElementById("mac-runbar");
@@ -65,6 +69,7 @@ export default {
       }
       const bar = place();
       if (!bar) {
+        document.getElementById("mac-runbar")?.remove();
         lastBar = null;
         lastSig = "";
         return;

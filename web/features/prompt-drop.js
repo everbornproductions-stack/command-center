@@ -117,7 +117,9 @@ function mountButton(id) {
   wrap.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && wrap.querySelector(".pd-btn").getAttribute("aria-expanded") === "true") { e.preventDefault(); close(wrap); wrap.querySelector(".pd-btn").focus(); }
   });
-  el.insertAdjacentElement("afterend", wrap);
+  // 0.4.38 (Chris: Expert Command as a chat): in the Expert chat box, Prompts sits in the help line under the box
+  const slot = id === "orders" && el.closest(".ex-box") ? document.getElementById("ex-prompts-slot") : null;
+  if (slot) slot.appendChild(wrap); else el.insertAdjacentElement("afterend", wrap);
 }
 
 function tipsHtml(label) {

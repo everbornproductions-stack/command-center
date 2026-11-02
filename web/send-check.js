@@ -24,7 +24,8 @@ export function showBanner(check, { doc = document, esc, onSwitch, onSettings, o
   const html = bannerHtml(check, esc);
   const box = doc.getElementById("orders");
   if (!html || !box) return null;
-  box.insertAdjacentHTML("beforebegin", html);
+  // 0.4.38 (Chris: Expert Command as a chat): above the whole Expert chat box (its run mode pills sit over the text)
+  (box.closest(".ex-box") || box).insertAdjacentHTML("beforebegin", html);
   const el = doc.getElementById("cc-send-banner");
   el.querySelector('[data-sc="switch"]')?.addEventListener("click", () => { onSwitch?.(check.banner.fix.switchTo); el.remove(); });
   el.querySelector('[data-sc="credits"]')?.addEventListener("click", () => onCredits?.(check.banner.fix.addCredits));

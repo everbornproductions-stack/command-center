@@ -290,6 +290,9 @@ function syncOpsSlim() {
   const panel = document.getElementById("ops-panel");
   let slim = document.getElementById("cc-ops-slim");
   if (!panel || s.view !== "command") { slim?.remove(); return; }
+  // 0.4.38 (Chris: Expert Command as a chat): in the Expert chat the steps show in full inside the answer card, with
+  // its own Open live view link, so there is no slim line over them
+  if (panel.closest(".ex-chat")) { slim?.remove(); panel.classList.remove("slim-collapsed"); return; }
   const live = s.live || {};
   const running = !!live.id && (busy() || Object.keys(live.tasks || {}).length > 0 || live.kind === "council");
   if (!running) { slim?.remove(); panel.classList.remove("slim-collapsed"); return; }

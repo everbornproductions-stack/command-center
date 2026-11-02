@@ -57,7 +57,7 @@ function buildSide() {
   side.id = "cc-side";
   side.setAttribute("aria-label", "Sidebar");
   side.innerHTML = `
-    <div class="side-top"><button type="button" id="side-collapse" class="side-collapse" aria-label="Collapse the sidebar" aria-expanded="true" title="Collapse or open the sidebar"><span aria-hidden="true">&laquo;</span></button></div>
+    <div class="side-top"><button type="button" class="side-item side-new" id="side-new" title="Start a new chat. This one stays in History."><i aria-hidden="true">+</i><span>New chat</span></button><button type="button" id="side-collapse" class="side-collapse" aria-label="Collapse the sidebar" aria-expanded="true" title="Collapse or open the sidebar"><span aria-hidden="true">&laquo;</span></button></div>
     <nav class="side-nav" aria-label="Sidebar">
       <button type="button" class="side-item" id="side-chat" data-side="chat" title="Chat: ask anything"><i aria-hidden="true">&#128172;</i><span>Chat</span></button>
       <button type="button" class="side-item" id="side-make" data-side="make" title="Make something: a website, an image, a video, a campaign and more"><i aria-hidden="true">&#10022;</i><span>Make something</span></button>
@@ -116,7 +116,8 @@ function onSideClick(e) {
   if (b.id === "side-profile") { st.menuOpen ? closeMenu() : openMenu(); return; }
   if (b.dataset.chat) { openChat(b.dataset.chat); return; }
   if (b.dataset.sideAct === "orig") { runOriginal(b); return; }
-  const places = { "side-chat": openChatPage, "side-make": makeSomething, "side-projects": () => CC.go("projects"), "side-mindmedia": () => CC.go("mindmedia") };
+  // 0.4.38 (0.4.37 panel item 2): every question goes on in the same chat, so New chat is a clear button at the top
+  const places = { "side-new": () => newChat(), "side-chat": openChatPage, "side-make": makeSomething, "side-projects": () => CC.go("projects"), "side-mindmedia": () => CC.go("mindmedia") };
   places[b.id]?.();
 }
 

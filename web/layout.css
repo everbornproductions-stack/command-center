@@ -32,7 +32,9 @@ html[data-look="glass"] body #cc-live-over .lo-card { background: color-mix(in s
   /* ---- the sidebar ---- */
   body[data-ui="simple"] #cc-side { grid-area: side; display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--line, #1f2937); background: var(--card-bg, #0a0f18); padding: 8px 8px 8px; gap: 2px; position: relative; z-index: 20; overflow: hidden auto; }
   body[data-ui="simple"] #cc-side[hidden] { display: none; }
-  #cc-side .side-top { display: flex; justify-content: flex-end; }
+  #cc-side .side-top { display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
+  /* 0.4.38 (0.4.37 panel item 2): New chat is a clear button at the top of the sidebar */
+  #cc-side .side-top #side-new { flex: 1 1 auto; width: auto; font-weight: 650; }
   #cc-side .side-collapse { background: transparent; border: 0; color: var(--muted, #8b95a7); cursor: pointer; border-radius: 8px; padding: 2px 8px; font-size: 1rem; line-height: 1.2; }
   #cc-side .side-collapse:hover { color: var(--text, #e5e7eb); background: var(--card-hover, #112236); }
   #cc-side .side-nav { display: grid; gap: 2px; }
@@ -70,7 +72,8 @@ html[data-look="glass"] body #cc-live-over .lo-card { background: color-mix(in s
   /* icons only: narrow windows and when collapsed */
   body[data-side="c"] #cc-side .side-item span, body[data-side="c"] #cc-side .side-h, body[data-side="c"] #cc-side .side-search, body[data-side="c"] #cc-side .side-recent { display: none; }
   body[data-side="c"] #cc-side .side-item { justify-content: center; padding: 8px 0; }
-  body[data-side="c"] #cc-side .side-top { justify-content: center; }
+  body[data-side="c"] #cc-side .side-top { justify-content: center; flex-direction: column-reverse; }
+  body[data-side="c"] #cc-side .side-top #side-new { width: 100%; flex: none; }
   body[data-side="c"] #cc-side .side-sub { position: fixed; left: 62px; top: 160px; z-index: 60; padding: 6px; min-width: 220px; background: var(--panel-solid, #111827); border: 1px solid var(--line-2, #273449); border-radius: 12px; box-shadow: 0 18px 48px rgba(0, 0, 0, .45); max-height: 70vh; overflow: auto; }
   body[data-side="c"] #side-menu { left: 62px; }
 

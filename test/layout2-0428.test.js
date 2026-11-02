@@ -82,18 +82,20 @@ for (const [width, height] of [[1366, 800], [1440, 900]]) {
       await toExpert(t);
       await go(t, "command");
       await sendAndWait(t, "Plan a bake sale for Saturday with a full list of steps");
+      // 0.4.38 (Chris: Expert Command as a chat): the chat column (#sc-scroll) scrolls, with the marching orders box
+      // pinned under it; the answer card is #ex-answer (was #deliv-panel in a side column)
       const before = await t.page.evaluate(() => {
-        const v = document.getElementById("view"), md = document.getElementById("out-md");
+        const v = document.getElementById("sc-scroll"), md = document.getElementById("out-md");
         const last = [...md.children].filter((e) => e.textContent.trim()).pop();
         if (last) last.dataset.testLast = "1";
         return { ui: document.body.dataset.ui, overflow: getComputedStyle(v).overflowY, room: v.clientHeight, content: v.scrollHeight, lastText: last?.textContent.trim() || "" };
       });
       assert.equal(before.ui, "expert");
-      assert.ok(before.content > before.room + 200, `the answer is longer than the page (${before.content} in ${before.room})`);
+      const long = before.content > before.room + 40;
       assert.ok(before.lastText.length > 0, "the answer has a last line");
-      assert.match(before.overflow, /auto|scroll/, "#view scrolls");
+      assert.match(before.overflow, /auto|scroll/, "the chat column scrolls");
       // Wheel over the answer, as a person would, until its last line is on screen (at most 30 turns).
-      const panel = await t.page.evaluate(() => { const r = document.getElementById("deliv-panel").getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(Math.min(Math.max(r.top + 60, 120), innerHeight - 200)) }; });
+      const panel = await t.page.evaluate(() => { const r = document.getElementById("ex-answer").getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(Math.min(Math.max(r.top + 60, 120), innerHeight - 200)) }; });
       // 0.4.31 (item 8): the answer now takes the full width under the order column and is brought into view, so its
       // last line may already be on screen: look first, then wheel (100 px a turn, so the line is not skipped past).
       let last = await onScreen(t.page, "[data-test-last]");
@@ -104,15 +106,16 @@ for (const [width, height] of [[1366, 800], [1440, 900]]) {
         last = await onScreen(t.page, "[data-test-last]");
       }
       assert.ok(last?.inside && last?.top, `the last line of the answer can be reached with the wheel: ${JSON.stringify(last)}`);
-      assert.ok(await t.page.evaluate(() => document.getElementById("view").scrollTop) > 0, "the page moved");
+      if (long) assert.ok(await t.page.evaluate(() => document.getElementById("sc-scroll").scrollTop) > 0, "the chat moved");
       await shot(t, `expert-${width}x${height}-answer-end.png`);
-      // Wheel on to the very bottom: Get free AIs (end of the order column) comes on screen and takes clicks.
+      // Wheel on to the very bottom of the chat; Get free AIs (under the box's More options) comes on screen and takes clicks.
       for (let i = 0; i < 30; i++) {
         await t.page.mouse.move(panel.x, panel.y);
         await t.page.mouse.wheel(0, 600);
         await t.page.waitForTimeout(100);
-        if (await t.page.evaluate(() => { const v = document.getElementById("view"); return v.scrollTop + v.clientHeight >= v.scrollHeight - 2; })) break;
+        if (await t.page.evaluate(() => { const v = document.getElementById("sc-scroll"); return v.scrollTop + v.clientHeight >= v.scrollHeight - 2; })) break;
       }
+      await t.page.click("#ex-more-btn");
       await t.page.waitForTimeout(400);
       await t.page.evaluate(() => document.getElementById("cc-get-free-expert")?.scrollIntoView({ block: "nearest" }));
       await t.page.waitForTimeout(300);
@@ -198,8 +201,9 @@ test("item 4: Expert at 1024 x 768, after Send the answer card is brought into v
     await go(t, "command");
     assert.equal(await t.page.evaluate(() => document.getElementById("view").scrollTop), 0, "nothing moves before Send");
     await sendAndWait(t, "Plan a bake sale for Saturday with a full list of steps");
+    // 0.4.38 (Chris: Expert Command as a chat): the answer card is #ex-answer in the chat column (was #deliv-panel)
     const card = await t.page.evaluate(() => {
-      const p = document.getElementById("deliv-panel"); const r = p.getBoundingClientRect(); const h = p.querySelector("h3").getBoundingClientRect();
+      const p = document.getElementById("ex-answer"); const r = p.getBoundingClientRect(); const h = p.querySelector("h3").getBoundingClientRect();
       const hit = document.elementFromPoint(h.left + 40, h.top + h.height / 2);
       return { hidden: p.hidden, top: Math.round(r.top), headOnTop: !!hit && p.contains(hit), inner: innerHeight, ui: document.body.dataset.ui };
     });

@@ -180,7 +180,8 @@ test("browser: the Live Ops screen keeps #ops-panel, graph and steps, wires the 
     }, null, { timeout: WAIT, polling: 700 });
     await t.page.waitForFunction(() => document.body.dataset.ui === "expert", null, { timeout: WAIT });
     await goChat(t.page);
-    await t.page.waitForSelector("#ops-panel", { timeout: WAIT });
+    // 0.4.38 (Chris: Expert Command as a chat): #ops-panel sits in the answer card and shows once there is a run
+    await t.page.waitForSelector("#ops-panel", { state: "attached", timeout: WAIT });
     await t.page.evaluate(FAKE);
     await t.page.waitForFunction(() => /Live ops|#ops-pause/.test(document.getElementById("ops-panel")?.innerHTML || ""), null, { timeout: WAIT });
     // the screen mounts into a container of its own and adopts the app's real nodes
@@ -241,7 +242,11 @@ test("browser: the Live Ops screen keeps #ops-panel, graph and steps, wires the 
       return new Promise((res) => setTimeout(() => res(n), 300));
     });
     assert.equal(clicked, 1, "the Mac Pause button presses the app's Pause");
-    // Escape closes the screen and gives the panel back to the page
+    // Escape closes the screen and gives the panel back to the page. 0.4.38: on Free the app's Pause opens the Pro box
+    // (Pause is part of Pro); when it is up, Escape closes it first, so close it before pressing Escape for the screen.
+    await t.page.waitForTimeout(600);
+    await t.page.evaluate(() => document.getElementById("cc-upgrade-close")?.click());
+    await t.page.waitForFunction(() => !document.getElementById("cc-upgrade"), null, { timeout: WAIT }).catch(() => {});
     await t.page.keyboard.press("Escape");
     await t.page.waitForFunction(() => {
       const screen = document.getElementById("mac-lo");

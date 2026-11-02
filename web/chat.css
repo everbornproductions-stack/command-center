@@ -137,6 +137,28 @@ body[data-ui="simple"] .sc-chat[data-page="make"] .sc-box #orders { min-height: 
 .sc-quick { display: flex; flex-wrap: wrap; gap: 6px; }
 .sc-pending .reply-live { color: var(--sc-text); }
 
+/* 0.4.38 (0.4.37 panel item 6: Make changes opened 38 controls in one block, three of them covered). The first answer's
+   fold starts short: "Change the answer" (the reply quick changes) and "Check, save or finish" (Double-check, Change this
+   part, Add to project, Looks good Finish), then All options. Everything else waits in place until All options adds
+   .sc-all; nothing is removed. Shared by the Simple and the Expert chat (both draw #sc-changes). */
+.sc-changes .sc-grp-h { font-size: .75rem; font-weight: 600; color: var(--sc-muted); margin: 2px 0 -2px; }
+.sc-changes .sc-all-btn { justify-self: start; }
+#sc-changes:not(.sc-all) > :is(#cc-answer-line, #sc-mm-slot) { display: none !important; }
+#sc-changes:not(.sc-all) #deliv-extras { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#sc-changes:not(.sc-all) #deliv-extras > :not(.answer-main):not([data-feature="next-actions"]):not([data-feature="finishpath"]):not([data-feature="versions"]):not([data-feature="desk"]) { display: none !important; }
+#sc-changes:not(.sc-all) #deliv-extras > :is(.answer-main, [data-feature="next-actions"], [data-feature="finishpath"], [data-feature="versions"]),
+#sc-changes:not(.sc-all) #deliv-extras :is(.na-bar, .fp-pair, .cc-versions, .cc-versions > .row:first-child) { display: contents; }
+#sc-changes:not(.sc-all) #deliv-extras > .answer-main > :not(#cc-check),
+#sc-changes:not(.sc-all) #deliv-extras [data-feature="next-actions"] > :not(.na-bar),
+#sc-changes:not(.sc-all) #deliv-extras .na-bar > :not([data-na="project"]):not([data-na-pick]),
+#sc-changes:not(.sc-all) #deliv-extras .fp-pair > [data-fp-edit],
+#sc-changes:not(.sc-all) #deliv-extras :is(#cc-v-steps, #cc-v-steps-box),
+#sc-changes:not(.sc-all) #deliv-extras [data-feature="desk"] :is(button, #cc-practice, .cc-written) { display: none !important; }
+/* what a short-fold button opens (the project list, the change box, the finish card, versions) takes its own line */
+#sc-changes:not(.sc-all) #deliv-extras :is([data-na-pick], #cc-v-change-box, #cc-v-tabs, .fp-card, [data-feature="desk"], .cc-versions > .dim) { flex: 1 0 100%; }
+/* the desk block stays only for a Double-check result (the practice note and the writer are in the card already) */
+#sc-changes:not(.sc-all) #deliv-extras [data-feature="desk"]:not(:has(.cc-desk-tools > .panel:not(#cc-practice))) { display: none !important; }
+
 /* ---------- the chat box, pinned under the column ---------- */
 .sc-chat .orders { flex: none; position: relative; display: block; padding: 10px 24px 12px; margin: 0; overflow: visible; max-height: none; background: var(--sc-canvas); }
 .sc-chat .sc-panel { max-width: 780px; margin: 0 auto; padding: 0; border: 0; background: transparent; box-shadow: none; display: flex; flex-direction: column; gap: 8px; -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -180,3 +202,7 @@ body[data-ui="simple"][data-view="command"] .view-col:has(> #view > .sc-chat) > 
   .sc-chat .cc-freeonly { font-size: .78125rem; }
 }
 @media (prefers-reduced-motion: reduce) { .sc-chat * { scroll-behavior: auto !important; } }
+
+/* 0.4.38 (0.4.37 panel item 4): on a chat page app.js placeChatToast() moves a toast that would sit on the answer's
+   buttons or the chat box to the top right corner (or just above the box) */
+body[data-style="mac"][data-toast-at="top-right"] :is(.toasts, #toasts) { left: auto; right: calc(var(--mac-win-x, 0px) + 12px); transform: none; align-items: flex-end; }

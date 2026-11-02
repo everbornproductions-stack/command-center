@@ -124,11 +124,13 @@ test("item 1: the notice row is one line with More on a short window, and More o
   const t = await bootNew({ theme: "light", width: 1366, height: 800 });
   try {
     await toExpert(t);
-    await go(t, "command");
+    // 0.4.38 (Chris: Expert Command as a chat): the Command chat has no notice row; Images keeps it
+    await go(t, "images");
     await t.page.waitForSelector("#app .cx-notes #projbar", { state: "attached", timeout: WAIT }); // its chips may wait behind More
     await t.page.waitForTimeout(1200);
-    const folded = await t.page.evaluate(() => { const b = document.querySelector("#app .cx-notes"); const m = document.getElementById("cx-notes-more"); return { h: Math.round(b.getBoundingClientRect().height), more: !!m && !m.hidden, words: m?.textContent }; });
-    assert.ok(folded.h <= 44, `one line (${folded.h}px)`);
+    // 0.4.38: one line of controls (counted by their tops; the Images row is a little taller than Command's was)
+    const folded = await t.page.evaluate(() => { const b = document.querySelector("#app .cx-notes"); const m = document.getElementById("cx-notes-more"); const tops = [...new Set([...b.querySelectorAll("button, select")].filter((e) => e.getBoundingClientRect().height > 0 && getComputedStyle(e).visibility !== "hidden").map((e) => Math.round(e.getBoundingClientRect().top)))].sort((p, q) => p - q); return { h: Math.round(b.getBoundingClientRect().height), tops, lines: tops.filter((v, i) => i === 0 || v - tops[i - 1] > 8).length, more: !!m && !m.hidden, words: m?.textContent }; });
+    assert.ok(folded.lines <= 1 && folded.h <= 56, `one line (${folded.lines} lines at ${folded.tops}, ${folded.h}px)`);
     assert.deepEqual([folded.more, folded.words], [true, "More"]);
     await t.page.click("#cx-notes-more");
     await t.page.waitForTimeout(400);
@@ -322,7 +324,8 @@ test("items 10, 11, 12, 12b: plain words and the small code fixes", () => {
   assert.match(app, /Use global \(\$\{globalUiMode\(\) === "expert" \? "Expert" : "Simple"\}\)/, "Use global names the global choice");
   assert.doesNotMatch(app, /color:#eef2f8"; \/\/ light text on the bar/, "no forced note colour");
   assert.match(app, /Type what you want first\. Preview route then shows/, "Preview route says what to do with an empty box");
-  assert.match(app, /if \(simple\) \{\s*const box = \$\("#orders"\);\s*if \(box && box\.value\.trim\(\) === prompt\) box\.value = "";/, "Simple chat empties the box after Send");
+  // 0.4.38: the Expert chat empties its box the same way
+  assert.match(app, /if \(simple \|\| \$\("#view \.ex-chat"\)\) \{\s*const box = \$\("#orders"\);\s*if \(box && box\.value\.trim\(\) === prompt\) box\.value = "";/, "Simple chat empties the box after Send");
   for (const f of [["web", "mac", "css", "shell.css"], ["web", "mac", "css", "inside.css"], ["web", "mac", "css", "flow.css"], ["web", "mac", "css", "runbar.css"], ["web", "mac", "parts", "shell.js"], ["web", "mac", "parts", "inside.js"], ["web", "mac", "parts", "expert.js"], ["web", "engine-wait.js"], ["server", "speech.js"]]) {
     assert.equal(/[–—]/.test(read(...f)), false, `${f.join("/")} has no dashes`);
   }

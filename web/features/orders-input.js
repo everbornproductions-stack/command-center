@@ -16,19 +16,27 @@ function renderCommand(el) {
   <div id="ob-chips"></div>
   <div id="ob-modify"></div>`;
   const orders = document.querySelector("#orders");
-  if (orders) orders.insertAdjacentElement("afterend", el);
-  const status = el.querySelector("#ob-status");
+  // 0.4.38 (Chris: Expert Command as a chat): in the Expert chat box, Upload (and its status) sits in the box's bottom
+  // row next to Mic and the attached files show under the text; Voice and the help words stay under More options.
+  const exRow = orders?.closest(".ex-box") ? document.getElementById("ex-upload-slot") : null;
+  const exChips = exRow ? document.getElementById("ex-chips-slot") : null;
+  if (exRow && exChips) {
+    exRow.replaceChildren(el.querySelector("#ob-upload"), el.querySelector("#ob-file"), el.querySelector("#ob-status"));
+    exChips.replaceChildren(el.querySelector("#ob-chips"), el.querySelector("#ob-modify"));
+  } else if (orders) orders.insertAdjacentElement("afterend", el);
+  const find = (id) => el.querySelector(`#${id}`) || document.getElementById(id);
+  const status = find("ob-status");
   const getBox = () => document.querySelector("#orders");
   wireVoice(el.querySelector("#ob-voice"), { getBox, status });
   const held = [];
   // The files on the message sit in one strip: swipe on a phone, drag on a desk, tap a picture to open it.
   const paintStrip = () => {
-    const box = el.querySelector("#ob-chips");
+    const box = find("ob-chips");
     if (!box) return;
     const { apiBlobUrl } = window.CC;
     mountStrip(box, held, { srcFor: (f) => (f?.id && apiBlobUrl ? apiBlobUrl(`/orders-box/files/${encodeURIComponent(f.id)}`) : "") });
   };
-  const upload = wireUpload(el.querySelector("#ob-upload"), el.querySelector("#ob-file"), {
+  const upload = wireUpload(find("ob-upload"), find("ob-file"), {
     url: "/orders-box/files",
     status,
     before: held,
@@ -38,7 +46,7 @@ function renderCommand(el) {
       paintStrip();
       if (mediaKind(saved)) {
         const host = document.createElement("div");
-        el.querySelector("#ob-modify")?.appendChild(host);
+        find("ob-modify")?.appendChild(host);
         mountModify(host, { file: saved, where: "orders", sourceUrl: `/orders-box/files/${encodeURIComponent(saved.id)}` });
       }
     },

@@ -11,8 +11,9 @@
 
 // Header words per view. Plain and short. "act" are buttons that press the page's own button (by id);
 // "move" moves the page's own button into the header (it keeps its id and its click handler).
+// 0.4.38 (Chris: Expert Command as a chat): Command has no page header any more. It is one chat column with the
+// marching orders box pinned at the bottom, and Preview route and Send orders live in that box.
 const HEADS = {
-  command: { title: "Command", sub: "Tell your AIs what you want.", act: [["preview", "Preview route", ""], ["go", "Send orders", "primary"]] },
   projects: { title: "Projects", sub: (S) => { const n = (S?.projects || []).length; return `${n} project${n === 1 ? "" : "s"}`; }, move: ["newp"] },
   credits: { title: "Credits", sub: "What your AIs cost this month." },
   subscriptions: { title: "Subscriptions", sub: "Your plans, what they cost, and when they renew." },
@@ -132,7 +133,9 @@ function paintNotes() {
   const col = view?.parentElement;
   if (!col) return;
   let box = col.querySelector(":scope > .cx-notes");
-  if (!isExpert()) { unwrapNotes(col); return; }
+  // 0.4.38: nothing stacks above the Expert chat (as on the Simple Chat page): the Next bar waits behind the answer's
+  // Make changes and Finish is in the answer, so the notice row is not drawn there (expert-chat.css hides the bars)
+  if (!isExpert() || view.querySelector(":scope > .ex-chat")) { unwrapNotes(col); return; }
   const loose = BAR_IDS.map((id) => document.getElementById(id)).filter((b) => b && b.parentElement === col);
   if (loose.length) {
     if (!box) {
