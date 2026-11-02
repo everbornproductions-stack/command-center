@@ -154,7 +154,10 @@ test("item 3: Expert at 1024 x 768 (no Live feed column), an error toast does no
       const r = await p.evaluate(OVERLAPS, ["#toasts .toast", "#view button, #view a[href], #view select, #view input"]);
       assert.deepEqual(r.out, [], `${view}: no toast covers a page control`);
       // bottom right above the dock (moved up past a box in that corner), or below the title bar if that is covered too
-      assert.ok(["bottom", "top"].includes(await p.evaluate(() => document.body.dataset.toastAt)), view);
+      // the place is written when placeToasts runs, which on the CI runner came a moment after the toast showed
+      await p.waitForFunction(() => ["bottom", "top"].includes(document.body.dataset.toastAt), null, { timeout: WAIT, polling: 100 }).catch(() => {});
+      const at = await p.evaluate(() => document.body.dataset.toastAt);
+      assert.ok(["bottom", "top"].includes(at), `${view}: toast place is ${at}`);
     }
     // a box in the bottom right corner (as on the CI runner's Everyday inbox): the toast moves up, just above it.
     // One step in the page, so a redraw of the view cannot drop the box between showing the toast and measuring it.
