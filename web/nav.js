@@ -144,7 +144,8 @@ export const LABELS = {
   projects: "Projects",
   compare: "Compare",
   pipelines: "Pipelines",
-  agents: "Agents",
+  // 0.4.39 (Chris: agents as a team): the Agents page is Team; each agent has a desk with its work
+  agents: "Team",
   liveview: "Live",
   schedules: "Schedules",
   libraries: "Libraries",

@@ -35,7 +35,7 @@ export const VIEW_GROUP = {
 export const ORDER = {
   work: ["command", "start", "projects", "liveops", "liveview", "compare", "refocus"],
   create: ["webbuilders", "images", "media", "remix", "builders", "prompts", "publish", "marketplace"],
-  agents: ["agents", "pipelines", "schedules", "outside-agents"],
+  agents: ["agents", "hire-agent", "agent-prompts", "pipelines", "schedules", "outside-agents"],
   library: ["mindmedia", "history", "memories", "libraries", "artifacts", "brain"],
   myday: ["everyday-inbox", "everyday-plan", "everyday-work"],
   people: ["community", "ai-news", "userchat", "together"],
@@ -72,6 +72,9 @@ export function modeFromQuery(q) {
 // open: {view, runMode?, focus?} | {panel, section?} | {action}
 export const EXTRAS = [
   { id: "liveops", label: "Live Ops", group: "work", icon: "📡", plain: "Watch every AI work, step by step. Pause, edit, resume or stop.", open: { panel: "live" } },
+  // 0.4.39 (Chris: agents as a team): Team, Hire an agent and Prompts, as in the approved mockup
+  { id: "hire-agent", label: "Hire an agent", group: "agents", icon: "📚", plain: "Ready-made AI employees to add to your team.", open: { view: "agents", focus: "[data-team-tab=hire]" }, keywords: "employees library add helper" },
+  { id: "agent-prompts", label: "Prompts", group: "agents", icon: "📋", plain: "Your saved prompts with blanks to fill in.", open: { view: "agents", focus: "[data-team-tab=prompts]" }, keywords: "prompt library saved" },
   { id: "outside-agents", label: "Outside agents", group: "agents", icon: "🤝", plain: "Hand work to Grok Bot, Claude Code, Codex and others.", open: { view: "settings", focus: "[data-feature='grokbot']" }, keywords: "grok bot handoff" },
   { id: "memories", label: "Memories", group: "library", icon: "🧠", plain: "What Meldmind remembers about you and each project.", open: { panel: "settings", section: "Memories" } },
   { id: "panel-cost", label: "Cost and speed", group: "settings", icon: "⚡", plain: "Free first, free only, backup AIs and priority.", open: { panel: "settings", section: "Cost and speed" } },
@@ -92,7 +95,7 @@ export const MAC_LABELS = {
 export const ICONS = {
   command: "💬", start: "✨", projects: "🗂", liveview: "🛰", compare: "▥", refocus: "🧭",
   webbuilders: "🌐", images: "🖼", media: "🎬", remix: "🎮", builders: "🧱", prompts: "📚", publish: "🚀", marketplace: "🛍",
-  agents: "🤖", pipelines: "⛓", schedules: "⏰",
+  agents: "🤝", pipelines: "⛓", schedules: "⏰",
   mindmedia: "🎞", history: "🕘", libraries: "🗃", artifacts: "🧩", brain: "🏆",
   "everyday-inbox": "📥", "everyday-plan": "🗓", "everyday-work": "📄",
   community: "👥", "ai-news": "📰", userchat: "💌", together: "🫂",
@@ -116,7 +119,7 @@ export const PLAIN = {
   prompts: "The prompt library: ready prompts with blanks to fill.",
   publish: "Preview first, then post. Practice only if not connected.",
   marketplace: "Get or list agents and prompts.",
-  agents: "Your own agents: model, instructions, tools, starters.",
+  agents: "Your team: who is doing what for you, and each agent's desk.",
   pipelines: "Saved missions. One click, fill 2 or 3 blanks, run.",
   schedules: "Run on a timer, a webhook or a new file. Spend cap. Approve before send.",
   mindmedia: "Everything you made, in one place.",

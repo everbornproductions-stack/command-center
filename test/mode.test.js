@@ -40,7 +40,9 @@ test("Simple top level is Chat, Projects, Create, Help, and Settings; Expert pag
   assert.deepEqual(top.labels, ["Chat", "Projects", "My day", "Create", "Help", "Settings"]);
   assert.deepEqual(top.create, CREATE_VIEWS);
   assert.deepEqual(top.settings, ["settings", "setup", "tour"]);
-  for (const id of ["liveview", "marketplace", "credits", "pipelines", "agents"]) {
+  // 0.4.39: Team (view "agents") is reachable in Simple from Settings and more
+  assert.equal(simpleAllows("agents"), true);
+  for (const id of ["liveview", "marketplace", "credits", "pipelines"]) {
     assert.equal(simpleAllows(id), false, id);
     assert.ok(top.hidden.includes(id), id);
   }

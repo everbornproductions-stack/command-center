@@ -165,6 +165,7 @@ test("paper: the inside is opaque with no blur, and the Mac button sets the one 
           icon: cs("#view .kpi .k", "::before").width,
         };
       });
+      assert.notEqual(classic, mac);
       assert.equal(got.html, mac, "the Mac button changed the saved theme too");
       assert.equal(got.body, mac);
       assert.equal(got.app, canvas, "opaque canvas in the Mac theme");

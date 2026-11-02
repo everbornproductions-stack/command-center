@@ -28,19 +28,21 @@ html[data-look="glass"] body .tile {
   -webkit-backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
   backdrop-filter: blur(var(--mm-blur)) saturate(var(--mm-glass-sat)) brightness(var(--mm-glass-dim));
 }
-/* Dialogs and menus sit on top of other content, so they keep a little more body than the panels. */
+/* Dialogs and menus sit on top of other content, so they keep a little more body than the panels.
+   0.4.39 (Chris: readable everywhere, "the menu you can't see anything"): 62% let the dark dialog backdrop through, so
+   the light Upgrade box was mid grey under grey text (2.7 : 1). Dialogs and menus are solid now, like #cc-readers. */
 html[data-look="glass"] body #cc-mode-ask .card,
 html[data-look="glass"] body #cc-upgrade .card,
 html[data-look="glass"] body .gate-card,
 html[data-look="glass"] body #cc-tour .card,
 html[data-look="glass"] body #cc-keysetup .box,
 html[data-look="glass"] body .nav-panel,
-html[data-look="glass"] body #cc-suggest .psg { background: color-mix(in srgb, var(--mm-glass-fill-solid) 62%, transparent); }
+html[data-look="glass"] body #cc-suggest .psg { background: var(--mm-glass-fill-solid); }
 /* The stage picture: sharp under glass (the app used to blur it first, which left nothing to see through the panes). */
 html[data-look="glass"][data-wall="image"] #cc-wall,
 html[data-look="glass"][data-wall="photo"] #cc-wall { inset: 0; filter: saturate(1.15); transform: none; }
 html[data-look="glass"][data-wall="image"] #cc-wall-veil,
-html[data-look="glass"][data-wall="photo"] #cc-wall-veil { background: rgba(8, 12, 18, .16); }
+html[data-look="glass"][data-wall="photo"] #cc-wall-veil { background: rgba(8, 12, 18, .4); } /* 0.4.39: was .16; the warm stage lights browned the dark glass under grey text */
 html[data-look="glass"][data-theme="light"][data-wall="image"] #cc-wall-veil,
 html[data-look="glass"][data-theme="light"][data-wall="photo"] #cc-wall-veil { background: rgba(243, 245, 249, .22); }
 html[data-look="glass"][data-wall="gradient"] #cc-wall-veil { background: rgba(8, 12, 18, .1); }

@@ -88,6 +88,7 @@ export const FEATURES = [
   { id: "projectfiles", home: true, listen: true },
   { id: "libraries", views: ["libraries"], home: true, deliverable: true, settings: true },
   { id: "agents", views: ["agents"], home: true, listen: true },
+  { id: "team", views: ["agents"], home: true, deliverable: true, listen: true }, // 0.4.39: the Team page desks, Give to an agent
   { id: "schedules", views: ["schedules"], listen: true },
   { id: "history", views: ["history"] },
   { id: "pricing", settings: true },

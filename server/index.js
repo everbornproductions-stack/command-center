@@ -953,7 +953,8 @@ async function api(req, res, url) {
     // an AI employee picked for this chat (Simple mode suggestion): its script is the system prompt
     let staff = {};
     if (typeof job.employee === "string" && job.employee) {
-      try { const { employeeRunOptions } = await import("./employees.js"); const o = employeeRunOptions(job.employee, { prompt: job.prompt, projectId: job.projectId }); staff = { system: o.system, agent: o.agent, tools: o.tools }; }
+      // 0.4.39 (Chris: agents as a team): Chat with it on a desk picks the agent the same way ("emp-<id>" or one of My agents)
+      try { const { chatStaff } = await import("./team-chat.js"); staff = chatStaff(job.employee, { prompt: job.prompt, projectId: job.projectId }); }
       catch (e) { return json(res, e.status || 400, { error: e.message }); }
     }
     const tone = takeNextTone();

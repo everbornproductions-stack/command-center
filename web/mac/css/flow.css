@@ -1,6 +1,7 @@
 /* Mac part flow (0.4.23): styles live under body[data-style="mac"] only. */
 body[data-style="mac"] #mac-root > #mac-flow { position: fixed; inset: 0; }
-body[data-style="mac"] #mac-flow { --mf-acc: #0062d6; --mf-acc-solid: #0062d6; --mf-tx: var(--tx, #1d1d1f); --mf-dim: #55555c; --mf-glass: var(--glass2, rgba(255,255,255,.85)); --mf-line: var(--line, rgba(0,0,0,.1)); --mf-ok: #30d158; --mf-warn: #ff9f0a;
+/* 0.4.39 (Chris: readable everywhere): --mf-acc is the links' colour; #0062d6 was 4.5 : 1 on a tinted page, now #0057bf */
+body[data-style="mac"] #mac-flow { --mf-acc: #0057bf; --mf-acc-solid: #0062d6; --mf-tx: var(--tx, #1d1d1f); --mf-dim: #55555c; --mf-glass: var(--glass2, rgba(255,255,255,.85)); --mf-line: var(--line, rgba(0,0,0,.1)); --mf-ok: #30d158; --mf-warn: #ff9f0a;
   position: absolute; inset: 0; z-index: 5; overflow: auto; padding: 22px 34px 30px; color: var(--mf-tx); background: var(--mac-window-bg, var(--bg, #f5f6fa)); font: 14px/1.4 -apple-system, "SF Pro Text", "Segoe UI", Inter, Roboto, sans-serif; }
 body[data-style="mac"].dark #mac-flow, body[data-style="mac"][data-theme="dark"] #mac-flow { --mf-acc: #0a84ff; --mf-tx: var(--tx, #f5f5f7); --mf-dim: #b6b6be; --mf-glass: var(--glass2, rgba(44,44,52,.85)); --mf-line: var(--line, rgba(255,255,255,.12)); background: var(--mac-window-bg, var(--bg, #14151a)); }
 body[data-style="mac"] #mac-flow[hidden] { display: none; }

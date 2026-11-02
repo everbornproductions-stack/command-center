@@ -13,9 +13,9 @@ const S = () => window.CC.S;
 
 const css = `
 #cc-sv .sv-tag { display: inline-block; font-size: 10px; line-height: 1.5; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; margin-top: 2px; }
-#cc-sv .sv-tag.auto { color: #93c5fd; border-color: #1e3a5f; }
+#cc-sv .sv-tag.auto { color: var(--accent-2); border-color: var(--line-2); } /* 0.4.39: was #93c5fd, 1.5 : 1 in the light theme */
 #cc-sv .sv-tag.low { color: var(--amber); border-color: #5a4616; }
-#cc-sv .sv-tag.user { color: #c7d0dd; }
+#cc-sv .sv-tag.user { color: var(--muted); }
 #cc-sv td { vertical-align: top; }
 #cc-sv td input, #cc-sv td select { padding: 4px 6px; }
 #cc-sv .sv-cell { display: flex; flex-direction: column; gap: 2px; }

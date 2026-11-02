@@ -36,11 +36,15 @@ const css = `
 @keyframes lv-stream { to { stroke-dashoffset: -34; } }
 @keyframes lv-spin { to { transform: rotate(360deg); } }
 @keyframes lv-pulse { 0%, 100% { opacity: .28; } 50% { opacity: .95; } }
-.lv-status { padding: 8px 12px 10px; font-size: 12.5px; color: var(--text, #e5e7eb); min-height: 18px; letter-spacing: .01em; }
+/* 0.4.39 (Chris: readable everywhere): the map is dark in both themes, so its status line keeps light text; the light
+   theme's dark --text was 1.1 : 1 on it */
+.lv-status { padding: 8px 12px 10px; font-size: 12.5px; color: #e5e7eb; min-height: 18px; letter-spacing: .01em; }
 .lv-float { position: fixed; z-index: 40; max-width: 280px; padding: 8px 10px; border-radius: 10px; background: var(--card-bg, #0c121c); border: 1px solid #234; color: var(--text, #e5e7eb); font-size: 12px; line-height: 1.4; pointer-events: none; box-shadow: 0 12px 32px rgba(0,0,0,.45); }
 .lv-picks { display: flex; flex-wrap: wrap; gap: 6px; }
-.lv-picks button.on { border-color: var(--accent, #22d3ee); color: var(--accent, #22d3ee); }
+.lv-picks button.on { border-color: var(--accent, #22d3ee); color: var(--accent-2, #67e8f9); } /* 0.4.39: the accent as text */
 .lv-captions { margin: 0; }
+/* 0.4.39 (Chris: readable everywhere): the map's black drop shadow fell on the caption under it in the light theme */
+html[data-theme="light"] .lv-map { box-shadow: inset 0 1px 0 #ffffff10, 0 14px 30px -24px rgba(15, 23, 42, .35); }
 .lv-caption { margin: 0; }
 .lv-caption-calm { display: none; }
 .lv-hands { display: flex; flex-direction: column; gap: 8px; }

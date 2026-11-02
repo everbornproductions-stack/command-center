@@ -20,7 +20,7 @@ const HEADS = {
   settings: { title: "Settings", sub: "Your AIs, privacy and defaults." },
   liveview: { title: "Live", sub: "Who is working, the step, and what it has cost" },
   history: { title: "History", sub: "Your past runs and chats." },
-  agents: { title: "Agents", sub: "Helpers that take on jobs for you." },
+  agents: { title: "Team", sub: "Who is doing what for you, and the work each agent holds." },
 };
 const BAR_IDS = ["fpbar", "mmbar", "projbar"];
 

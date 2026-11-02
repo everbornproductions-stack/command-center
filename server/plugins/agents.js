@@ -26,6 +26,7 @@ import * as L from "../libraries.js";
 import { demosHidden, visibleCustomAgents } from "../demo-visibility.js";
 
 import { saveToMindMedia } from "../project-media.js";
+import * as T from "../team-runs.js";
 export const id = "agents";
 
 function toolChoices() {
@@ -55,10 +56,13 @@ function keepRun(opts, id, m) {
   } catch { /* keeping is a bonus; the answer is still in the chat */ }
   return m;
 }
-const runId = () => `s-${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
-function start(h, opts) {
-  const id = runId();
-  h.runChat({ ...opts, runId: id }).then((m) => keepRun(opts, id, m)).catch((e) => h.emit("log", { text: `${opts.agent ? `Agent "${opts.agent.name}"` : "Prompt"} failed: ${e.message}`, level: "error", missionId: id }));
+export const newRunId = () => `s-${Date.now().toString(36)}${crypto.randomBytes(2).toString("hex")}`;
+// 0.4.39 (Chris: agents as a team): the Team page's tasks start runs here too, so a task is the same run as Use.
+// A Use or Run of an agent also lands on that agent's desk as a task (never a private run, never a plain prompt).
+export function start(h, opts, { runId: given, onSettled, task = true } = {}) {
+  const id = given || newRunId();
+  if (task && opts.agent?.id && !opts.private) { try { T.trackUse({ agent: opts.agent, prompt: opts.prompt, runId: id, projectId: opts.projectId }); } catch { /* the run still starts */ } }
+  h.runChat({ ...opts, runId: id }).then((m) => { keepRun(opts, id, m); onSettled?.(m, null); return m; }).catch((e) => { h.emit("log", { text: `${opts.agent ? `Agent "${opts.agent.name}"` : "Prompt"} failed: ${e.message}`, level: "error", missionId: id }); onSettled?.(null, e); });
   return { ok: true, runId: id };
 }
 const projectOf = (body) => (typeof body?.projectId === "string" && body.projectId ? body.projectId : null);
