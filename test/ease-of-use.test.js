@@ -213,7 +213,10 @@ test("icon buttons include a word, and help does not keep stale lines", () => {
     read("web", "simple-ui.js").match(/export const PLACEHOLDER[\s\S]*?export const FAILURE/)[0],
     read("web", "features", "tour.js").match(/export const SIMPLE_STEPS[\s\S]*?\n\];/)[0],
     read("web", "app.js").match(/function renderSimpleBasics[\s\S]*?function renderSettings/)[0],
-    read("web", "app.js").match(/function renderSimpleChat[\s\S]*?function paintStarters/)[0],
+    // 0.4.37: the clean chat page's helpers (thread, follow-ups, Make changes) sit between renderSimpleChat and
+    // paintStarters and use run fields such as l.council and l.deliverable; the page's words are in renderSimpleChat
+    // itself and in simple-ui.js (checked above), so the check ends at the next function
+    read("web", "app.js").match(/function renderSimpleChat[\s\S]*?\nfunction /)[0],
   ];
   for (const bit of simpleBits) assert.equal(banned.test(bit), false, bit.slice(0, 80));
 });
