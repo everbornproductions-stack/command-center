@@ -143,8 +143,10 @@ test("contrast: the Expert inside text is at least 4.5:1 on the painted pixels i
   }
 });
 
-test("paper: the inside is opaque with no blur, and its theme follows the Mac button (body[data-theme]), not the classic theme", { skip }, async () => {
-  // Classic theme light under a dark Mac window, then classic dark under a light Mac window.
+// 0.4.38 (Chris: "we need consistency throughout"): the Mac button and the theme in Settings > Look are one setting now,
+// so pressing the Mac button sets both; this used to check that they could differ, which is what made his menu unreadable
+test("paper: the inside is opaque with no blur, and the Mac button sets the one theme (html and body agree)", { skip }, async () => {
+  // Classic theme light, then the Mac button to dark; classic dark, then the Mac button to light.
   for (const [classic, mac, card, canvas] of [["light", "dark", "rgb(17, 24, 39)", "rgb(11, 15, 23)"], ["dark", "light", "rgb(255, 255, 255)", "rgb(249, 250, 251)"]]) {
     const t = await bootNew({ theme: classic, width: 1440, height: 900 });
     try {
@@ -163,7 +165,7 @@ test("paper: the inside is opaque with no blur, and its theme follows the Mac bu
           icon: cs("#view .kpi .k", "::before").width,
         };
       });
-      assert.equal(got.html, classic);
+      assert.equal(got.html, mac, "the Mac button changed the saved theme too");
       assert.equal(got.body, mac);
       assert.equal(got.app, canvas, "opaque canvas in the Mac theme");
       assert.equal(got.panel, card, "cards follow the Mac theme");
