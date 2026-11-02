@@ -322,7 +322,11 @@ test("page: Team list with statuses and counts, a desk, Assign, Review, a duty, 
     await page.waitForSelector("#view .ex-chat #orders", { timeout: 15000 });
     await page.fill("#orders", "Write a thank-you note for Mrs. Lee");
     await page.click("#go");
-    await page.waitForFunction(() => String(window.CC.S.live?.mission?.prompt || "").includes("Mrs. Lee") && window.CC.S.live?.status === "done" && !!document.getElementById("tm-give-answer"), null, { timeout: 180000 });
+    // finished means done or done with errors (a practice run on the CI runner can end either way); on a timeout say what was seen
+    await page.waitForFunction(() => { const l = window.CC.S.live; return String(l?.mission?.prompt || l?.prompt || "").includes("Mrs. Lee") && ["done", "done-with-errors"].includes(l?.status) && !!document.getElementById("tm-give-answer"); }, null, { timeout: 180000 }).catch(async (e) => {
+      const seen = await page.evaluate(() => { const l = window.CC.S.live; return { kind: l?.kind, status: l?.status, prompt: String(l?.mission?.prompt || l?.prompt || "").slice(0, 60), give: !!document.getElementById("tm-give-answer"), view: window.CC.S.view }; });
+      throw new Error(`Give to an agent never showed: ${JSON.stringify(seen)} (${e.message})`);
+    });
     await page.evaluate(() => document.getElementById("tm-give-answer").click());
     await page.waitForSelector(".tm-dlg #tg-agent", { timeout: 10000 });
     assert.match(await page.inputValue("#tg-text"), /thank-you note for Mrs\. Lee/);

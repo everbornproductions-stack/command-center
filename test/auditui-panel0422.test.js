@@ -40,6 +40,8 @@ test("S20. closing the Finish drawer puts focus back on the button that opened i
       else if (how === "Escape") await t.page.keyboard.press("Escape");
       else await t.page.mouse.click(5, 5);
       await t.page.waitForFunction(() => !document.querySelector(".fd"), null, { timeout: WAIT });
+      // focus comes back right after the drawer closes; a short real wait instead of a same-tick read (CI runner)
+      await t.page.waitForFunction(() => document.activeElement?.id === "fd-opener", null, { timeout: 3000 }).catch(() => {});
       assert.equal(await t.page.evaluate(() => document.activeElement?.id), "fd-opener", how);
     }
     // an opener that never takes focus on click (as in some desktop webviews)
