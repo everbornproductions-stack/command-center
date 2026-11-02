@@ -156,7 +156,12 @@ export default {
     CLEANUPS.push(() => { disposed = true; clearTimeout(FLASH_TIMER); });
 
     // ---- theme: light or dark, remembered on this computer ----
-    const storedTheme = () => { const saved = CC.S?.settings?.theme; if (saved === "light" || saved === "dark") return saved; try { return localStorage.getItem(THEME_KEY); } catch { return null; } };
+    // 0.4.38 (Chris, 0.4.37: "clicking Just chat everything is completely unreadable"): the Mac look had its own light/dark
+    // switch beside the theme in Settings > Look (html[data-theme]). With the theme dark and the Mac switch light, pages
+    // painted light surfaces under the theme's light text (white menu on beige). The saved theme is now the one source:
+    // the Mac look follows it, and the Mac button changes it.
+    const classicTheme = () => { const t = document.documentElement.dataset.theme; return t === "light" || t === "dark" ? t : null; };
+    const storedTheme = () => { const c = classicTheme(); if (c) return c; const saved = CC.S?.settings?.theme; if (saved === "light" || saved === "dark") return saved; try { return localStorage.getItem(THEME_KEY); } catch { return null; } };
     function applyTheme(value, emit) {
       const theme = value === "light" ? "light" : "dark";
       document.body.dataset.theme = theme;
@@ -165,7 +170,18 @@ export default {
       themeBtn?.setAttribute("aria-label", dark ? "Switch to light" : "Switch to dark");
       const glyph = themeBtn?.querySelector("[data-glyph]");
       if (glyph) glyph.textContent = dark ? "☀" : "☾";
-      if (emit) { bus.emit("theme", theme); CC.api?.("/settings", { method: "POST", body: { theme } }).then(() => { if (CC.S?.settings) CC.S.settings.theme = theme; }).catch(() => {}); }
+      if (emit) {
+        bus.emit("theme", theme);
+        CC.api?.("/settings", { method: "POST", body: { theme } }).then(() => { if (CC.S?.settings) CC.S.settings.theme = theme; }).catch(() => {});
+        // the theme in Settings > Look changes with it, so the two can never disagree again
+        if (classicTheme() !== theme) { try { CC.themes?.set?.({ mode: theme }); } catch { /* the Mac look still switches */ } }
+      }
+    }
+    // Settings > Look (or the saved theme arriving from the server) changes html[data-theme]: the Mac look follows it
+    if (typeof MutationObserver === "function") {
+      const themeObs = new MutationObserver(() => { const c = classicTheme(); if (c && c !== document.body.dataset.theme) applyTheme(c, false); });
+      themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      CLEANUPS.push(() => themeObs.disconnect());
     }
 
     // ---- 0.4.36: window style, "fill" (the whole app window, the default) or "framed" (the 0.4.23 inner window) ----
