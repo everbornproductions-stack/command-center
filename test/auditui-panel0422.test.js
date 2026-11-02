@@ -26,6 +26,11 @@ test("S20. closing the Finish drawer puts focus back on the button that opened i
   const t = await bootPage({ width: 1366, height: 768, mode: "simple" });
   try {
     await t.page.waitForFunction(() => typeof window.CC.saveToMindMedia === "function", null, { timeout: WAIT });
+    // the feature modules redraw the screen once after boot, and that redraw focuses the page; on the CI runner it
+    // landed after the drawer closed and took focus from the opener. Let it happen first.
+    await t.page.waitForFunction(() => window.CC.featuresReady === true, null, { timeout: WAIT }).catch(() => {});
+    await t.page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    await t.page.waitForTimeout?.(500);
     await t.page.evaluate(async () => {
       await import("/features/finish-drawer.js");
       const b = document.createElement("button");
@@ -40,7 +45,10 @@ test("S20. closing the Finish drawer puts focus back on the button that opened i
       else if (how === "Escape") await t.page.keyboard.press("Escape");
       else await t.page.mouse.click(5, 5);
       await t.page.waitForFunction(() => !document.querySelector(".fd"), null, { timeout: WAIT });
-      assert.equal(await t.page.evaluate(() => document.activeElement?.id), "fd-opener", how);
+      // focus comes back right after the drawer closes; a short real wait instead of a same-tick read (CI runner)
+      await t.page.waitForFunction(() => document.activeElement?.id === "fd-opener", null, { timeout: 3000 }).catch(() => {});
+      const now = await t.page.evaluate(() => { const a = document.activeElement; return { id: a?.id || "", what: a ? a.outerHTML.slice(0, 120) : "none" }; });
+      assert.equal(now.id, "fd-opener", `${how}: focus is on ${now.what}`);
     }
     // an opener that never takes focus on click (as in some desktop webviews)
     await t.page.evaluate(() => { const o = document.querySelector("#fd-opener"); o.addEventListener("mousedown", (e) => e.preventDefault()); document.activeElement?.blur?.(); });
