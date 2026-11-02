@@ -102,7 +102,14 @@ const ANSWER_TOPIC = /\b(credit repair|credit score|credit report|(?:your|my|cre
 const CREDIT_WORDS = /\b(?:negative items|collections?|late payments?|credit bureaus?|experian|equifax|transunion)\b/i;
 export function checkAnswer(text = "") {
   const body = String(text || "").slice(0, 20000);
-  if (!body.trim() || !ANSWER_TOPIC.test(body)) return { checked: false, warnings: [] };
+  if (!body.trim()) return { checked: false, warnings: [] };
+  // 0.4.38 (panel 0436 item 3): a placeholder left in ("Hi [Name]") is wrong in any answer, not only in the four topics,
+  // so that one rule runs on every answer; the rest still waits for credit, homes, loans or insurance
+  if (!ANSWER_TOPIC.test(body)) {
+    const marker = rules().filter((r) => r.id === "raw_marker");
+    const w = checkOutgoing({ text: body, channel: "answer" }, { rulesList: marker }).warnings.filter((x) => x.rule === "raw_marker");
+    return w.length ? { checked: true, warnings: w } : { checked: false, warnings: [] };
+  }
   // credit repair said in other words ("remove all negative items") still gets the credit repair rules
   const r = checkOutgoing({ text: body, channel: "answer", creditRepair: CREDIT.test(body) || CREDIT_WORDS.test(body) });
   return { checked: true, warnings: r.warnings.filter((w) => w.level !== "info") };
