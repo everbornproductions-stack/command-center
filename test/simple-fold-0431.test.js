@@ -79,13 +79,16 @@ for (const [width, height] of [[1366, 800], [1024, 768]]) {
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return !!hit && (hit === el || el.contains(hit));
       }), [COPY, AGAIN], { timeout: WAIT, polling: 250 }).catch(() => {});
+      // the box shrinks back once the sent words are cleared and the run's notes leave; on the CI runner that took longer
+      await t.page.waitForFunction(() => { const b = document.querySelector("#view .sc-chat .sc-box"); return !!b && b.getBoundingClientRect().height <= 130; }, null, { timeout: WAIT, polling: 250 }).catch(() => {});
       const g = await t.page.evaluate(() => {
-        const box = document.querySelector("#view .sc-chat .sc-box").getBoundingClientRect();
+        const el = document.querySelector("#view .sc-chat .sc-box"), box = el.getBoundingClientRect();
         const shown = (id) => { const e = document.getElementById(id); return !!e && e.getBoundingClientRect().height > 0; };
-        return { ui: document.body.dataset.ui, boxH: Math.round(box.height), mic: shown("vo-mic"), team: shown("sc-team"), free: shown("cc-freeonly-wrap") };
+        const parts = [...el.children].map((c) => `${c.tagName.toLowerCase()}${c.id ? "#" + c.id : ""}${c.className ? "." + String(c.className).split(" ")[0] : ""}=${Math.round(c.getBoundingClientRect().height)}`).join(", ");
+        return { ui: document.body.dataset.ui, boxH: Math.round(box.height), parts, mic: shown("vo-mic"), team: shown("sc-team"), free: shown("cc-freeonly-wrap") };
       });
       assert.equal(g.ui, "simple");
-      assert.ok(g.boxH <= 130, `the chat box is short (${g.boxH}px)`);
+      assert.ok(g.boxH <= 130, `the chat box is short (${g.boxH}px: ${g.parts})`);
       assert.deepEqual([g.mic, g.team, g.free], [true, true, true], "Mic, the team picker and Free only stay in the box");
       for (const sel of ["#go", COPY, AGAIN]) {
         const r = await onScreen(t.page, sel);
