@@ -2672,8 +2672,8 @@ function syncResearchStop() {
   show(resume, mission && l.status === "paused");
   show(abort, researchLive || missionLive || (mission && l.status === "paused"));
   if (abort) {
-    abort.textContent = researchLive ? "Stop" : "abort";
-    abort.title = researchLive ? "Stop this deep research run" : "";
+    abort.textContent = "Stop"; // 0.5.0: it read "abort" for a Mission next to Pause
+    abort.title = researchLive ? "Stop this deep research run" : "Stop this mission";
   }
   syncSendButton(); // 0.5.0: the round Send button gives its place to Stop while a run can be stopped
 }

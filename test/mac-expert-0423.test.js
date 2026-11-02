@@ -245,9 +245,9 @@ test("browser: sidebar items open runs modes, settings spots, help actions and p
     // 0.4.36 (panel 0432 item 5): Enter on a mode word picks that mode, and Chat stays lit in every mode
     await until(page, () => !!document.querySelector('#run-mode [data-m="council"].on'), null, "Councils picks Council");
     await page.fill("#mac-side .mx-srch", "");
-    await until(page, () => !!document.querySelector('#mac-side .si.on[data-id="command"]'), null, "Chat lit in Council mode");
+    await until(page, () => !!document.querySelector('#mac-side :is(.si.on[data-id="command"], #mx-place-chat.on)'), null, "Chat lit in Council mode");
     await page.evaluate(() => document.querySelector('#run-mode [data-m="research"]').click());
-    await until(page, () => window.CC.S.cmdMode === "research" && !!document.querySelector('#mac-side .si.on[data-id="command"]'), null, "Chat lit in Research mode");
+    await until(page, () => window.CC.S.cmdMode === "research" && !!document.querySelector('#mac-side :is(.si.on[data-id="command"], #mx-place-chat.on)'), null, "Chat lit in Research mode");
     if (await page.$("#mac-rb-modes")) await until(page, () => !!document.querySelector('#mac-rb-modes [data-m="research"].on') && !document.querySelector('#mac-rb-modes [data-m="council"].on'), null, "run bar follows the page");
     await page.fill("#mac-side .mx-srch", "Second opinion");
     await page.press("#mac-side .mx-srch", "Enter");

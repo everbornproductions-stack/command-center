@@ -230,10 +230,12 @@ function renderSide() {
   inner.append(hh, hist);
   inner.append(el("div", "mx-gh", "All features"));
   inner.append(box);
-  const shown = q ? search(st.items, q) : st.items;
+  // 0.5.0: Chat and Projects already sit in the top rows, so the groups leave them out (a search still finds them)
+  const onTop = (i) => ["command", "projects"].includes(i.open?.view) && !i.open?.mode && !i.open?.tab && !i.open?.focus;
+  const shown = q ? search(st.items, q) : st.items.filter((i) => !onTop(i));
   const groups = groupsOf(shown);
   if (!groups.length) inner.append(el("div", "mx-none", "Nothing matches. Try a shorter word."));
-  const cur = st.items.find((i) => isSelected(CC, i));
+  const cur = shown.find((i) => isSelected(CC, i));
   for (const g of groups) {
     const isOpen = q ? true : !!open[g.id] || cur?.group === g.id;
     const gh = el("button", "grp");

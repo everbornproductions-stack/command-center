@@ -170,7 +170,7 @@ test("browser 1366 x 800: pinned box, pills in step, Single and a follow-up as a
       on: [...document.querySelectorAll("#run-mode button.on")].map((b) => b.dataset.m),
       pressed: document.querySelector('#run-mode button[data-m="council"]').getAttribute("aria-pressed"),
       hello: document.getElementById("cmd-mode-banner").textContent,
-      side: document.querySelector("#mac-side .si.on")?.textContent.trim(),
+      side: document.querySelector("#mac-side .si.on, #mac-side .mx-pl.on")?.textContent.trim(),
       runbar: !!document.getElementById("mac-rb-modes"),
     }));
     assert.deepEqual(pc.on, ["council"]);
