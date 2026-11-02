@@ -20,6 +20,7 @@ const CSS = `
 .mmh-rail button:hover, .mmh-rail button:focus-visible { background: color-mix(in srgb, var(--text) 10%, transparent); outline: none; }
 .mmh-rail button[aria-current="true"] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--text); font-weight: 600; }
 .mmh-rail .n { margin-left: auto; color: var(--muted); font-size: .8rem; }
+.mmh-rail button[aria-current="true"] .n { color: inherit; } /* 0.4.39: the grey count was 3.4 : 1 on the picked row's tint */
 .mmh-rail .sec { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 10px 10px 2px; }
 .mmh-main { min-width: 0; }
 .mmh-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }

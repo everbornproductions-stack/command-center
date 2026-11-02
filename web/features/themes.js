@@ -61,6 +61,16 @@ function mix(a, b, t) { const A = rgb(a), B = rgb(b); return hex(A[0] + (B[0] - 
 function luminance(h) { const [r, g, b] = rgb(h).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; }
 const alpha = (h, a) => { const [r, g, b] = rgb(h); return `rgba(${r},${g},${b},${a})`; };
 
+/* 0.4.39 (Chris: readable everywhere): --accent-2 is the accent used as text (links, the banner's words). A light
+   accent such as the default cyan was only 3.2 : 1 on white. It now steps toward black (light) or white (dark) until it
+   reads at 5 : 1 on the theme's page colour, so every accent a person picks stays readable. */
+const contrast = (x, y) => { const [p, q] = [luminance(x), luminance(y)].sort((m, n) => n - m); return (p + 0.05) / (q + 0.05); };
+export function accentText(a, theme) {
+  const toward = theme === "dark" ? "#ffffff" : "#000000", page = theme === "dark" ? "#1f2937" : "#f3f5f9";
+  for (let t = theme === "dark" ? 0.3 : 0.25; t < 0.96; t += 0.05) { const c = mix(a, toward, t); if (contrast(c, page) >= 5) return c; }
+  return mix(a, toward, 0.95);
+}
+
 const systemDark = () => !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches;
 export function resolved(p = prefs) { return p.mode === "system" ? (systemDark() ? "dark" : "light") : p.mode; }
 
@@ -70,7 +80,7 @@ export function apply(p = prefs) {
   const theme = resolved(prefs), root = document.documentElement, a = prefs.accent;
   root.dataset.theme = theme;
   root.style.setProperty("--accent", a);
-  root.style.setProperty("--accent-2", theme === "dark" ? mix(a, "#ffffff", 0.3) : mix(a, "#000000", 0.25));
+  root.style.setProperty("--accent-2", accentText(a, theme));
   root.style.setProperty("--accent-ink", luminance(a) > 0.45 ? "#06202a" : "#ffffff");
   root.style.setProperty("--accent-deep", mix(a, "#000000", 0.28));
   root.style.setProperty("--accent-soft", alpha(a, 0.14));
@@ -87,12 +97,19 @@ function paintBackground(root, color) {
     return;
   }
   root.dataset.bg = "custom";
-  const light = luminance(color) > 0.55;
+  let light = luminance(color) > 0.55;
+  /* 0.4.39 (Chris: readable everywhere): a background colour on the other side of the theme (the dark pine default
+     under Light, or paper under Dark) used to set the text colours from the background, so Light got light text while
+     every surface (the Mac look, cards, menus) stayed light: the 0.4.37 "you can't see anything". The colour is now
+     tinted to the theme instead, so the text colours always match the theme. */
+  const theme = root.dataset.theme;
+  if (theme === "light" && !light) { color = mix(color, "#ffffff", 0.88); light = true; }
+  else if (theme === "dark" && light) { color = mix(color, "#000000", 0.86); light = false; }
   root.style.setProperty("--bg", color);
   root.style.setProperty("--bg-2", mix(color, light ? "#ffffff" : "#000000", 0.35));
   root.style.setProperty("--text", light ? "#111827" : "#e5e7eb");
   root.style.setProperty("--muted", light ? "#566071" : "#8b95a7");
-  root.style.setProperty("--dim", light ? "#7b8595" : "#5b667a");
+  root.style.setProperty("--dim", light ? "#566071" : "#8590a2"); // 0.4.39: was #7b8595 / #5b667a, under 4.5 : 1 on a panel
   root.style.setProperty("--panel", light ? "#ffffffd9" : "#111827cc");
   root.style.setProperty("--panel-solid", light ? "#ffffff" : "#111827");
   root.style.setProperty("--line", light ? "#d9dfe8" : "#1f2937");
@@ -245,7 +262,9 @@ html[data-wall] .graph-wrap { background: color-mix(in srgb, var(--panel-solid) 
 
 html[data-theme="light"] {
   --bg: #f3f5f9; --bg-2: #ffffff; --panel: #ffffffd9; --panel-solid: #ffffff; --line: #d9dfe8; --line-2: #c3ccd9;
-  --text: #111827; --muted: #566071; --dim: #7b8595; --green: #059669; --amber: #d97706; --red: #dc2626; --grey: #9ca3af; --violet: #7c3aed;
+  --text: #111827; --muted: #566071; --dim: #566071; --green: #036b4d; --amber: #a14a07; --red: #b91c1c; --grey: #9ca3af; --violet: #7c3aed;
+  /* 0.4.39 (Chris: readable everywhere): --dim was #7b8595 (3.7 : 1 on white); green, amber and red are used as text,
+     and were #059669, #d97706 and #dc2626 (3.8, 3.2 and 4.8 : 1 on white, less on a grey well) */
   --field-bg: #ffffff; --field-text: #111827; --field-border: #8794a8; --field-placeholder: #5b6575;
   --card-bg: #ffffff; --sunk-bg: #eef2f7; --card-hover: #e8edf5;
   --focus-ring: color-mix(in srgb, var(--accent) 45%, #000000);
@@ -274,8 +293,8 @@ html[data-theme="light"][data-text="large"] .dim, html[data-theme="light"][data-
 html[data-theme="light"] .btn.danger { background: #fde8e8; border-color: #f5b5b5; color: #b91c1c; }
 html[data-theme="light"] input[type=text], html[data-theme="light"] input[type=number], html[data-theme="light"] input[type=password], html[data-theme="light"] input[type=date], html[data-theme="light"] input[type=email], html[data-theme="light"] select, html[data-theme="light"] textarea { background: #ffffff; }
 html[data-theme="light"] .chip { background: #eef2f7; border-color: #d9dfe8; color: #334155; }
-html[data-theme="light"] .chip.green { color: #047857; border-color: #a7e3cc; }
-html[data-theme="light"] .chip.amber { color: #b45309; border-color: #f3d19c; }
+html[data-theme="light"] .chip.green { color: #036b4d; border-color: #a7e3cc; }
+html[data-theme="light"] .chip.amber { color: #92400e; border-color: #f3d19c; } /* 0.4.39: #b45309 was 4.47 : 1 on the chip */
 html[data-theme="light"] .chip.red { color: #b91c1c; border-color: #f5b5b5; }
 html[data-theme="light"] .chip.violet { color: #6d28d9; border-color: #d4c5f7; }
 html[data-theme="light"] table.tbl td { border-bottom-color: #e8edf3; }
@@ -287,8 +306,8 @@ html[data-theme="light"] .edge { stroke: #c9d3e2; }
 html[data-theme="light"] .md code, html[data-theme="light"] .md pre { background: #f3f6fa; }
 html[data-theme="light"] .linkt:hover { background: #f3f6fa; }
 html[data-theme="light"] .skillgrid .cell { background: #f3f6fa !important; color: var(--text) !important; }
-html[data-theme="light"] .skillgrid .cell[style*="#113b3a"] { background: #d7f5e9 !important; color: #047857 !important; }
-html[data-theme="light"] .sig.ok { background: #d7f5e9; color: #047857; }
+html[data-theme="light"] .skillgrid .cell[style*="#113b3a"] { background: #d7f5e9 !important; color: #036b4d !important; }
+html[data-theme="light"] .sig.ok { background: #d7f5e9; color: #036b4d; }
 html[data-theme="light"] .sig.low, html[data-theme="light"] .sig.attention { background: #fde8e8; color: #b91c1c; }
 html[data-theme="light"] .sig.renewing { background: #fdf1d6; color: #92400e; }
 html[data-theme="light"] .mobile-nav { background: #ffffff; }

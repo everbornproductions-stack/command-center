@@ -5,12 +5,19 @@
 
 /* ---------- colour tokens, light (the default) ---------- */
 body[data-style="mac"] {
-  --mac-glass: rgba(255, 255, 255, .55);
-  --mac-glass2: rgba(255, 255, 255, .75);
+  /* 0.4.39 (Chris: readable everywhere): the glass was .55 / .75. Over the dark stage picture that painted the window
+     mid grey, and the grey text on it fell to 3 : 1. Still frosted, now light enough for every text colour. */
+  --mac-glass: rgba(255, 255, 255, .8);
+  --mac-glass2: rgba(255, 255, 255, .88);
   --mac-solid: #f2f4fa;
   --mac-solid2: #ffffff;
   --mac-line: rgba(0, 0, 0, .08);
   --mac-acc: #0a84ff;
+  /* 0.4.39 (Chris: readable everywhere): #0a84ff is 3.6 : 1 on white, as text or under white text. Pages use these:
+     the accent as text (links), and a filled accent with white text on it (4.9 : 1). */
+  --mac-acc-text: #0a5fc0;
+  --mac-acc-fill: #0a6fd6;
+  --mac-vio-text: #7e22ce; /* the Pro / Extreme marks on their violet tint */
   --mac-tx: #1d1d1f;
   --mac-dim: #47474d; /* 0.4.25: was #6e6e73, under 4.5:1 on the glass */
   --mac-ok: #30d158;
@@ -31,12 +38,14 @@ body[data-style="mac"] {
   color-scheme: light;
 }
 body[data-style="mac"][data-theme="dark"] {
-  --mac-glass: rgba(30, 30, 36, .55);
+  --mac-glass: rgba(30, 30, 36, .8); /* 0.4.39: was .55; the warm stage lights showed through behind grey text */
   --mac-glass2: rgba(44, 44, 52, .8);
   --mac-solid: #1b1c22;
   --mac-solid2: #26272f;
   --mac-line: rgba(255, 255, 255, .1);
   --mac-tx: #f5f5f7;
+  --mac-acc-text: #64b5ff;
+  --mac-vio-text: #e0b8ff;
   --mac-dim: #c0c0c6; /* 0.4.25: was #a1a1a6 (the Expert switch measured 4.0:1) */
   --mac-bg1: #1b2140;
   --mac-bg2: #3a1730;

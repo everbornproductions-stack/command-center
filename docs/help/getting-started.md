@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.38
+lastUpdatedVersion: 0.4.39
 ---
 
 # Getting started
@@ -244,3 +244,7 @@ Chat in Simple is one clean column, like Expert: your message, then the answer i
 ## Expert Command is a chat, and upgrading is one click (0.4.38)
 
 Expert Command is a chat now, like Simple: your orders as a message, the answer in a card, and the marching orders box pinned at the bottom with the run modes, priority, when, and Free only right in it. While the AIs work, each step, the AI on it and the cost so far show inside the answer card. A clear New chat button sits at the top of the sidebar in Simple and Expert. Upgrade to a paid plan from inside the app: an Upgrade button in the title bar on Free, and every Pro feature opens the same box with the plans and buy buttons. Meldmind unlocks by itself when it sees the payment, or you can type a license key. PowerShell scripts are checked by PowerShell's own reader (never run), so a script that would not work is fixed before it is saved. The answer check shows in Light mode too, and flags a placeholder left in, such as Hi [Name], in any answer. The Get free AIs card has a solid background again, and a request for a script about photos no longer makes a picture. Make changes opens with a short list first, the Saved note no longer covers your buttons, and on a phone the newest reply stays above the chat box. In practice mode, a follow-up gets its own answer instead of repeating the first one.
+
+## Your agents work as a team, and everything is easy to read (0.4.39)
+
+Agents are a Team now. Each agent has a desk: give it a task in one line, see what it is working on, review what is ready for your OK, and set duties it does every day, week or month. Nothing is sent or posted without your OK. Hand any chat answer to an agent with Give to an agent, assign a project step to someone on your team, or open an agent's desk from a project. Every page and box is easy to read in light and dark, on a laptop or a phone. Meldmind now measures all of its text before each release, so it stays that way. Boxes and menus are solid instead of see-through, so the words in them always stand out from the picture behind.

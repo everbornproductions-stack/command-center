@@ -326,5 +326,9 @@ function renderSettings(el) {
   });
 }
 
-CC.promptSuggest = { look, undo, hide, turnOff };
+// Send empties the box without an input event, so it closes the list here; a lookup still on its way is dropped too
+// (a slow PC painted the list after Send and it stayed open under the empty box).
+function sent() { st.seq += 1; clearTimeout(st.timer); st.active = -1; clear(); }
+
+CC.promptSuggest = { look, undo, hide, turnOff, sent };
 CC.register({ id: "prompt-suggest", settings: { order: 15, render: renderSettings } });

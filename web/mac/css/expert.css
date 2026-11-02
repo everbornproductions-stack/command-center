@@ -20,8 +20,8 @@ body[data-style="mac"] #mac-side .si:hover { background: rgba(120, 120, 128, .15
 body[data-style="mac"] #mac-side .si.on { background: var(--mac-acc-btn, #0062d6); color: #fff; }
 body[data-style="mac"] .mx-ic { width: 20px; text-align: center; flex: none; }
 body[data-style="mac"] .mx-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-body[data-style="mac"] .lk { margin-left: auto; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: rgba(191, 90, 242, .2); color: var(--vio, #bf5af2); flex: none; }
-body[data-style="mac"] #mac-side .si.on .lk { background: rgba(255, 255, 255, .3); color: #fff; }
+body[data-style="mac"] .lk { margin-left: auto; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: rgba(191, 90, 242, .2); color: var(--mac-vio-text, #7e22ce); flex: none; } /* 0.4.39: #bf5af2 was 2.6 : 1 on its tint */
+body[data-style="mac"] #mac-side .si.on .lk { background: rgba(0, 0, 0, .25); color: #fff; } /* 0.4.39: a white tint left white text at 3.3 : 1 */
 /* 0.4.38 (0.4.37 panel item 2): the New chat button at the top of the Expert sidebar */
 body[data-style="mac"] #mac-side .mx-new { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 34px; margin: 2px 0 6px; padding: 6px 8px; border: 1px solid var(--mac-line, rgba(0, 0, 0, .12)); border-radius: 8px; background: var(--mac-card, rgba(255, 255, 255, .7)); color: inherit; font: inherit; font-size: 13px; font-weight: 650; text-align: left; cursor: pointer; }
 body[data-style="mac"] #mac-side .mx-new:hover { background: rgba(120, 120, 128, .15); }

@@ -39,7 +39,8 @@ async function toExpert(t) {
 }
 async function macTheme(t, theme) {
   if (await t.page.evaluate(() => document.body.dataset.theme) !== theme) await t.page.click("#mac-theme");
-  await t.page.waitForFunction((th) => document.body.dataset.theme === th, theme, { timeout: WAIT });
+  // 0.4.38: the Mac button also saves the theme (html[data-theme] changes when the save returns): wait for both
+  await t.page.waitForFunction((th) => document.body.dataset.theme === th && document.documentElement.dataset.theme === th, theme, { timeout: WAIT });
   await t.page.waitForTimeout(400);
 }
 async function go(t, view) {
@@ -165,6 +166,7 @@ test("paper: the inside is opaque with no blur, and the Mac button sets the one 
           icon: cs("#view .kpi .k", "::before").width,
         };
       });
+      assert.notEqual(classic, mac);
       assert.equal(got.html, mac, "the Mac button changed the saved theme too");
       assert.equal(got.body, mac);
       assert.equal(got.app, canvas, "opaque canvas in the Mac theme");

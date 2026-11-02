@@ -13,9 +13,9 @@ const S = () => window.CC.S;
 
 const css = `
 #cc-sv .sv-tag { display: inline-block; font-size: 10px; line-height: 1.5; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); white-space: nowrap; margin-top: 2px; }
-#cc-sv .sv-tag.auto { color: #93c5fd; border-color: #1e3a5f; }
+#cc-sv .sv-tag.auto { color: var(--accent-2); border-color: var(--line-2); } /* 0.4.39: was #93c5fd, 1.5 : 1 in the light theme */
 #cc-sv .sv-tag.low { color: var(--amber); border-color: #5a4616; }
-#cc-sv .sv-tag.user { color: #c7d0dd; }
+#cc-sv .sv-tag.user { color: var(--muted); }
 #cc-sv td { vertical-align: top; }
 #cc-sv td input, #cc-sv td select { padding: 4px 6px; }
 #cc-sv .sv-cell { display: flex; flex-direction: column; gap: 2px; }
@@ -28,7 +28,7 @@ const css = `
 #cc-sv .sv-mail .card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 #cc-sv .sv-hint { padding: 4px 0; }
 #cc-sv .sv-tag.est { color: var(--amber); border-color: #5a4616; }
-#cc-sv .sv-budget summary { cursor: pointer; font-size: 11px; color: var(--muted); }
+#cc-sv .sv-budget summary { cursor: pointer; font-size: 11px; color: var(--text); text-decoration: underline; text-underline-offset: 2px; } /* 0.4.39 (Chris: readable everywhere): --muted was 3.62 : 1 over the stage picture in dark; full text color, underlined so it still reads as a small link */
 #cc-sv .sv-off { color: var(--amber); }
 #cc-sv .sv-hist { margin: 4px 0 0; padding-left: 16px; }
 #cc-sv .sv-agent textarea { width: 100%; min-height: 96px; font-size: 12px; }

@@ -205,13 +205,15 @@ function menuHtml() {
   const first = [
     ["settings", "Settings"], ["keys", "Keys and connections"], ["look", "Look and theme"], ["expert", "Expert mode"],
   ].map(([k, l]) => `<button type="button" role="menuitem" class="side-sub-item" data-menu-act="${k}">${esc(l)}</button>`).join("");
+  // 0.4.39 (Chris: agents as a team): Team, where each agent's desk holds the work you gave it
+  const team = `<div class="side-sec" role="presentation">Agents</div><button type="button" role="menuitem" class="side-sub-item" id="side-team" data-menu-act="team">Team</button>`;
   const second = [["community", "Community"]].map(([k, l]) => `<button type="button" role="menuitem" class="side-sub-item" data-menu-act="${k}">${esc(l)}</button>`).join("");
   // 0.4.37 (Chris: Simple chat layout): AI News and Create moved here from the sidebar, so nothing is lost
   const newsOn = (() => { try { return localStorage.getItem("cc.newsOn") !== "0"; } catch { return true; } })();
   const create = origItems("create").filter((i) => i.section || !["mindmedia", "ai-news"].includes(i.view)); // AI News has its own line just above
   const extra = `<div class="side-sec" role="presentation">News and tools</div>${newsOn ? `<button type="button" role="menuitem" class="side-sub-item" id="side-news" data-menu-act="news">AI News</button>` : ""}
     <details class="side-det" id="side-create"><summary>Create</summary>${itemsHtml(create)}</details>`;
-  return `${first}${extra}<div class="side-sec" role="presentation">Community</div>${second}
+  return `${first}${team}${extra}<div class="side-sec" role="presentation">Community</div>${second}
     <details class="side-det"><summary>Help</summary>${itemsHtml(help)}</details>
     <details class="side-det"><summary>More pages</summary>${itemsHtml(more)}</details>`;
 }
@@ -233,6 +235,7 @@ function openMenu() {
     else if (k === "expert") document.getElementById("mode-expert")?.click();
     else if (k === "community") CC.go("community");
     else if (k === "news") CC.go("ai-news");
+    else if (k === "team") CC.go("agents");
   };
   menu.querySelector("button")?.focus();
 }

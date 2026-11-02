@@ -4,6 +4,7 @@
 // The Command view gets a row of saved prompts and agents. A run is a single chat: it shows in the Command view.
 import { missionTeamHtml } from "../employees-ui.js";
 import { DAYS, whenHtml, readWhen, wireWhen } from "./schedules.js";
+import { renderTeamPage } from "./team.js";
 const { api, toast, esc, md } = window.CC;
 const S = () => window.CC.S;
 
@@ -328,34 +329,41 @@ const sharedCard = (x) => `<div class="row small" style="gap:6px;padding:6px 0;b
   ${x.permissions.use ? `<button class="btn sm primary" data-srun="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">${x.kind === "agent" ? "Run" : "Use"}</button><button class="btn sm" data-scopy="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}">Copy to mine</button>` : ""}
   ${x.permissions.remove ? `<button class="btn sm" data-sdel="${esc(x.workspaceId)}|${x.kind}|${esc(x.itemId)}" title="Remove from the workspace">Remove</button>` : ""}</div>`;
 
-async function refresh() { await load(); const v = document.querySelector("#view"); if (v?.querySelector("#ag-root")) renderTab(v); window.dispatchEvent(new CustomEvent("cc:employees")); }
+// 0.4.39 (Chris: agents as a team): the Agents page became Team (web/features/team.js). This draws one of its tabs
+// into the box it is given: "hire" (Hire an agent: the employee library), "mine" (My agents: the explainer, Create
+// your own agent, my agents, the gallery, Marketplace drafts) or "prompts" (the prompt library).
+const sectionBox = () => document.querySelector("#team-section");
+async function refresh() { await load(); const box = sectionBox(); if (box) renderTab(box); window.CC.team?.reload?.(); window.dispatchEvent(new CustomEvent("cc:employees")); }
 
-async function renderTab(view) {
+async function renderTab(view, section = view.dataset.section || "mine") {
+  view.dataset.section = section;
   if (!st.loaded) { view.innerHTML = `<div class="empty">Loading…</div>`; await load(); }
   const d = st.data;
   const jumpHere = !!S().openAgentCreate;
   if (jumpHere) S().openAgentCreate = false;
-  view.innerHTML = `${agentsExplainerHtml(explainOpen())}${createBox()}${employeesPanel()}<div id="ag-root" class="grid" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr);margin-top:12px">
-    <div class="grid" style="align-content:start">
+  const mine = `<div class="grid" style="align-content:start">
       ${st.edit ? agentEditor(st.edit) : ""}
       <div class="panel"><h3>My agents <span class="right"><button class="btn sm primary" id="ag-new">+ New agent</button></span></h3>
-        <div class="small muted">An agent is a model with your instructions, the tools and libraries it may use, and a few starter prompts. Runs use your own keys and show in the Command view.</div>
+        <div class="small muted">An agent is a model with your instructions, the tools and libraries it may use, and a few starter prompts. Its tasks show on its desk on the Team tab.</div>
         ${d.agents.length ? d.agents.map(agentCard).join("") : `<div class="dim small" style="margin-top:8px">No agents yet.</div>`}
         <div class="row" style="gap:8px;margin-top:10px"><button class="btn sm" id="ag-export">Export all</button><button class="btn sm" id="ag-import">Import a file</button></div></div>
       <div class="panel"><h3>Builders gallery</h3>
         <div class="small muted">Agents and prompts shared from accounts. Each one shows a public username. Email stays private.</div>
         ${d.sharedError ? `<div class="small dim">${esc(d.sharedError)}</div>` : ""}
         ${d.shared.length ? d.shared.map(sharedCard).join("") : `<div class="dim small">Nothing shared yet.</div>`}</div>
-    </div>
-    <div class="grid" style="align-content:start">
+    </div>`;
+  const drafts = `<div class="panel"><h3>Marketplace drafts</h3>
+        ${d.listings.length ? d.listings.map((l) => `<div class="row small" style="gap:6px;padding:4px 0"><span style="flex:1"><b>${esc(l.title)}</b> <span class="dim">${esc(l.category)} · ${esc(l.promise)} · v${l.version}${l.author ? ` · by ${esc(l.author)}` : ""}</span></span><span class="chip">draft</span><button class="btn sm" data-ldel="${esc(l.id)}" title="Delete draft">Delete</button></div>`).join("") : `<div class="dim small">No drafts. Use List on an agent or prompt.</div>`}
+        <div class="small dim" style="margin-top:6px">The Marketplace is not open yet: drafts are kept on this computer and nothing is published.</div></div>`;
+  const prompts = `<div class="grid" style="align-content:start">
       ${st.editPrompt ? promptEditor(st.editPrompt) : ""}
       <div class="panel"><h3>Prompt library <span class="right"><button class="btn sm primary" id="pr-new">+ New prompt</button></span></h3>
         <div class="small muted">Saved prompts with {{variables}}: a small form asks for each value before sending.</div>
         ${d.prompts.length ? d.prompts.map(promptCard).join("") : `<div class="dim small" style="margin-top:8px">No saved prompts yet.</div>`}</div>
-      <div class="panel"><h3>Marketplace drafts</h3>
-        ${d.listings.length ? d.listings.map((l) => `<div class="row small" style="gap:6px;padding:4px 0"><span style="flex:1"><b>${esc(l.title)}</b> <span class="dim">${esc(l.category)} · ${esc(l.promise)} · v${l.version}${l.author ? ` · by ${esc(l.author)}` : ""}</span></span><span class="chip">draft</span><button class="btn sm" data-ldel="${esc(l.id)}" title="Delete draft">Delete</button></div>`).join("") : `<div class="dim small">No drafts. Use List on an agent or prompt.</div>`}
-        <div class="small dim" style="margin-top:6px">The Marketplace is not open yet: drafts are kept on this computer and nothing is published.</div></div>
-    </div></div>`;
+    </div>`;
+  if (section === "hire") { if (!st.browseSet) { st.browse = true; st.browseSet = true; } view.innerHTML = employeesPanel(); }
+  else if (section === "prompts") view.innerHTML = `<div id="ag-root" class="grid" style="grid-template-columns:minmax(0,1fr)">${prompts}</div>`;
+  else view.innerHTML = `${agentsExplainerHtml(explainOpen())}${createBox()}<div id="ag-root" class="grid" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr);margin-top:12px">${mine}<div class="grid" style="align-content:start">${drafts}</div></div>`;
   wireEmployees(view);
   wireCreate(view);
   view.querySelector("#ag-explain")?.addEventListener("toggle", (e) => { try { localStorage.setItem(EXPLAIN_KEY, e.target.open ? "open" : "folded"); } catch { /* the choice is only kept on this computer */ } });
@@ -363,10 +371,10 @@ async function renderTab(view) {
   if (jumpHere) { const n = $v("#ac-name"); n?.focus(); n?.scrollIntoView({ block: "center" }); }
   const findA = (id) => d.agents.find((x) => x.id === id), findP = (id) => d.prompts.find((x) => x.id === id);
   const splitRef = (v) => { const [workspaceId, kind, itemId] = v.split("|"); return { workspaceId, kind, itemId }; };
-  $v("#ag-new").addEventListener("click", () => { st.edit = { name: "", instructions: "", tools: { mode: "off", allow: [] }, libraries: [], starters: [] }; renderTab(view); });
-  $v("#pr-new").addEventListener("click", () => { st.editPrompt = { name: "", text: "" }; renderTab(view); });
-  $v("#ag-export").addEventListener("click", () => exportFile());
-  $v("#ag-import").addEventListener("click", importFile);
+  $v("#ag-new")?.addEventListener("click", () => { st.edit = { name: "", instructions: "", tools: { mode: "off", allow: [] }, libraries: [], starters: [] }; renderTab(view); });
+  $v("#pr-new")?.addEventListener("click", () => { st.editPrompt = { name: "", text: "" }; renderTab(view); });
+  $v("#ag-export")?.addEventListener("click", () => exportFile());
+  $v("#ag-import")?.addEventListener("click", importFile);
   view.querySelectorAll("[data-arun]").forEach((b) => b.addEventListener("click", () => runAgentDialog(findA(b.dataset.arun))));
   view.querySelectorAll("[data-aedit]").forEach((b) => b.addEventListener("click", () => { st.edit = structuredClone(findA(b.dataset.aedit)); renderTab(view); }));
   view.querySelectorAll("[data-ashare]").forEach((b) => b.addEventListener("click", () => shareDialog("agent", findA(b.dataset.ashare))));
@@ -396,7 +404,7 @@ async function renderTab(view) {
   view.querySelectorAll("[data-sdel]").forEach((b) => b.addEventListener("click", async () => { const r = splitRef(b.dataset.sdel); if (!(await window.CC.confirm("Remove this from the workspace? Your own copy stays.", { danger: true, ok: "Remove" }))) return; try { await api(`/agents/shared/${encodeURIComponent(r.workspaceId)}/${r.kind}/${encodeURIComponent(r.itemId)}`, { method: "DELETE" }); await refresh(); } catch (e) { toast(e.message, true); } }));
 
   // agent editor
-  if (st.edit) {
+  if (st.edit && $v("#ae-save")) {
     $v("#ae-tools").addEventListener("change", (e) => { $v("#ae-toollist").style.display = e.target.value === "some" ? "" : "none"; });
     $v("#ae-cancel").addEventListener("click", () => { st.edit = null; renderTab(view); });
     $v("#ae-save").addEventListener("click", async () => {
@@ -411,7 +419,7 @@ async function renderTab(view) {
     });
   }
   // prompt editor
-  if (st.editPrompt) {
+  if (st.editPrompt && $v("#pe-save")) {
     $v("#pe-cancel").addEventListener("click", () => { st.editPrompt = null; renderTab(view); });
     $v("#pe-save").addEventListener("click", async () => {
       const body = { name: $v("#pe-name").value, text: $v("#pe-text").value, agentId: $v("#pe-agent").value || null };
@@ -477,7 +485,12 @@ function mountMissionTeam(slot) {
 }
 
 function onEvent(ev) {
-  if (ev.type === "agents.update" || (ev.type === "library.update" && ev.action === "deleted")) { st.loaded = false; const v = document.querySelector("#view"); if (v?.querySelector("#ag-root") && !st.edit && !st.editPrompt) refresh(); }
+  if (ev.type === "agents.update" || (ev.type === "library.update" && ev.action === "deleted")) { st.loaded = false; if (sectionBox() && !st.edit && !st.editPrompt) refresh(); }
 }
 
-CC.register({ id: "agents", tab: { label: "Agents", short: "Agents", icon: "◎", order: 13, render: renderTab }, command: { order: 14, render: renderCommand }, onEvent });
+// 0.4.39 (Chris: agents as a team): the tab is the Team page; its Hire an agent, My agents and Prompts tabs are drawn here.
+export function editAgent(id) { const a = (st.data?.agents || []).find((x) => x.id === id); if (a) st.edit = structuredClone(a); return !!a; }
+export { scriptDialog, useEmployee as useEmployeeDialog };
+export const agentsData = () => st.data;
+const teamHelpers = { renderSection: (box, section) => renderTab(box, section), editAgent, showScript: (id) => scriptDialog(id), load: async () => { if (!st.loaded) await load(); return st.data; } };
+CC.register({ id: "agents", tab: { label: "Team", short: "Team", icon: "◎", order: 13, render: (view) => renderTeamPage(view, teamHelpers) }, command: { order: 14, render: renderCommand }, onEvent });

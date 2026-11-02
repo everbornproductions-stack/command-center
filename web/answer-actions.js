@@ -14,7 +14,8 @@ export const MAIN_ACTIONS = [
 export const KEEP_IN_VIEW = new Set(["desk"]);
 
 // The next actions bar (flag_nextactions) stays where it was drawn, right under the main buttons.
-export const PINNED = new Set(["next-actions", "finishpath", "versions"]);
+// 0.4.39: Give to an agent (team) stays in view too.
+export const PINNED = new Set(["next-actions", "finishpath", "versions", "team"]);
 
 // 0.4.36 (panel 0434 item 2): warnings about the answer itself (the answer check: fair housing words, a "[Name]" left
 // in) sit right under the answer, above Copy. Under More actions nobody saw them.

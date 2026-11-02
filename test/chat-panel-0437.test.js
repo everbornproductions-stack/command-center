@@ -5,7 +5,8 @@
 //     is an empty page, and the next question is a new run, so a new History row.
 //  4. No toast covers an answer's buttons or the chat box (Save as file used to land on Try again).
 //  5. At 390 x 844, after a follow-up, the newest reply's buttons sit above the chat box.
-//  6. Make changes on the first answer starts short (10 controls or fewer, none covered); All options shows the rest.
+//  6. Make changes on the first answer starts short (11 controls or fewer, none covered); All options shows the rest.
+//     (0.4.39: "Give to an agent" joined the short list, since Chris wants agents within reach: 10 became 11)
 // Real server in demo mode (practice AIs, no keys, nothing sent) and headless Chrome via bootMac; skips only when no
 // Chrome is installed. Windows rules: one server and one browser at a time, real waits, every test closes what it opens.
 import test from "node:test";
@@ -95,8 +96,10 @@ for (const mode of ["simple", "expert"]) {
       await page.click(`${firstActs(mode)} [data-sc-act='change']`);
       await page.waitForFunction(() => !document.getElementById("sc-changes").hidden && !!document.querySelector("#sc-changes #cc-check"), null, { timeout: WAIT });
       await page.waitForFunction(() => !!document.querySelector("#sc-changes [data-feature='finishpath'] [data-fp-good]"), null, { timeout: WAIT }).catch(() => {});
+      // Change this part comes from the versions feature, which draws a moment later on the CI runner
+      await page.waitForFunction(() => !!document.querySelector("#sc-changes #cc-v-change"), null, { timeout: WAIT }).catch(() => {});
       const short = await foldControls(page);
-      assert.ok(short.n <= 10, `${short.n} controls: ${short.words.join(", ")}`);
+      assert.ok(short.n <= 11, `${short.n} controls: ${short.words.join(", ")}`);
       assert.deepEqual(short.covered, [], "nothing covered");
       for (const w of ["Make it shorter", "Double-check", "Change this part", "All options"]) assert.ok(short.words.some((x) => x.startsWith(w)), `${w} in ${short.words.join(", ")}`);
       assert.match(await page.evaluate(() => document.getElementById("sc-changes").innerText), /Change the answer[\s\S]*Check, save or finish/);

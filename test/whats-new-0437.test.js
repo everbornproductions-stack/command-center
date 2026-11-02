@@ -10,6 +10,9 @@ test("browser: a long What's new note keeps Got it on screen in a short window, 
   const t = await bootPage({ width: 1000, height: 560 });
   try {
     const p = t.page;
+    // a long note of its own (0.4.39's real note has 4 items and fits): 14 bullets like the 0.4.36 one that hid Got it
+    const long = { version: "9.9.9", title: "What's new", bullets: Array.from({ length: 14 }, (_, i) => `Change number ${i + 1}: a sentence long enough to wrap onto a second line in the note, like the real release notes do.`) };
+    await p.route(/\/api\/tour\/whats-new/, (r) => r.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ whatsNew: long }) }));
     await p.evaluate(() => window.CC.tour.openNews());
     await p.waitForSelector("#cc-whats-new #cc-news-ok", { timeout: 20000 });
     const r = await p.evaluate(() => {
@@ -18,7 +21,7 @@ test("browser: a long What's new note keeps Got it on screen in a short window, 
       const hit = document.elementFromPoint(ok.left + ok.width / 2, ok.top + ok.height / 2);
       return { okBottom: ok.bottom, vh: innerHeight, onTop: !!hit?.closest("#cc-news-ok"), scrolls: body.scrollHeight > body.clientHeight, items: document.querySelectorAll("#cc-whats-new li").length };
     });
-    assert.ok(r.items >= 5, `a real note (${r.items} items)`);
+    assert.equal(r.items, 14, `the long note (${r.items} items)`);
     assert.ok(r.okBottom <= r.vh, `Got it is inside the window ${JSON.stringify(r)}`);
     assert.equal(r.onTop, true, "Got it can be clicked without scrolling");
     assert.equal(r.scrolls, true, "the list scrolls on its own at this height");

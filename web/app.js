@@ -1881,7 +1881,7 @@ function scPrompt(l) {
 }
 // The quick changes under a reply. Each one is the next message in this chat.
 function scQuickHtml(turn) {
-  return `<div class="sc-quick" role="group" aria-label="Make changes">${REPLY_CHANGES.map((c) => `<button type="button" class="btn sm" data-sc-quick="${esc(c.id)}" data-turn="${turn}">${esc(c.label)}</button>`).join("")}<button type="button" class="btn sm" data-sc-quick="other" data-turn="${turn}">Something else</button></div>`;
+  return `<div class="sc-quick" role="group" aria-label="Make changes">${REPLY_CHANGES.map((c) => `<button type="button" class="btn sm" data-sc-quick="${esc(c.id)}" data-turn="${turn}">${esc(c.label)}</button>`).join("")}<button type="button" class="btn sm" data-sc-quick="other" data-turn="${turn}">Something else</button><button type="button" class="btn sm" data-sc-give data-turn="${turn}">Give to an agent</button></div>`;
 }
 // Long code inside an answer folds: the card stays short and the code opens under the answer when clicked.
 function scFoldCode(el) {
@@ -2067,6 +2067,9 @@ function onSimpleChatClick(e) {
     allBtn.textContent = on ? "Fewer options" : "All options";
     return;
   }
+  // 0.4.39 (Chris: agents as a team): Give to an agent, under a reply's Make changes (web/features/team.js)
+  const give = t.closest?.("[data-sc-give]");
+  if (give) { const l = S.live || {}, i = Number(give.dataset.turn), turns = scTurns(l); const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user"); window.CC.team?.giveAnswer?.({ prompt: ask?.text || scPrompt(l), answer: scTurnText(turns[i]) }); return; }
   const quick = t.closest?.("[data-sc-quick]");
   if (quick) {
     if (quick.dataset.scQuick === "other") { $("#orders")?.focus(); return; }
@@ -2317,6 +2320,7 @@ function renderCommand(v) {
       <div class="ex-panel${S.exMoreOpen ? " more-open" : ""}">
         <h3 class="ex-sr">Marching orders</h3>
         <div id="route" class="route ex-route" style="display:none"></div>
+        <div id="ex-chatting"></div><!-- 0.4.39 (merge of the Team page): "Chatting with <agent>" shows here, not inside the closed More options -->
         <div class="ex-more" id="ex-more">
           <div class="row ex-more-row">
             <label class="row small" style="gap:6px"><input type="checkbox" id="qa" ${S.settings.qa !== false ? "checked" : ""}> AI-to-AI QA</label>
@@ -2903,6 +2907,7 @@ async function sendOrders() {
   const byPerson = !!S.sendByPerson; S.sendByPerson = false;
   if (runBusy()) return;
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
+  try { window.CC?.promptSuggest?.sent?.(); } catch {} // the suggestions list closes on Send
   // 0.4.37 (Chris: one chat column): typed after a finished answer, it goes on in the same chat's thread
   if (byPerson && scFollowOk(prompt)) { if (!(await confirmRisky(prompt))) return; return sendSimpleFollow(prompt); }
   if (!(await confirmRisky(prompt))) return;
@@ -3014,6 +3019,8 @@ async function sendOrders() {
       if (S.forceFree?.provider) { packBody.provider = S.forceFree.provider; packBody.model = S.forceFree.model; S.forceFree = null; }
       // an AI employee picked from the Simple hint answers this chat with its script
       if (simple && S.employee?.id) packBody.employee = S.employee.id;
+      // 0.4.39 (Chris: agents as a team): Chat with it on a Team desk picks the agent in Expert too
+      else if (S.employee?.team && S.employee?.id) packBody.employee = S.employee.id;
       const searchOpts = mode === "research" ? { ...ask, searchMode: ask.searchMode || "pro" } : ask;
       const started = await api("/chat", { method: "POST", body: { prompt, projectId, private: priv, ...picked, ...packBody, ...searchOpts, background, getItDone: !!window.CC?.getDoneChoice?.on, sendMessages: !!window.CC?.getDoneChoice?.send } });
       S.stopId = started?.runId || started?.id || "";
