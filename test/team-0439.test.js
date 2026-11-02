@@ -316,6 +316,10 @@ test("page: Team list with statuses and counts, a desk, Assign, Review, a duty, 
 
     // Give to an agent from a chat answer: the answer and its request become a task on that desk
     await page.click("#tm-chat-stop");
+    // 0.4.39 (merge with 0.4.38, where Send on an answered chat is a follow-up in the same chat): a new chat first, so
+    // this question is the chat's own request
+    await page.evaluate(() => window.CC.layout?.newChat?.());
+    await page.waitForSelector("#view .ex-chat #orders", { timeout: 15000 });
     await page.fill("#orders", "Write a thank-you note for Mrs. Lee");
     await page.click("#go");
     await page.waitForFunction(() => String(window.CC.S.live?.mission?.prompt || "").includes("Mrs. Lee") && window.CC.S.live?.status === "done" && !!document.getElementById("tm-give-answer"), null, { timeout: 90000 });

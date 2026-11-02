@@ -202,6 +202,8 @@ body[data-ui="expert"] #app #view .ex-chat .ex-route { margin: 0; max-height: 30
 .ex-chat .ex-panel.more-open .ex-more { display: grid; }
 .ex-chat .ex-more-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 .ex-chat .ex-more #cmd-extras > :empty { display: none; }
+/* 0.4.39 (Team page merge): "Chatting with <agent>" sits above the closed More options, only while an agent is picked */
+.ex-chat #ex-chatting:not(:has(.tm-chatting)) { display: none; }
 
 /* ---------- phones: the same column, the box above the Talk bar ---------- */
 @media (max-width: 760px) {

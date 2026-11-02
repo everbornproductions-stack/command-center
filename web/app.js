@@ -2320,6 +2320,7 @@ function renderCommand(v) {
       <div class="ex-panel${S.exMoreOpen ? " more-open" : ""}">
         <h3 class="ex-sr">Marching orders</h3>
         <div id="route" class="route ex-route" style="display:none"></div>
+        <div id="ex-chatting"></div><!-- 0.4.39 (merge of the Team page): "Chatting with <agent>" shows here, not inside the closed More options -->
         <div class="ex-more" id="ex-more">
           <div class="row ex-more-row">
             <label class="row small" style="gap:6px"><input type="checkbox" id="qa" ${S.settings.qa !== false ? "checked" : ""}> AI-to-AI QA</label>

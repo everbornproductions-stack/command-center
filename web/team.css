@@ -6,11 +6,15 @@
   --tm-dim: var(--muted, #8b95a7);
   --tm-line: var(--line, #1f2937);
   --tm-acc: var(--accent, #22d3ee);
+  /* 0.4.39 (Chris: readable everywhere): the accent as text and the text on a filled accent come from the theme too
+     (the Mac blue #0a84ff was 3 : 1 as a link on light and 3.6 : 1 under white); status colours are the theme's own */
+  --tm-acc-tx: var(--accent-2, #67e8f9);
+  --tm-on-acc: var(--accent-ink, #06202a);
   --tm-soft: rgba(127, 127, 127, .10);
   --tm-sel: rgba(10, 132, 255, .14);
-  --tm-red: #e5484d;
-  --tm-amber: #d68910;
-  --tm-green: #22a06b;
+  --tm-red: var(--red, #e5484d);
+  --tm-amber: var(--amber, #d68910);
+  --tm-green: var(--green, #22a06b);
   --tm-grey: #9aa3ae;
   color: var(--tm-tx);
   padding-bottom: 24px;
@@ -22,12 +26,14 @@ body[data-style="mac"] .tm-page {
   --tm-tx: var(--mac-tx, #1d1d1f);
   --tm-dim: var(--mac-dim, #47474d);
   --tm-line: var(--mac-line, rgba(0, 0, 0, .08));
-  --tm-acc: var(--mac-acc, #0a84ff);
+  --tm-acc: var(--mac-acc-fill, #0a6fd6);
+  --tm-acc-tx: var(--mac-acc-text, #0a5fc0);
+  --tm-on-acc: #ffffff;
 }
 .tm-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 12px; }
 .tm-tab { border: 1px solid var(--tm-line); background: transparent; color: var(--tm-tx); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
-.tm-tab.on { background: var(--tm-acc); border-color: var(--tm-acc); color: #fff; }
-.tm-link { background: none; border: 0; padding: 0 2px; color: var(--tm-acc); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.tm-tab.on { background: var(--tm-acc); border-color: var(--tm-acc); color: var(--tm-on-acc); }
+.tm-link { background: none; border: 0; padding: 0 2px; color: var(--tm-acc-tx); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .tm-link:hover { text-decoration: underline; }
 
 .tm-wrap { display: grid; grid-template-columns: 290px minmax(0, 1fr); border: 1px solid var(--tm-line); border-radius: 14px; overflow: hidden; background: var(--tm-card); min-height: 520px; }

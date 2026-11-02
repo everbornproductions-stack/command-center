@@ -143,8 +143,11 @@ test("contrast: the Expert inside text is at least 4.5:1 on the painted pixels i
   }
 });
 
-test("paper: the inside is opaque with no blur, and its theme follows the Mac button (body[data-theme]), not the classic theme", { skip }, async () => {
-  // Classic theme light under a dark Mac window, then classic dark under a light Mac window.
+// 0.4.39 (Chris: readable everywhere): since 0.4.38 the Mac button and the saved theme are one theme, so the button
+// changes html[data-theme] too and the two never disagree (the disagreement was the 0.4.37 unreadable menu). This test
+// used to check the inside followed body against a different classic theme; it now checks both say the theme picked.
+test("paper: the inside is opaque with no blur, and its theme follows the Mac button, which changes the saved theme too", { skip }, async () => {
+  // Saved light, then the Mac button to dark; saved dark, then the Mac button to light.
   for (const [classic, mac, card, canvas] of [["light", "dark", "rgb(17, 24, 39)", "rgb(11, 15, 23)"], ["dark", "light", "rgb(255, 255, 255)", "rgb(249, 250, 251)"]]) {
     const t = await bootNew({ theme: classic, width: 1440, height: 900 });
     try {
@@ -163,7 +166,8 @@ test("paper: the inside is opaque with no blur, and its theme follows the Mac bu
           icon: cs("#view .kpi .k", "::before").width,
         };
       });
-      assert.equal(got.html, classic);
+      assert.notEqual(classic, mac);
+      assert.equal(got.html, mac, "the Mac button changed the saved theme too");
       assert.equal(got.body, mac);
       assert.equal(got.app, canvas, "opaque canvas in the Mac theme");
       assert.equal(got.panel, card, "cards follow the Mac theme");

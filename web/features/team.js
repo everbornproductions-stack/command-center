@@ -432,4 +432,4 @@ function onEvent(ev) {
 }
 
 window.CC.team = { open: openDesk, give: giveDialog, giveAnswer, assign, reload: () => { if (onPage()) reload(); } };
-CC.register({ id: "team", deliverable: { order: 40, render: deliverableRender }, command: { order: 2, render: commandRender }, onEvent });
+CC.register({ id: "team", deliverable: { order: 40, render: deliverableRender }, command: { order: 2, render: commandRender, slot: "#ex-chatting" }, onEvent });
