@@ -3110,6 +3110,7 @@ async function sendOrders() {
   if (runBusy()) return;
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
   hideRoute(); // 0.5.0 (panel 0438 item 2): the route preview closes once the order goes
+  try { window.CC?.promptSuggest?.sent?.(); } catch {} // the suggestions list closes on Send
   // 0.4.37 (Chris: one chat column): typed after a finished answer, it goes on in the same chat's thread
   if (byPerson && scFollowOk(prompt)) { if (!(await confirmRisky(prompt))) return; return sendSimpleFollow(prompt); }
   if (!(await confirmRisky(prompt))) return;
