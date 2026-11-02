@@ -40,7 +40,7 @@ for (const [w, h] of SIZES) {
       // Send and Mic are on the box itself.
       const r = await measure([["send", "#go"], ["mic", "#vo-mic"]]);
       // 0.4.21 (area H): "Show my AIs" is grouped behind the Auto team control, so open that first.
-      await t.page.click("#sc-team");
+      await t.page.click("#cb-more"); // 0.5.0: Show my AIs is under the box's "..." (More options)
       Object.assign(r, await measure([["ais", "#cc-show-ais"]]));
       for (const k of ["send", "mic", "ais"]) {
         assert.ok(r[k], `${k} exists`);

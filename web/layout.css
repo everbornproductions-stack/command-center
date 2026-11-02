@@ -219,3 +219,17 @@ html[data-look="glass"] body #cc-live-over .lo-card { background: color-mix(in s
 }
 @media (prefers-reduced-motion: reduce) { .sc-box #orders.sc-pulse { animation: none; } }
 #cc-side .side-item[hidden] { display: none; }
+/* 0.5.0 (Chris: chat like the Claude app): History grouped under Pinned, Today, Yesterday and Earlier */
+#cc-side .side-day { margin: 8px 10px 2px; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, #8b95a7); }
+#cc-side .side-day:first-child { margin-top: 2px; }
+body[data-side="c"] #cc-side .side-day { display: none; }
+/* 0.5.0 polish (readability sweep 0.4.39): Settings with More options ran 26 px off the right edge at 1366 ("pairing" and
+   "Activate" were cut off). A column of the Settings grid grew to its widest unbreakable line; its cards may shrink to
+   the column now, and a long heading note wraps instead of pushing the card wider. */
+body[data-view="settings"] #view .grid > * { min-width: 0; }
+body[data-view="settings"] #view .panel > h3 { flex-wrap: wrap; }
+body[data-view="settings"] #view .panel > h3 .right { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+body[data-view="settings"] #view .mono { overflow-wrap: anywhere; }
+body[data-view="settings"] #view .panel .row { flex-wrap: wrap; }
+body[data-view="settings"] #view .panel .row > * { min-width: 0; }
+body[data-view="settings"] #view .panel label.row { white-space: normal; }

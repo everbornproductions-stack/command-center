@@ -64,8 +64,11 @@ test("Simple and Expert both render that connected list under the chat box", () 
   const app = fs.readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
   const simple = app.slice(app.indexOf("function renderSimpleChat"), app.indexOf("function renderCommand"));
   const expert = app.slice(app.indexOf("function renderCommand"), app.indexOf("function renderOps"));
+  // 0.5.0 (chat like the Claude app): both pages draw the one shared chat box, which holds the list (under More options)
+  const box = app.slice(app.indexOf("function chatBoxHtml("), app.indexOf("function chatAnswerHtml("));
+  assert.match(box, /id="cc-composer-ais"/);
   for (const src of [simple, expert]) {
-    assert.match(src, /id="cc-composer-ais"/);
+    assert.match(src, /\$\{chatBoxHtml\((true|false)\)\}/);
     assert.match(src, /renderComposerAis\(\)/);
   }
   assert.match(app, /composerAis\(S\.providers\)/);

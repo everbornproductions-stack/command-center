@@ -306,7 +306,9 @@ function paintResumeLine() {
   box.dataset.sig = sig;
   if (!resume) { box.innerHTML = ""; return; }
   const { esc } = CC();
-  box.innerHTML = `<p class="sc-resume-line" role="note"><span>You stopped part way${resume.checkpoint?.title ? ` on ${esc(resume.checkpoint.title)}` : ""}.</span> <button type="button" class="linkish" data-mm-resume>Pick up where I left off</button> <button type="button" class="linkish" data-mm-fresh>Start fresh</button></p>`;
+  // 0.5.0 (Chris: chat like the Claude app): one quiet chip under the chat box, never a line on top of the page
+  const where = `You stopped part way${resume.checkpoint?.title ? ` on ${esc(resume.checkpoint.title)}` : ""}.`;
+  box.innerHTML = `<span class="sc-resume-line cb-resume-chip" role="note"><button type="button" class="cb-mk" data-mm-resume title="${where}"><span class="cb-mk-ic" aria-hidden="true">&#8634;</span>Pick up where I left off</button><button type="button" class="cb-x" data-mm-fresh aria-label="Start fresh" title="Start fresh">&times;</button></span>`;
   if (!box.dataset.wired) { box.dataset.wired = "1"; box.addEventListener("click", onClick); }
 }
 

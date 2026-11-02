@@ -50,12 +50,12 @@ test("browser: Simple shows the mode picker under More options, the Free only sw
     // the layout code binds a moment after the page paints: click until More options opens
     for (let n = 0; n < 8; n++) {
       await t.page.click("#sc-team");
-      if (await t.page.evaluate(() => document.querySelector("#view .sc-panel").classList.contains("more-open"))) break;
+      if (await t.page.evaluate(() => document.getElementById("cb-menu")?.hidden === false)) break; // 0.5.0: the mode menu
       await sleep(400);
     }
     await t.page.waitForSelector("#simple-run-mode", { state: "visible", timeout: 5000 });
-    const labels = await t.page.$$eval("#simple-run-mode button", (b) => b.map((x) => x.textContent.trim()));
-    assert.deepEqual(labels, ["Auto", "Single", "Council", "Mission"]);
+    const labels = await t.page.$$eval("#simple-run-mode button", (b) => b.map((x) => x.textContent.trim().replace(/\s+Pro$/, "")));
+    assert.deepEqual(labels, ["Auto team", "Single", "Council", "Mission", "Research", "Second opinion"]);
     // the switch is the same setting everywhere
     // free-ais.js loads after featuresReady (perf registry), and only then is the switch listener on the page. A click
     // before that ticks the box but saves nothing (Windows CI). Wait for the listener, then click until the saved
@@ -64,10 +64,10 @@ test("browser: Simple shows the mode picker under More options, the Free only sw
     const flipTo = async (on) => {
       const end = Date.now() + waitBudget(30000);
       while (Date.now() < end) {
-        await t.page.waitForSelector("#cc-freeonly", { state: "visible", timeout: Math.max(1000, end - Date.now()) });
+        await t.page.waitForSelector("#cc-freeonly-wrap", { state: "visible", timeout: Math.max(1000, end - Date.now()) });
         // if an earlier click ticked the box without saving, put the box back to the saved state first (no event)
         await t.page.evaluate((v) => { const b = document.getElementById("cc-freeonly"); if (b && b.checked === v) b.checked = !v; }, on);
-        await t.page.click("#cc-freeonly");
+        await t.page.click("#cc-freeonly-wrap"); // 0.5.0: the Free only chip (the checkbox is inside it)
         const saved = Date.now() + waitBudget(5000);
         while (Date.now() < saved && (await t.api("/state")).json.freeOnly?.on !== on) await sleep(150);
         if ((await t.api("/state")).json.freeOnly?.on === on) {
@@ -81,9 +81,11 @@ test("browser: Simple shows the mode picker under More options, the Free only sw
     assert.equal((await t.api("/state")).json.freeOnly.on, true);
     await flipTo(false);
     // picking Single is remembered and shown on the button
+    if (await t.page.evaluate(() => document.getElementById("cb-menu")?.hidden !== false)) await t.page.click("#sc-team");
     await t.page.click('#simple-run-mode button[data-m="single"]');
     assert.match(await t.page.innerText("#sc-team"), /Single mode/);
     // Get free AIs from Home
+    await t.page.click("#cb-more");
     await t.page.click("#cc-get-free-simple");
     await t.page.waitForSelector("#cc-free-ais", { timeout: 10000 });
     const txt = await t.page.innerText("#cc-free-ais");

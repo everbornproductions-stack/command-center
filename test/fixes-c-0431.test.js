@@ -169,7 +169,8 @@ test("item 8: Expert at 1366 x 800, the Deliverable is at least 420 px wide once
     });
     assert.equal(card.ui, "expert");
     assert.ok(card.w >= 420, `the answer card is ${card.w} px wide`);
-    assert.match(card.headText, /Written by/);
+    // 0.5.0 (chat like the Claude app): the small label reads "Meldmind · <AI> · <model>"
+    assert.match(card.headText, /\(demo\) · \S+/);
     assert.ok(card.headLines <= 1, `"${card.headText}" takes ${card.headLines} lines`);
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }
@@ -243,7 +244,7 @@ test("item 11d: Expert at 390, the task box is clear of the Talk bar at load and
     await settled(t);
     const r = await t.page.evaluate(() => {
       const v = document.getElementById("view"), o = document.getElementById("orders").getBoundingClientRect(), bar = document.getElementById("vt-bar");
-      const b = bar && !bar.hidden ? bar.getBoundingClientRect() : null;
+      const b = bar && !bar.hidden && bar.getBoundingClientRect().height > 0 ? bar.getBoundingClientRect() : null; // 0.5.0: the chat page hides the Talk bar row
       const hit = document.elementFromPoint(o.left + 20, o.bottom - 4);
       // 0.4.38 (Chris: Expert Command as a chat): the chat page ends above the Talk bar (#view stops where it starts), so
       // it needs no bottom padding for it

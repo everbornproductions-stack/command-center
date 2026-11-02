@@ -182,7 +182,8 @@ test("source: the 0.4.31 fold, reveal, prompts and cards changes stay, with no d
   const css = read("web", "mac", "css", "flow.css");
   // 0.4.37 (Simple chat layout): the one-line fold gave way to the short pinned box in web/chat.css
   assert.doesNotMatch(css, /\[data-fold="1"\]/);
-  assert.match(read("web", "chat.css"), /\.sc-chat \.simple-send-row \{/);
+  // 0.5.0 (chat like the Claude app): the box's one bottom row, shared by both chat pages
+  assert.match(read("web", "chat.css"), /#app #view #cb \.cb-row \{/);
   assert.match(css, /@media \(min-width: 1000px\) \{\s*body\[data-style="mac"\] #mac-flow \.mf-paths \{ display: grid;/);
   const app = read("web", "app.js");
   assert.match(app, /\[data-feature='next-actions'\] \.na-bar/);

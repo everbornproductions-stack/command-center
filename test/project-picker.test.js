@@ -30,8 +30,10 @@ test("Simple and Expert chat both offer new and rename on the project picker", (
   const app = fs.readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
   const simple = app.slice(app.indexOf("function renderSimpleChat"), app.indexOf("function renderCommand"));
   const expert = app.slice(app.indexOf("function renderCommand"), app.indexOf("function renderComposerAis"));
+  // 0.5.0 (chat like the Claude app): both pages draw the one shared chat box; the picker is under its More options
+  assert.match(app.slice(app.indexOf("function chatBoxHtml("), app.indexOf("function chatAnswerHtml(")), /projectField\(\)/);
   for (const src of [simple, expert]) {
-    assert.match(src, /projectField\(\)/);
+    assert.match(src, /\$\{chatBoxHtml\((true|false)\)\}/);
     assert.match(src, /wireProjectPicker\(\)/);
   }
   assert.match(app, /id="proj-rename"/);

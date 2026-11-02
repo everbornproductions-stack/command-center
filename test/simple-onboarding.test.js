@@ -15,7 +15,8 @@ test("Simple copy, starters, spend line, and failed-run savings", () => {
   assert.equal(MODE_STEP.title, "Which mode do you want to start in?");
   assert.match(MODE_STEP.simpleLine, /One chat box/);
   assert.match(MODE_STEP.expertLine, /Every menu/);
-  assert.equal(PLACEHOLDER, "Ask anything. Meldmind picks the best AI for you.");
+  // 0.5.0 (chat like the Claude app): the mockup's words; "Meldmind picks the best AI" is the quiet line under the box
+  assert.equal(PLACEHOLDER, "Ask anything, or say what to make");
   assert.deepEqual(STARTERS.map((s) => s.label), ["Reply to a customer", "Fix my email", "Write a post", "Plan my week", "Explain this"]);
   assert.equal(FAILURE.title, "That AI is busy. Nothing was charged.");
   assert.equal(spendLine(0), "Free so far");

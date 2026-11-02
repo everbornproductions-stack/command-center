@@ -87,6 +87,10 @@ test("Talk bar: toggle, strip, navigation, publish needs yes, help card, numbers
     assert.equal(await page.$$eval(".vt-num", (n) => n.length), 0);
 
     // Talk toggle turns the session on and off, persists the choice
+    // 0.5.0 (chat like the Claude app): the Talk bar row leaves the chat page (the box's mic and More options carry Talk),
+    // so the bar's own buttons are used from another page
+    await page.evaluate(() => window.CC.go("settings"));
+    await page.waitForSelector("#vt-talk", { state: "visible", timeout: WAIT });
     await page.click("#vt-talk");
     await page.waitForFunction(() => window.CC.voice.isTalking(), null, { timeout: WAIT });
     assert.equal(await page.getAttribute("#vt-talk", "aria-pressed"), "true");

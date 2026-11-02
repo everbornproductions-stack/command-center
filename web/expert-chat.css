@@ -1,12 +1,9 @@
-/* The Expert Command page as a chat (0.4.38). Chris, 2026-11-02: "In the Command, the marching orders should be more
-   prominent? It doesn't really read as a chat like Claude, GPT and Grok." Approved mockup:
-   meldmind-dogfood/mockups/expert-chat-0438.html.
-   One conversation column (about 820 px) on a flat background: each order a bubble on the right with a tag line of how
-   it ran, each answer a card under it (the steps, the AI on each and the cost so far show inside the card while it
-   works), and the marching orders box pinned at the bottom with the run modes as pills on top of it. Everything here
-   keys on .ex-chat (drawn by app.js renderCommand in Expert), so Simple and every other page are untouched. The
-   unscoped .sc-* pieces of web/chat.css (bubble, card, answer buttons, Make changes fold) are reused through the
-   --sc-* tokens set on .ex-chat below. Light and dark come from the theme; sizes use rem so Large text works. */
+/* The Expert Command page as a chat (0.4.38; 0.5.0: the same chat as Simple). Chris, 2026-11-02: "why not make it
+   look more like you here [the Claude app]?" Approved mockup: meldmind-dogfood/mockups/chat-v2-050.html.
+   Simple and Expert draw the same chat (web/chat.css styles both through the --sc-* tokens). This file keeps Expert's
+   own colours (its blue accent, the Mac look's paper when it is on), maps them onto the --sc-* tokens for .ex-chat, and
+   holds the few Expert-only bits: the flat page next to the Live feed and the order's tag line. Everything keys on
+   .ex-chat (drawn by app.js renderCommand in Expert), so Simple and every other page are untouched. */
 
 /* ---------- tokens: the classic theme's colours, the Mac look's paper when it is on ---------- */
 body[data-ui="expert"] {
@@ -26,6 +23,7 @@ body[data-ui="expert"] {
   --ex-warn-bg: #332c23;
   --ex-warn-line: #6b5420;
   --ex-warn-tx: #fde68a;
+  --ex-shadow: rgba(0, 0, 0, .28);
 }
 html[data-theme="light"] body[data-ui="expert"], body[data-ui="expert"][data-theme="light"] {
   --ex-canvas: #f6f7f9;
@@ -43,6 +41,7 @@ html[data-theme="light"] body[data-ui="expert"], body[data-ui="expert"][data-the
   --ex-warn-bg: #fff7e6;
   --ex-warn-line: #f1d9a6;
   --ex-warn-tx: #5c3d00;
+  --ex-shadow: rgba(16, 24, 40, .08);
 }
 /* the Mac look's light / dark button sets body[data-theme]; its paper tokens (mac/css/inside.css) win */
 html body[data-ui="expert"][data-style="mac"] {
@@ -62,6 +61,7 @@ html body[data-ui="expert"][data-style="mac"] {
   --ex-warn-bg: #fff7e6;
   --ex-warn-line: #f1d9a6;
   --ex-warn-tx: #5c3d00;
+  --ex-shadow: rgba(16, 24, 40, .08);
 }
 html body[data-ui="expert"][data-style="mac"][data-theme="dark"] {
   --ex-sunk: rgba(255, 255, 255, .04);
@@ -71,6 +71,7 @@ html body[data-ui="expert"][data-style="mac"][data-theme="dark"] {
   --ex-warn-bg: #332c23;
   --ex-warn-line: #6b5420;
   --ex-warn-tx: #fde68a;
+  --ex-shadow: rgba(0, 0, 0, .28);
 }
 .ex-chat {
   --sc-canvas: var(--ex-canvas);
@@ -83,152 +84,22 @@ html body[data-ui="expert"][data-style="mac"][data-theme="dark"] {
   --sc-me-line: var(--ex-me-line);
   --sc-acc: var(--ex-acc);
   --sc-on-acc: var(--ex-on-acc);
+  --sc-acc-text: var(--ex-acc-text);
   --sc-soft: var(--ex-soft);
   --sc-warn-bg: var(--ex-warn-bg);
   --sc-warn-line: var(--ex-warn-line);
   --sc-warn-tx: var(--ex-warn-tx);
+  --sc-shadow: var(--ex-shadow);
 }
 
-/* ---------- the page: a flat background, nothing stacked above the chat ---------- */
+/* ---------- the page: a flat background beside the Live feed, nothing stacked above the chat ---------- */
 body[data-ui="expert"] .view-col:has(> #view > .ex-chat) { background: var(--ex-canvas); -webkit-backdrop-filter: none; backdrop-filter: none; }
 body[data-ui="expert"] #app #view.view:has(> .ex-chat) { padding: 0; overflow: hidden; display: flex; flex-direction: column; min-height: 0; background: var(--ex-canvas); }
 /* the Next bar waits behind the answer's Make changes, Finish is in the answer, Project tools show with More options */
 body[data-ui="expert"] .view-col:has(> #view > .ex-chat) > :is(#fpbar, #mmbar) { display: none; }
-body[data-ui="expert"] .view-col:has(> #view > .ex-chat):not(:has(.ex-panel.more-open)) > #projbar { display: none; }
-
-.ex-chat { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; height: 100%; width: 100%; color: var(--ex-text); background: var(--ex-canvas); }
-.ex-chat [hidden] { display: none !important; }
-.ex-chat .sc-col { max-width: 820px; }
-.ex-chat .md { overflow-wrap: anywhere; }
-.ex-chat .md pre { overflow-x: auto; max-width: 100%; }
-
-/* ---------- empty: the page heading (it follows the run mode) and one line ---------- */
-.ex-chat[data-state="run"] .ex-empty, .ex-chat[data-state="empty"] .sc-thread { display: none; }
-.ex-empty { text-align: center; margin-top: 12vh; }
-body[data-ui="expert"] #app #view .ex-chat .ex-hello { margin: 0 0 6px; padding: 0; border: 0; font-size: 1.75rem; font-weight: 700; letter-spacing: -.01em; color: var(--ex-text); text-transform: none; }
-body[data-ui="expert"] #app #view .ex-chat .ex-sub { margin: 0 auto 18px; max-width: 46ch; color: var(--ex-muted); font-size: .9375rem; }
-.ex-empty #ex-home { text-align: left; max-width: 560px; margin: 18px auto 0; }
-.ex-empty #pp-popular:empty, .ex-empty #ex-home:empty { display: none; }
-
-/* ---------- the thread: order bubbles with a tag line, answer cards ---------- */
-.ex-chat .sc-me.ex-me { white-space: normal; }
-.ex-me .ex-tag { font-size: .75rem; color: var(--ex-muted); margin: 0 0 3px; }
-.ex-me .ex-q { white-space: pre-wrap; overflow-wrap: anywhere; }
-.ex-chat .sc-ai { display: block; margin: 0 0 22px; padding: 0; border: 0; background: transparent; box-shadow: none; max-width: none; }
-body[data-ui="expert"] #app #view .ex-chat .sc-who { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 10px; padding: 0; border: 0; font-size: .78125rem; font-weight: 400; color: var(--ex-muted); }
-body[data-ui="expert"] #app #view .ex-chat .sc-who b { color: var(--ex-text); font-weight: 600; font-size: .875rem; }
-.ex-chat .ex-who > :is(.ex-chip, .ex-who-acts)::before { content: none !important; }
-.ex-chat .ex-chip { padding: 1px 8px; border-radius: 999px; background: var(--ex-soft); color: var(--ex-text); font-size: .75rem; }
-.ex-chat .ex-who-acts { margin-left: auto; display: inline-flex; gap: 10px; align-items: center; }
-.ex-chat .ex-link { border: 0; background: transparent; color: var(--ex-acc-text); font: inherit; font-size: .8125rem; font-weight: 600; padding: 4px 6px; border-radius: 6px; cursor: pointer; white-space: nowrap; box-shadow: none; min-height: 0; }
-.ex-chat .ex-link:hover { background: var(--ex-soft); }
-.ex-chat .ex-link:focus-visible, .ex-chat #run-mode button:focus-visible, .ex-chat .ex-select:focus-visible { outline: 2px solid var(--ex-acc); outline-offset: 2px; }
-
-/* ---------- the steps inside the card (#ops-panel; the Live Ops page adopts the same node) ---------- */
-body[data-ui="expert"] #app #view .ex-chat #ops-panel { display: block; margin: 0 0 12px; padding: 4px 12px; border: 1px solid var(--ex-line); border-radius: 10px; background: var(--ex-sunk); box-shadow: none; overflow: visible; max-height: none; }
-.ex-chat #ex-answer:is([data-steps="none"], [data-steps="fold"]) #ops-panel { display: none !important; }
-body[data-ui="expert"] #app #view .ex-chat #ops-panel > h3 { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin: 0; padding: 0; border: 0; font-size: .8125rem; }
-.ex-chat #ops-panel > h3 :is(.ex-lo-title, #ops-head) { display: none; }
-body[data-ui="expert"] #app #view .ex-chat #ops-panel > h3 > button { flex: none; width: auto; margin: 4px 0 0; padding: 2px 8px; min-height: 0; border-radius: 6px; font-size: .75rem; font-weight: 600; }
-.ex-chat #ops-panel :is(#graph, .lv-ops-foot) { display: none !important; }
-.ex-chat #ops-panel #tasks { margin: 0; gap: 0; }
-.ex-chat #ops-panel #tasks > .empty { padding: 8px 0; text-align: left; color: var(--ex-muted); font-size: .875rem; }
-body[data-ui="expert"] #app #view .ex-chat #ops-panel .task { grid-template-columns: 12px minmax(0, 1fr) auto; gap: 4px 10px; padding: 7px 0; border: 0; border-bottom: 1px solid var(--ex-line); border-radius: 0; background: transparent; font-size: .875rem; color: var(--ex-text); }
-body[data-ui="expert"] #app #view .ex-chat #ops-panel .task:last-of-type { border-bottom: 0; }
-.ex-chat #ops-panel .task > :is(.chip, .bar) { display: none; }
-body[data-ui="expert"] #app #view .ex-chat #ops-panel .task .who { font-family: inherit; font-size: .75rem; color: var(--ex-muted); }
-body[data-ui="expert"] #app #view .ex-chat #ops-panel .task .cost { font-size: .75rem; color: var(--ex-muted); }
-.ex-chat #ops-panel .task .st { width: 9px; height: 9px; }
-.ex-chat #ops-panel .task-follow { grid-column: 2 / -1; }
-/* no inner scrollbars in the steps (as in Live ops since 0.4.27); they fold away once the answer is in */
-.ex-chat #ops-panel .task-answer .md, .ex-chat #ops-panel .ans .body { max-height: none; overflow: visible; }
-.ex-chat #ops-panel #council:empty { display: none; }
-.ex-chat #ops-panel #council .cat-h { margin: 8px 0 6px !important; font-size: .75rem; color: var(--ex-muted); }
-.ex-chat #ops-panel .council-cols { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-flow: row; gap: 8px; overflow: visible; margin-bottom: 8px; }
-.ex-chat #ops-panel .ans { min-width: 0; }
-
-/* ---------- the answer buttons and the Make changes fold (chat.css .sc-acts / .sc-changes, with Expert's colours) ---------- */
-/* they wait until the run is done (a mission's answer is put together at the end) */
-.ex-chat[data-busy="1"] #ex-answer > :is(.sc-acts, .sc-changes) { display: none; }
-/* while it works the box shows Stop next to Send; Preview route comes back when it is done */
-.ex-chat[data-busy="1"] .ex-row #preview { display: none; }
-body[data-ui="expert"] #app #view .ex-chat .sc-acts .btn { padding: 6px 13px; min-height: 34px; border-radius: 9px; border: 1px solid var(--ex-line); background: var(--ex-card); color: var(--ex-text); font: inherit; font-weight: 600; font-size: .84375rem; cursor: pointer; box-shadow: none; }
-body[data-ui="expert"] #app #view .ex-chat .sc-acts .btn:hover:not(:disabled) { border-color: var(--ex-acc); }
-body[data-ui="expert"] #app #view .ex-chat .sc-acts .btn.primary { background: var(--ex-acc); border-color: var(--ex-acc); color: var(--ex-on-acc); }
-body[data-ui="expert"] #app #view .ex-chat .sc-acts .btn[aria-expanded="true"] { background: var(--ex-soft); }
-
-/* ---------- the marching orders box, pinned under the column ---------- */
-.ex-chat .orders { flex: none; position: relative; display: block; padding: 8px 24px 10px; margin: 0; overflow: visible; max-height: none; background: var(--ex-canvas); }
-.ex-chat .ex-panel { max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.ex-chat .ex-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; padding: 0; border: 0; }
-.ex-chat .ex-box { display: flex; flex-direction: column; gap: 6px; background: var(--ex-card); border: 1px solid var(--ex-line-2); border-radius: 16px; padding: 10px 12px 10px 14px; box-shadow: 0 4px 18px rgba(0, 0, 0, .06); min-width: 0; }
-.ex-chat .ex-box:focus-within { border-color: var(--ex-acc); }
-/* the run modes as pills (the real #run-mode buttons) */
-body[data-ui="expert"] #app #view .ex-chat #run-mode { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; max-width: 100%; }
-body[data-ui="expert"] #app #view .ex-chat #run-mode button { display: inline-flex; align-items: center; gap: 5px; flex: none; padding: 4px 11px; min-height: 28px; border: 1px solid var(--ex-line); border-radius: 999px; background: var(--ex-card); color: var(--ex-text); font: inherit; font-size: .8125rem; font-weight: 500; line-height: 1.2; box-shadow: none; cursor: pointer; white-space: nowrap; }
-body[data-ui="expert"] #app #view .ex-chat #run-mode button:hover:not(.on) { border-color: var(--ex-acc); }
-body[data-ui="expert"] #app #view .ex-chat #run-mode button.on { background: var(--ex-text); border-color: var(--ex-text); color: var(--ex-card); font-weight: 600; }
-/* the text box */
-body[data-ui="expert"] #app #view .ex-chat #orders { display: block; width: 100%; min-height: 2.6em; height: auto; max-height: calc(6 * 1.5em + 12px); overflow-y: auto; resize: none; margin: 0; padding: 2px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none; color: var(--ex-text); font: inherit; font-size: .9375rem; line-height: 1.5; }
-body[data-ui="expert"] #app #view .ex-chat #orders::placeholder { color: var(--ex-muted); opacity: 1; }
-/* the bottom row: Mic, Priority, When, Free only ... Preview route, Send orders */
-.ex-chat .ex-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.ex-chat .ex-row .ex-gap { flex: 1 1 auto; }
-body[data-ui="expert"] #app #view .ex-chat #vo-mic { padding: 6px 12px; min-height: 32px; border: 1px solid var(--ex-line); border-radius: 9px; background: var(--ex-card); color: var(--ex-text); font: inherit; font-size: .84375rem; font-weight: 600; box-shadow: none; }
-body[data-ui="expert"] #app #view .ex-chat #vo-mic.primary { background: var(--ex-acc); border-color: var(--ex-acc); color: var(--ex-on-acc); }
-body[data-ui="expert"] #app #view .ex-chat .ex-select { width: auto; min-width: 0; max-width: 11rem; height: auto; min-height: 32px; margin: 0; padding: 4px 8px; border: 1px solid var(--ex-line); border-radius: 8px; background-color: var(--ex-card); color: var(--ex-text); font: inherit; font-size: .8125rem; box-shadow: none; }
-.ex-chat .ex-row .cc-freeonly { color: var(--ex-muted); font-size: .8125rem; margin: 0; }
-/* Upload (web/features/orders-input.js moves its button and status here) and the files attached to the order */
-.ex-chat .ex-slot { display: contents; }
-body[data-ui="expert"] #app #view .ex-chat #ob-upload { padding: 6px 12px; min-height: 32px; border: 1px solid var(--ex-line); border-radius: 9px; background: var(--ex-card); color: var(--ex-text); font: inherit; font-size: .84375rem; font-weight: 600; box-shadow: none; }
-.ex-chat #ob-status { color: var(--ex-muted); font-size: .75rem; }
-.ex-chat :is(.ex-chips-slot, #ob-status, #ob-chips, #ob-modify):empty { display: none; }
-body[data-ui="expert"] #app #view .ex-chat #go { min-width: 96px; min-height: 36px; padding: 8px 18px; border: 1px solid var(--ex-acc); border-radius: 10px; background: var(--ex-acc); color: var(--ex-on-acc); font: inherit; font-size: .875rem; font-weight: 700; box-shadow: none; }
-body[data-ui="expert"] #app #view .ex-chat #go:disabled { opacity: .6; }
-body[data-ui="expert"] #app #view .ex-chat .ex-row :is(#stop-chat, #stop-research) { min-height: 32px; padding: 5px 12px; border-radius: 9px; }
-/* the help line under the box: the SSN masking note, Ctrl+Enter, Prompts, More options */
-.ex-chat .ex-help { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 0 6px; color: var(--ex-muted); font-size: .75rem; min-width: 0; }
-body[data-ui="expert"] #app #view .ex-chat .ex-help .hint { margin: 0; padding: 0; color: inherit; font-size: inherit; max-width: none; }
-.ex-chat .ex-help .ex-link { font-size: .75rem; padding: 2px 4px; }
-.ex-chat .ex-help #ex-prompts-slot, .ex-chat .ex-help .pd-wrap { display: contents; }
-body[data-ui="expert"] #app #view .ex-chat .ex-help .pd-btn { border: 0; background: transparent; color: var(--ex-acc-text); font: inherit; font-size: .75rem; font-weight: 600; padding: 2px 4px; min-height: 0; box-shadow: none; cursor: pointer; }
-.ex-chat .ex-help .pd-panel { flex: 1 0 100%; order: 20; max-height: 40vh; text-align: left; }
-.ex-chat .ex-help #cls-hint { margin-left: auto; }
-.ex-chat .ex-help :is(#cls-hint, #cc-auto-line):empty { display: none; }
-/* Preview route's answer, just above the box */
-body[data-ui="expert"] #app #view .ex-chat .ex-route { margin: 0; max-height: 30vh; overflow: auto; }
-/* More options: the AI-to-AI check, the cap, the project, Get free AIs, the connected AIs and every command tool */
-.ex-chat .ex-more { display: none; gap: 8px; max-height: 42vh; overflow-y: auto; padding: 10px 12px; border: 1px solid var(--ex-line); border-radius: 12px; background: var(--ex-card); min-width: 0; }
-.ex-chat .ex-panel.more-open .ex-more { display: grid; }
-.ex-chat .ex-more-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
-.ex-chat .ex-more #cmd-extras > :empty { display: none; }
-/* 0.4.39 (Team page merge): "Chatting with <agent>" sits above the closed More options, only while an agent is picked */
-.ex-chat #ex-chatting:not(:has(.tm-chatting)) { display: none; }
-
-/* ---------- phones: the same column, the box above the Talk bar ---------- */
-@media (max-width: 760px) {
-  .ex-chat .sc-scroll { padding: 16px 16px 6px; }
-  .ex-chat .orders { padding: 6px 12px 8px; }
-  .ex-empty { margin-top: 6vh; }
-  body[data-ui="expert"] #app #view .ex-chat .ex-hello { font-size: 1.5rem; }
-  .ex-chat .sc-me { max-width: 86%; }
-  .ex-chat .sc-card { padding: 14px; }
-  .ex-chat .ex-box { padding: 8px 10px; gap: 5px; }
-  /* the six pills stay one row that swipes sideways */
-  body[data-ui="expert"] #app #view .ex-chat #run-mode { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -4px; }
-  body[data-ui="expert"] #app #view .ex-chat #run-mode::-webkit-scrollbar { display: none; }
-  /* two rows: Mic, Upload, Priority, When; then Free only, Preview route, Send orders */
-  .ex-chat .ex-row { gap: 6px; }
-  .ex-chat .ex-row .ex-gap { display: none; }
-  body[data-ui="expert"] #app #view .ex-chat :is(#vo-mic, #ob-upload) { padding: 5px 8px; font-size: .8125rem; }
-  body[data-ui="expert"] #app #view .ex-chat #cost-mode { width: 5.9rem; padding-left: 6px; padding-right: 2px; }
-  body[data-ui="expert"] #app #view .ex-chat #when-mode { width: 4.6rem; padding-left: 6px; padding-right: 2px; }
-  .ex-chat .ex-row #preview { margin-left: auto; padding: 4px; }
-  body[data-ui="expert"] #app #view .ex-chat #go { min-width: 0; padding: 8px 14px; }
-  .ex-chat .ex-help #send-hint { display: none; }
-  .ex-chat .ex-who-acts { margin-left: 0; }
-}
-@media (prefers-reduced-motion: reduce) { .ex-chat * { scroll-behavior: auto !important; } }
+body[data-ui="expert"]:not(.mm-more) .view-col:has(> #view > .ex-chat) > #projbar { display: none; }
+#app #view .ex-chat .ex-link { border: 0; background: transparent; color: var(--ex-acc-text); font: inherit; font-size: .8125rem; font-weight: 600; padding: 4px 6px; border-radius: 6px; cursor: pointer; white-space: nowrap; box-shadow: none; min-height: 0; }
+#app #view .ex-chat .ex-link:hover { background: var(--ex-soft); }
 
 /* the classic look keeps its toasts low on the right, which is on the chat box here: they go to the top instead
    (as on the Simple Chat page) */

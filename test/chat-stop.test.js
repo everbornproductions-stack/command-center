@@ -31,7 +31,9 @@ test("Stop ends a running chat and keeps the partial answer", { timeout: 120000 
 
 test("both chat screens have a Stop button wired to the abort route", () => {
   const app = read("web", "app.js");
-  assert.equal((app.match(/id="stop-chat"/g) || []).length, 2);
+  // 0.5.0 (chat like the Claude app): both chat screens draw the one shared box (chatBoxHtml), so one Stop in the source
+  assert.equal((app.match(/id="stop-chat"/g) || []).length, 1);
+  assert.equal((app.match(/\$\{chatBoxHtml\((true|false)\)\}/g) || []).length, 2);
   assert.match(app, /\/mission\/\$\{encodeURIComponent\(id\)\}\/abort/);
   assert.match(app, /addEventListener\("click", stopChat\)/);
 });

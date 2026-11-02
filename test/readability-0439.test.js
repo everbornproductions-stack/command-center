@@ -166,6 +166,12 @@ async function openChat(page, mode) {
   }
 }
 
+// 0.5.0 (chat like the Claude app): the Expert run modes live in the chat box's mode menu; open it, then pick
+async function pickRun(page, m) {
+  if (await page.evaluate(() => document.getElementById("cb-menu")?.hidden !== false)) await page.click("#sc-team");
+  await page.click(`#run-mode [data-m='${m}']`);
+}
+
 // Team: two tasks for the social media writer, one left waiting for review.
 async function seedTeam(api) {
   const a = await api("/team/assign", { body: { agentId: "emp-social-content", text: "Write 5 posts for Valentine's week for my bakery" } });
@@ -239,14 +245,14 @@ async function sweepCombo(mode, theme) {
       }
       // The readers box (Council, Expert run modes; Simple uses More options: how to run it)
       if (mode === "expert") {
-        await page.click("#run-mode [data-m='council']");
+        await pickRun(page, "council");
         await page.fill("#orders", "Should I open a second bakery or grow the first one?");
         await page.click("#go");
         await page.waitForSelector("#cc-readers-go", { timeout: WAIT });
         await sw.measure(page, "readers box", { screens: 1 });
         await page.click("#cc-readers-cancel");
         await page.waitForFunction(() => !document.getElementById("cc-readers"), null, { timeout: WAIT });
-        await page.click("#run-mode [data-m='auto']").catch(() => {});
+        await pickRun(page, "auto").catch(() => {});
         await page.fill("#orders", "");
       }
 
@@ -313,13 +319,13 @@ async function sweepFree(theme) {
       await sw.measure(page, "Upgrade box", { screens: 3 });
       await page.evaluate(() => document.getElementById("cc-upgrade")?.remove());
       await openChat(page, "expert");
-      await page.click("#run-mode [data-m='mission']");
+      await pickRun(page, "mission");
       await page.fill("#orders", "Plan my bakery's spring launch");
       await page.click("#go");
       await page.waitForSelector("#cc-upgrade .card", { state: "visible", timeout: WAIT });
       await sw.measure(page, "Pro box (Mission on Free)", { screens: 2 });
       await page.evaluate(() => document.getElementById("cc-upgrade")?.remove());
-      await page.click("#run-mode [data-m='auto']").catch(() => {});
+      await pickRun(page, "auto").catch(() => {});
     }
     assert.deepEqual(t.errors, [], "no page errors");
   } finally { await t.close(); }

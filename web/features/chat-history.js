@@ -42,7 +42,8 @@ async function renderCommand(el) {
   document.getElementById("hh-picks")?.remove();
   el.id = "hh-picks";
   const orders = document.querySelector("#orders");
-  if (orders) (document.getElementById("ob-row") || orders).insertAdjacentElement("afterend", el);
+  // 0.5.0 (Chris: chat like the Claude app): in the shared chat box the quick picks stay with the other tools under More options
+  if (orders && !orders.closest(".cb-box")) (document.getElementById("ob-row") || orders).insertAdjacentElement("afterend", el);
   paintPicks(el, await loadPicks());
 }
 

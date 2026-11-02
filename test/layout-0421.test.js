@@ -36,7 +36,7 @@ test("source: files exist, no dashes in user text, registry and html know the la
   assert.match(js, /What do you want to make\?|CHIPS/);
   assert.match(read("web", "app.js"), /What do you want to make\?/);
   assert.match(css, /@media \(max-width: 760px\)/, "phones keep their own rules");
-  for (const id of ["cc-side", "side-new", "side-projects", "side-mindmedia", "side-recent", "side-profile", "side-menu", "sc-live", "sc-team", "sc-chips"]) assert.ok((js + read("web", "app.js")).includes(id), id);
+  for (const id of ["cc-side", "side-new", "side-projects", "side-mindmedia", "side-recent", "side-profile", "side-menu", "sc-team", "sc-chips", "cb-work"]) assert.ok((js + read("web", "app.js")).includes(id), id);
 });
 
 // ---------- 1. the first screen ----------
@@ -72,19 +72,21 @@ test("1. first screen: greeting, one big box, four chips, Auto team line, filled
     assert.equal(r.hello, "What do you want to make?");
     assert.ok(r.boxH >= 90 && r.boxW >= 600, `one big prompt box: ${r.boxW}x${r.boxH}`);
     assert.deepEqual(r.chips, ["Image", "Video", "Website", "Campaign"]);
-    assert.match(r.team, /^Auto team/);
+    assert.match(r.team, /Auto team/); // 0.5.0: the chip carries a small mark and a caret
     assert.ok(r.ideas >= 3 && r.ideas <= 4, `${r.ideas} example ideas`);
     assert.ok(r.spanY >= 0.6, `the first screen is filled top to bottom (${r.spanY.toFixed(2)})`);
     assert.ok(r.spanX >= 0.8, `and uses the width (${r.spanX.toFixed(2)})`);
     assert.doesNotMatch(r.text, /Council|Mission|Second opinion|Live Ops/i, "no mode choice or Live Ops on the first screen");
     for (const [sel, on] of r.gone) assert.equal(on, false, `${sel} is not on the first screen`);
     // the clutter is grouped, not removed: Project tools row, the hints, Prompts and the starters are behind the Auto team control
-    const hidden = ["#projbar", "#send-hint", "#mask-line", ".pd-btn", "#cc-starters-more", "#proj"];
+    // 0.5.0 (chat like the Claude app): they are under the box's "..." (More options); the one quiet line under the box
+    // ("Meldmind picks the best AI. Free AIs go first. Ctrl+Enter sends.") always shows
+    const hidden = ["#projbar", "#mask-line", ".pd-btn", "#cc-starters-more", "#proj"];
     for (const s of hidden) assert.equal(await vis(t.page, s), false, `${s} starts hidden`);
-    await t.page.click("#sc-team");
-    for (const s of ["#send-hint", "#cc-starters-more", "#proj"]) assert.equal(await vis(t.page, s), true, `${s} is behind Auto team`);
-    await t.page.click("#sc-team");
-    assert.equal(await vis(t.page, "#send-hint"), false);
+    await t.page.click("#cb-more");
+    for (const s of ["#cc-starters-more", "#proj", "#mask-line"]) assert.equal(await vis(t.page, s), true, `${s} is behind More options`);
+    await t.page.click("#cb-more");
+    assert.equal(await vis(t.page, "#proj"), false);
     // each chip fills a starter request and puts the cursor in the box; nothing is sent
     const want = { image: /^Make an image of /, video: /^Make a 5 second video of /, website: /^Build a website for /, campaign: /^Plan a marketing campaign for / };
     for (const k of Object.keys(want)) {
@@ -102,7 +104,9 @@ test("1b. the Auto team line carries a real estimate when an AI is connected", {
   const t = await bootPage({ mode: "simple", width: 1280, height: 800 });
   try {
     await demo(t);
-    await t.page.waitForFunction(() => /^Auto team, about \$\d+\.\d\d|^Auto team, about \$0\.01 or less/.test(document.querySelector("#sc-team")?.textContent.trim() || ""), null, { timeout: WAIT });
+    // 0.5.0: the chip says just the mode; the estimate is the first line of its menu (#cb-est)
+    await t.page.click("#sc-team");
+    await t.page.waitForFunction(() => /^Auto team, about \$\d+\.\d\d|^Auto team, about \$0\.01 or less/.test(document.querySelector("#cb-est")?.textContent.trim() || ""), null, { timeout: WAIT });
   } finally { await t.close(); }
 });
 
@@ -111,11 +115,12 @@ test("2/3/5. 'a woman on a beach': the box drops to the bottom, the image is in 
   const t = await bootPage({ mode: "simple", width: 1920, height: 1080 });
   try {
     await demo(t);
-    const before = await t.page.evaluate(() => { const b = document.querySelector(".sc-chat .sc-box").getBoundingClientRect(); const v = document.querySelector("#view").getBoundingClientRect(); return { gap: v.bottom - b.bottom, state: document.querySelector(".sc-chat").dataset.state, panel: document.body.classList.contains("mm-panel-open") }; });
+    const before = await t.page.evaluate(() => { const b = document.querySelector(".sc-chat .sc-box").getBoundingClientRect(); const v = document.querySelector("#view").getBoundingClientRect(); const mid = (b.top + b.height / 2 - v.top) / v.height; return { gap: v.bottom - b.bottom, mid, state: document.querySelector(".sc-chat").dataset.state, panel: document.body.classList.contains("mm-panel-open") }; });
     assert.equal(before.state, "empty");
     assert.equal(before.panel, false, "nothing to show, so no panel yet");
-    // 0.4.37 (Simple chat layout): the Chat page keeps the short box pinned at the bottom from the start (approved mockup)
-    assert.ok(before.gap < 40, `the box is pinned at the bottom of the Chat page (gap ${before.gap})`);
+    // 0.5.0 (chat like the Claude app): a new chat has the box in the middle of the page; it is pinned at the bottom once
+    // the chat is going (checked below)
+    assert.ok(before.mid > 1 / 3 && before.mid < 2 / 3, `the box is mid page on a new chat (${before.mid.toFixed(2)})`);
     await send(t.page, "a woman on a beach");
     await newestImage(t.page);
     await t.page.waitForTimeout(1200);
@@ -193,7 +198,7 @@ test("4. slim left sidebar: Chat, Make something, Projects, MindMedia, Recent ch
     const open = await t.page.evaluate(() => { const s = document.querySelector("#cc-side").getBoundingClientRect(); const texts = [...document.querySelectorAll("#cc-side .side-nav .side-item span")].map((b) => b.textContent.trim()); return { w: s.width, texts, recent: !!document.querySelector("#side-recent"), tabsHidden: getComputedStyle(document.querySelector("#tabs")).display === "none", tabButtons: document.querySelectorAll("#tabs button[data-view]").length, rail: (() => { const r = document.querySelector("#cc-rail"); return !r || r.getBoundingClientRect().width === 0; })() }; });
     assert.ok(open.w >= 200, `expanded at 1280 (${open.w})`);
     // 0.4.37 (Simple chat layout): Chat, Make something, Projects, MindMedia (New became Chat plus the New chat button)
-    assert.deepEqual(open.texts.slice(0, 4), ["Chat", "Make something", "Projects", "MindMedia"]);
+    assert.deepEqual(open.texts.slice(0, 5), ["Chat", "Make something", "Team", "Projects", "MindMedia"]); // 0.5.0: Team joins the sidebar
     assert.ok(open.recent);
     assert.equal(open.tabsHidden, true, "the top menu is tucked away in Simple");
     assert.ok(open.tabButtons >= 5, "but its buttons are still in the page (restyled, not deleted)");
@@ -285,11 +290,14 @@ test("6. Live Ops: one status line with See live; the full map is an overlay (Si
       S.activeByProvider = { "demo-nova": 1, "demo-atlas": 1, "demo-sage": 1 };
       window.CC.render();
     });
-    await t.page.waitForFunction(() => { const e = document.querySelector("#sc-live"); return e && !e.hidden && /\d AIs? working, step \d of 5/.test(e.textContent); }, null, { timeout: WAIT });
+    // 0.5.0 (chat like the Claude app): one compact working line in the answer; it opens the steps, and Open live view
+    // inside them opens the full map as an overlay
+    await t.page.waitForFunction(() => { const e = document.querySelector("#cb-work"); return e && !e.hidden && /^Mission · .*step 2 of 5/.test(e.textContent.trim()); }, null, { timeout: WAIT });
     assert.equal(await vis(t.page, "#graph"), false, "no map on screen by default");
-    assert.equal(await vis(t.page, "#sc-live-open"), true);
-    assert.match(await t.page.textContent("#sc-live-open"), /See live/);
-    await t.page.click("#sc-live-open");
+    await t.page.click("#ex-steps-btn");
+    assert.equal(await vis(t.page, "#ex-live"), true);
+    assert.match(await t.page.textContent("#ex-live"), /Open live view/);
+    await t.page.click("#ex-live");
     await t.page.waitForSelector("#cc-live-over #lo-graph svg", { timeout: WAIT });
     assert.match(await t.page.textContent("#lo-steps"), /Write/);
     await t.page.keyboard.press("Escape");
@@ -308,6 +316,7 @@ test("6. Live Ops: one status line with See live; the full map is an overlay (Si
     });
     // 0.4.38 (Chris: Expert Command as a chat): in Expert the steps show inside the answer card (no slim line over
     // them, no map on screen) and the card's Open live view link opens the Live view page
+    await e.page.click("#ex-steps-btn"); // 0.5.0: the working line opens the steps
     await e.page.waitForFunction(() => [...document.querySelectorAll("#ex-answer .sc-card #tasks .task")].some((x) => /Plan/.test(x.textContent) && x.getBoundingClientRect().height > 0), null, { timeout: WAIT });
     assert.equal(await e.page.$("#cc-ops-slim"), null, "no slim line over the steps");
     assert.equal(await vis(e.page, "#graph"), false, "no map on screen in the chat either");
@@ -325,8 +334,10 @@ test("7. the AI icons light up while an AI works and go dark when it is done", {
     const id = await t.page.evaluate(() => document.querySelector("#cc-composer-ais .composer-ai[data-p]")?.dataset.p || "");
     assert.ok(id, "a connected AI is on the bar");
     await t.page.evaluate((pid) => { const S = window.CC.S; S.live = { id: "r-1", kind: "single", status: "running", agents: {}, tasks: {}, mission: null, council: null, deliverable: "", primary: null }; S.activeByProvider = { [pid]: 1 }; window.CC.render(); }, id);
-    await t.page.waitForSelector(`#cc-composer-ais .composer-ai.working[data-p="${id}"]`, { timeout: WAIT });
-    assert.equal(await vis(t.page, `#cc-composer-ais .composer-ai[data-p="${id}"]`), true, "the lit icon is on screen while working");
+    await t.page.waitForSelector(`#cc-composer-ais .composer-ai.working[data-p="${id}"]`, { state: "attached", timeout: WAIT }); // 0.5.0: the icons sit under More options
+    // 0.5.0 (chat like the Claude app): the AI icons are under the box's More options; while it works the answer's
+    // working line is on screen
+    assert.equal(await vis(t.page, "#cb-work"), true, "the working line is on screen while working");
     await t.page.evaluate(() => { const S = window.CC.S; S.live.status = "done"; S.activeByProvider = {}; window.CC.render(); });
     await t.page.waitForFunction(() => !document.querySelector("#cc-composer-ais .composer-ai.working"), null, { timeout: WAIT });
     assert.equal(await t.page.evaluate((pid) => document.querySelector(`#cc-composer-ais .composer-ai[data-p="${pid}"]`)?.dataset.working, id), "0", "dark again when done");

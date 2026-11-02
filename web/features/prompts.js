@@ -211,6 +211,8 @@ function fillOrders(text) {
     orders.dispatchEvent(new Event("input", { bubbles: true }));
   }
   window.CC.S.lastOrders = value;
+  // 0.5.0 (panel 0438 item 3): a prompt from Prompts starts a new chat when it is sent, not a reply in the open one
+  window.CC.S.scFresh = true;
 }
 
 // 0.4.31 (panel 0428 item 6): in Simple, going to Command showed the 3-step page with no chat box, so "In the orders
