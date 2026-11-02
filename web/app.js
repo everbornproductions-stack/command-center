@@ -172,15 +172,94 @@ async function apiBlobUrl(path) {
   return URL.createObjectURL(await r.blob());
 }
 function downloadBlob(url, filename) { const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
-function showUpgrade(message) {
+// 0.4.38 (Chris: upgrade in the app): the Pro box is where people buy. It shows the same buy buttons as Settings >
+// Your plan (plan-compare.js upgradeButtonsHtml, with the plans and pay links the server already returns), the
+// paid-watch waiting line once a pay link opens, and a small link to the license key box. A plan with no published
+// link keeps its plain "not published yet" toast (chooseProPlan). Nothing here charges, prices or calls Stripe.
+const UPGRADE_PAY_LINE = "Pay on the secure Stripe page. Meldmind unlocks by itself when it sees the payment.";
+const UPGRADE_SPLIT = {
+  free: [["monthly", "yearly"], ["extremeMonthly", "extremeYearly", "developerMonthly", "developerYearly", "lifetime"]],
+  pro: [["extremeMonthly", "extremeYearly"], ["developerMonthly", "developerYearly"]],
+  extreme: [["developerMonthly", "developerYearly"], []],
+  studio: [["developerMonthly", "developerYearly"], []],
+};
+function licenseTier() { return String(S.license?.tier || "free").toLowerCase(); }
+// The plain Upgrade entry (title bar chip, classic top bar chip) shows only on Free, once the plan is known.
+function upgradeOffered() { return !!S.license && licenseTier() === "free"; }
+function pickPlans(keys) { const p = S.proPlans || {}; const out = {}; for (const k of keys) if (p[k]) out[k] = p[k]; return out; }
+function upgradeButtonSets() {
+  const tier = licenseTier();
+  const split = UPGRADE_SPLIT[tier];
+  if (!split || !S.proPlans) return { main: "", more: "" };
+  return {
+    main: upgradeButtonsHtml({ plans: pickPlans(split[0]), tier, primary: true }),
+    more: upgradeButtonsHtml({ plans: pickPlans(split[1]), tier, primary: false }),
+  };
+}
+function closeUpgrade() { document.getElementById("cc-upgrade")?.remove(); }
+function showUpgrade(message, opts = {}) {
   if (document.getElementById("cc-upgrade")) return;
+  const { main, more } = upgradeButtonSets();
+  const title = opts.title || "That is a Pro feature";
+  // The server's gate line ends "Add a license key in Settings." The buy buttons now sit right here, so that tail is dropped.
+  const said = String(message || "").replace(/\s*Add a license key in Settings\.?\s*$/i, "").trim();
+  const words = said || (opts.title ? "Pro unlocks Mission mode, unlimited councils and projects, and the off-peak scheduler." : "This is part of Pro.");
+  const compare = planCompareHtml(S.proPlans?.compare) || compareTable(esc);
+  const waiting = PAID_WAIT[S.paidWait] || "";
+  const buy = main
+    ? `<div class="cc-up-buy" data-up-main>${main}</div>
+      ${more ? `<button type="button" class="cc-up-link" id="cc-upgrade-all" aria-expanded="false" aria-controls="cc-upgrade-more">See all plans</button><div class="cc-up-buy cc-up-more" id="cc-upgrade-more" hidden>${more}</div>` : ""}
+      <p class="dim small cc-up-pay">${esc(UPGRADE_PAY_LINE)}</p>`
+    : `<p class="dim small cc-up-pay">The plans are under Settings > Your plan.</p><div class="cc-up-buy"><button class="btn primary" type="button" id="cc-upgrade-go">Open Your plan</button></div>`;
   const box = document.createElement("div");
   box.id = "cc-upgrade";
-  box.innerHTML = `<div class="card" role="dialog" aria-labelledby="cc-upgrade-title"><div class="cc-up-head"><h4 id="cc-upgrade-title">That is a Pro feature</h4><button class="btn sm" type="button" id="cc-upgrade-x" aria-label="Close this box">Close</button></div><p>${esc(message || "This is part of Pro.")}</p><div style="margin-top:12px">${compareTable(esc)}</div><p class="dim small" style="margin-top:8px">Upgrade means adding a license key in Settings.</p><div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" type="button" id="cc-upgrade-go">Open Settings</button><button class="btn" type="button" id="cc-upgrade-close">Not now</button></div></div>`;
+  box.innerHTML = `<div class="card" role="dialog" aria-modal="true" aria-labelledby="cc-upgrade-title"><div class="cc-up-head"><h4 id="cc-upgrade-title">${esc(title)}</h4><button class="btn sm" type="button" id="cc-upgrade-x" aria-label="Close this box">Close</button></div><p>${esc(words)}</p>
+    ${buy}
+    <div class="small cc-up-wait" data-paid-wait aria-live="polite" role="status" ${waiting ? "" : "hidden"}>${esc(waiting)}</div>
+    <div class="cc-up-foot"><button class="btn sm" type="button" data-paid-now="1" ${waiting ? "" : "hidden"}>I paid, check now</button><button type="button" class="cc-up-link" id="cc-upgrade-key">Have a license key?</button><span class="cc-up-gap"></span><button class="btn sm" type="button" id="cc-upgrade-close">Not now</button></div>
+    <div class="cc-up-compare">${compare}</div>
+    ${main && more ? `<div class="cc-up-founder">${founderSpotsHtml(S.proPlans)}</div>` : ""}</div>`;
   document.body.appendChild(box);
-  box.querySelector("#cc-upgrade-close").addEventListener("click", () => box.remove());
-  box.querySelector("#cc-upgrade-x").addEventListener("click", () => box.remove());
-  box.querySelector("#cc-upgrade-go").addEventListener("click", () => { box.remove(); S.view = "settings"; render(); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
+  bindProPlans(box);
+  // Pay links open through openPayLink (https only; the desktop app hands window.open to the default browser), and
+  // bindProPlans has already started the paid-watch, which paints the waiting line and shows I paid, check now.
+  box.querySelectorAll("[data-upgrade-link]").forEach((a) => a.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    if (!openPayLink(a.getAttribute("href"))) toast("That checkout link could not open. Nothing was charged.", true);
+  }));
+  box.querySelector("#cc-upgrade-all")?.addEventListener("click", (ev) => {
+    const list = box.querySelector("#cc-upgrade-more");
+    list.hidden = !list.hidden;
+    ev.currentTarget.setAttribute("aria-expanded", String(!list.hidden));
+    ev.currentTarget.textContent = list.hidden ? "See all plans" : "Fewer plans";
+  });
+  // Settings can draw a moment later (and once more after it loads), so the key box is focused once it is there and
+  // checked again shortly after.
+  const focusKey = (tries = 0, settled = 0) => {
+    const k = document.getElementById("lic-key");
+    if (k && k.getClientRects().length && document.activeElement !== k) { k.scrollIntoView({ block: "center" }); k.focus(); }
+    const ok = !!k && document.activeElement === k;
+    if (tries < 50 && (!ok || settled < 5)) setTimeout(() => focusKey(tries + 1, ok ? settled + 1 : 0), 100);
+  };
+  const toKey = () => { closeUpgrade(); S.connectWizard = false; S.openProject = null; openSettingsMore("#settings-plan"); setTimeout(focusKey, 50); };
+  box.querySelector("#cc-upgrade-key").addEventListener("click", toKey);
+  box.querySelector("#cc-upgrade-go")?.addEventListener("click", toKey);
+  box.querySelector("#cc-upgrade-close").addEventListener("click", closeUpgrade);
+  box.querySelector("#cc-upgrade-x").addEventListener("click", closeUpgrade);
+  box.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); closeUpgrade(); } });
+  box.addEventListener("click", (e) => { if (e.target === box) closeUpgrade(); });
+  (box.querySelector("[data-up-main] .btn") || box.querySelector("#cc-upgrade-x"))?.focus({ preventScroll: true });
+}
+// The Upgrade chip, Simple Settings' Upgrade button and the growth box's Upgrade to Pro all open the box. A plan with
+// nothing left to buy (Developer, owner) goes to Settings > Your plan as before.
+function openUpgrade() {
+  if (!UPGRADE_SPLIT[licenseTier()] || !S.proPlans) { openSettingsMore("#settings-plan"); return; }
+  showUpgrade("", { title: licenseTier() === "free" ? "Upgrade to a paid plan" : "Upgrade your plan" });
+}
+// Classic top bar chip (index.html #cc-upgrade-chip). The Mac title bar paints its own copy (mac/parts/shell.js).
+function paintUpgradeChip() {
+  const chip = document.getElementById("cc-upgrade-chip");
+  if (chip && chip.hidden === upgradeOffered()) chip.hidden = !upgradeOffered();
 }
 function toastNeedKey() {
   noteToast();
@@ -1096,6 +1175,7 @@ function pageFailed(view) {
 }
 function render() {
   if (S.mode === "hosted" && isDesktopOnly(S.view)) S.view = "command";
+  paintUpgradeChip(); // 0.4.38 (Chris: upgrade in the app): the classic top bar Upgrade chip, Free only
   document.body.classList.toggle("light-mode", !!S.settings?.lightMode);
   const cc = window.CC;
   const light = !!S.settings?.lightMode;
@@ -3102,7 +3182,12 @@ const PAID_WAIT = {
   timeout: "Your purchase has not shown up yet. Use the same email you signed in with, then press I paid, check now. Or type your license key under Settings > Your plan. Your plan stays Free until one of these works.",
   unlocked: "",
 };
-function paintPaidWait() { $$("[data-paid-wait]").forEach((n) => { n.textContent = PAID_WAIT[S.paidWait] || ""; n.hidden = !PAID_WAIT[S.paidWait]; }); }
+function paintPaidWait() {
+  $$("[data-paid-wait]").forEach((n) => { n.textContent = PAID_WAIT[S.paidWait] || ""; n.hidden = !PAID_WAIT[S.paidWait]; });
+  // 0.4.38 (Chris: upgrade in the app): the Pro box shows I paid, check now once a pay link has opened, and closes on unlock.
+  $$("#cc-upgrade [data-paid-now]").forEach((b) => { b.hidden = !PAID_WAIT[S.paidWait]; });
+  if (S.paidWait === "unlocked") closeUpgrade();
+}
 const paidWatch = createPaidWatch({
   onState: (st) => { S.paidWait = st; paintPaidWait(); },
   current: () => S.license,
@@ -3290,7 +3375,7 @@ function renderSimpleBasics(v) {
   // (Expert has the helpers panel, with the same Install and Sign in buttons)
   { const fs = $("#basics-free-setup"); if (fs) window.CC.freeSetup?.mount?.(fs, { title: "Free AIs on this PC" }); }
   $("#basics-ai-go").addEventListener("click", () => openSettingsMore("#settings-keys"));
-  $("#basics-upgrade").addEventListener("click", () => openSettingsMore("#settings-plan"));
+  $("#basics-upgrade").addEventListener("click", () => openUpgrade()); // 0.4.38 (Chris: upgrade in the app): the buy box, not only Settings
   $("#basics-more").addEventListener("click", () => openSettingsMore(""));
   renderFeature("settings", "a11y", "#basics-reading-body");
   renderFeature("settings", "memories", "#basics-memories-body");
@@ -3761,6 +3846,7 @@ watchNavLayout((layout) => {
   ensureFeatureTabs();
 });
 $("#feed-clear").addEventListener("click", () => { S.feed = []; renderFeed(); });
+$("#cc-upgrade-chip")?.addEventListener("click", () => openUpgrade()); // 0.4.38 (Chris: upgrade in the app)
 // 0.4.36 (Chris: "you should be able to make the live feed area minimize to the side if you don't want to look at the feed
 // the entire time"): Hide tucks the feed into a thin tab with a count of new events; the tab brings it back. Remembered.
 const FEED_MIN_KEY = "cc.feed.min";
@@ -3939,7 +4025,7 @@ installClickTracking(document);
 installTips(document); // 0.4.31: hover or Tab to a button and a small box says what it does
 // 0.4.21: a run on screen is re-read when the window comes back and every few seconds, so Live ops is never stale.
 liveSync({ getLive: () => S.live, fetchRun: (id) => api(`/missions/${encodeURIComponent(id)}`), apply: (run) => { if (run.kind === "council") onCouncil(run); else onMission(run); } });
-window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, projectChanged: () => projectSettled(), go: (view) => { S.view = view; S.openProject = null; render(); }, updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
+window.CC = { renderBudget: () => renderBudget(), ask: askText, confirm: askConfirm, syncProjects, openProjectById: (id) => { S.view = "projects"; S.openProject = id; render(); }, withBusy, get S() { return S; }, get state() { return S; }, get graph() { return graph; }, renderOps: () => renderOps(), openRun, api, apiBlobUrl, downloadBlob, toast, md, esc, money, fmtN, ago, favicon, P, pname, pcolor, $, $$, render, refresh, renderOutput, confirmRisky, renderSubscriptionsCore: (v) => renderSubscriptions(v), uiMode: () => S.uiMode || "simple", askingMode: () => !!S.askMode, navBack: () => goBackView(), openProviderSetup: (id) => openProviderSetup(id), flag: (name) => name === "flag_navstate" ? isNavStateEnabled(S) : Boolean(S.flags?.[name] ?? S.settings?.[name]), continueProject, setWorkingProject, syncProjectBar, projectChanged: () => projectSettled(), go: (view) => { S.view = view; S.openProject = null; render(); }, showUpgrade: (message, opts) => showUpgrade(message, opts), openUpgrade: () => openUpgrade(), upgradeOffered: () => upgradeOffered(), updateBoxHtml: () => updateBoxHtml(), renderUpdateBox: () => renderUpdateBox(), openSettings: (focus) => { S.connectWizard = false; S.openProject = null; S.navMenu = groupFor("settings"); openSettingsMore(focus); }, restartFullSetup: () => restartFullSetup(), guideBuiltins: ["hub", "council", "mission", "phone", "whats-new"], passwordTipHtml: () => tipHtml(localStorage) };
 if (TEAM_JOIN) { let tries = 0; const t = setInterval(() => { tries++; if (S?.view && S.view !== "setup" && !S.connectWizard && document.querySelector("#view")) { clearInterval(t); window.CC.go("together"); } else if (tries > 40) clearInterval(t); }, 500); }
 installPasswordTip(document, localStorage);
 // featuresReady: set once the feature modules are in and the screen was drawn again with them (tests wait on it before typing)

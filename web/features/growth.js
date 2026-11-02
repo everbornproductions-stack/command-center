@@ -16,7 +16,7 @@ function upgradeBox(g) {
   if (!g.upgrade?.show) return "";
   const table = planCompareHtml(g.upgrade.compare);
   const spots = g.upgrade.spotsLine ? `<div class="dim small" data-founder-spots>${esc(g.upgrade.spotsLine)}</div>` : "";
-  return `<div class="route upgrade-dialog" role="region" aria-label="Upgrade" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div>${table}${spots}<div class="dim small" style="margin-top:4px">Upgrading means adding a license key in Settings. Nothing is charged from here.</div></div>`;
+  return `<div class="route upgrade-dialog" role="region" aria-label="Upgrade" style="margin-top:8px;border-left:3px solid var(--amber)"><div class="row small" style="gap:8px"><span style="flex:1">${esc(g.upgrade.text)}</span><button class="btn sm primary" data-g-upgrade>Upgrade to Pro</button></div>${table}${spots}<div class="dim small" style="margin-top:4px">Upgrade to Pro shows the plans. Pay on the secure payment page and Meldmind unlocks by itself when it sees the payment.</div></div>`;
 }
 
 function trialLine(g) {
@@ -74,7 +74,11 @@ function settingsHtml(g) {
 
 function wire(el, rerender) {
   const act = async (fn, ok) => { try { const g = await fn(); cache = { at: Date.now(), g }; if (ok) toast(ok); await refresh?.(); rerender(); } catch (e) { toast(e.message, true); } };
-  el.querySelector("[data-g-upgrade]")?.addEventListener("click", () => { go("settings"); setTimeout(() => document.getElementById("lic-key")?.focus(), 50); });
+  // 0.4.38 (Chris: upgrade in the app): Upgrade to Pro opens the buy box (app.js openUpgrade), not only Settings.
+  el.querySelector("[data-g-upgrade]")?.addEventListener("click", () => {
+    if (window.CC.openUpgrade) { window.CC.openUpgrade(); return; }
+    go("settings"); setTimeout(() => document.getElementById("lic-key")?.focus(), 50);
+  });
   el.querySelector("[data-g-trial]")?.addEventListener("click", () => act(() => api("/growth/trial/start", { method: "POST" }), "Free trial started"));
   el.querySelector("[data-g-managed]")?.addEventListener("change", (e) => act(() => api("/growth/managed", { method: "POST", body: { on: e.target.checked } }), e.target.checked ? "Managed plan on" : "Managed plan off"));
   el.querySelector("[data-g-copy]")?.addEventListener("click", async () => { const v = el.querySelector("[data-g-link]").value; try { await navigator.clipboard.writeText(v); toast("Referral link copied"); } catch { toast("Select the link and copy it", true); } });

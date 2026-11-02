@@ -14,6 +14,7 @@ const TITLEBAR = `
   <button type="button" class="mac-ib" id="mac-sidebtn" aria-expanded="false" aria-label="Show or hide history" title="Show or hide history"><span aria-hidden="true">▤</span><span class="sr-only">Side</span></button>
   <span class="mac-title"><b>Meldmind</b><small id="mac-crumb">Home</small></span>
   <span class="mac-gap"></span>
+  <button type="button" class="mac-upchip" id="mac-upgrade" title="See the paid plans" hidden>Upgrade</button>
   <span class="mac-pill" id="mac-ready" role="status" title="Your AIs right now"><span class="mac-dot" aria-hidden="true"></span><span id="mac-ready-txt">No AIs yet</span></span>
   <span class="mac-toggle" id="mac-toggle" role="group" aria-label="Simple or Expert" data-mode="simple">
     <span class="mac-knob" aria-hidden="true"></span>
@@ -149,7 +150,7 @@ export default {
     const $ = (id) => document.getElementById(id);
     const sideBtn = $("mac-sidebtn"), crumbEl = $("mac-crumb"), readyEl = $("mac-ready-txt");
     const toggle = $("mac-toggle"), simpleBtn = $("mac-simple"), expertBtn = $("mac-expert");
-    const themeBtn = $("mac-theme"), helpBtn = $("mac-help"), flash = $("mac-flash");
+    const themeBtn = $("mac-theme"), helpBtn = $("mac-help"), flash = $("mac-flash"), upBtn = $("mac-upgrade");
 
     let disposed = false, live = false, lastMode = "", lastView = "";
     CLEANUPS.push(() => { disposed = true; clearTimeout(FLASH_TIMER); });
@@ -246,6 +247,13 @@ export default {
       }
       sideBtn?.setAttribute("aria-expanded", String(document.body.classList.contains("mac-sideopen")));
       paintReady();
+      paintUpgrade();
+    }
+    // 0.4.38 (Chris: upgrade in the app): a plain Upgrade chip on Free, next to the saved-money pill. It opens the
+    // Pro box with the buy buttons. Never on a paid plan or the owner license.
+    function paintUpgrade() {
+      const show = !!CC.upgradeOffered?.();
+      if (upBtn && upBtn.hidden === show) upBtn.hidden = !show;
     }
 
     // Parts talk through the bus too: a view or mode another part announces repaints the bar.
@@ -265,6 +273,7 @@ export default {
     paintMode(CC.uiMode?.() || "simple");
     paintCrumb();
     paintReady();
+    paintUpgrade();
     paintGlass();
     applyTheme(storedTheme() || (document.documentElement.dataset.theme === "light" ? "light" : "dark"), false);
     lastMode = CC.uiMode?.() || "simple";
@@ -308,6 +317,7 @@ export default {
     on(expertBtn, "click", () => document.getElementById("mode-expert")?.click());
     on(themeBtn, "click", () => applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark", true));
     on(helpBtn, "click", () => CC.go?.("help"));
+    on(upBtn, "click", () => CC.openUpgrade?.());
 
     const onKey = (e) => {
       if (e.key !== "Escape" || !document.body.classList.contains("mac-sideopen")) return;
