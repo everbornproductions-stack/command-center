@@ -383,6 +383,16 @@ export const SENDERS = [
     off: "There is no switch. It sends no personal data.",
     state: "always",
   },
+  // 0.4.37 (Chris: voice too computer): the natural voice downloads once, on a click. Speaking never leaves the PC.
+  {
+    id: "voice-download",
+    name: "Natural voice download",
+    what: "A normal web request for the free natural voice files (about 88 MB, the Kokoro voice). Nothing about you or your work.",
+    to: "Hugging Face (huggingface.co), where the free voice is published.",
+    when: "Only when you click Get the natural voice in Settings > Voice, and only once. After that the voice runs on this computer and nothing leaves it to speak.",
+    off: "Do not click Get the natural voice. The built-in Windows voice speaks instead. Paid voices (OpenAI, ElevenLabs) are used only when Use my OpenAI credits for voice is on.",
+    state: "when-used",
+  },
   {
     id: "usage-counts",
     name: "Anonymous usage counts",

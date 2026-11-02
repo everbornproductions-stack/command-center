@@ -31,6 +31,15 @@ files:
   - "!node_modules/node-pty/binding.gyp"
   - "!node_modules/node-pty/**/*.pdb"
   - "!node_modules/node-pty/lib/**/*.test.js"
+  # 0.4.37 (Chris: voice too computer): the natural voice engine (kokoro-js). The model itself downloads on a click and is
+  # never packed. Only what Node loads ships: the Node build of transformers (no web builds, wasm, sources or maps),
+  # no onnxruntime-web (the Node build never loads it), and only the six voices offered in Settings > Voice.
+  - "!node_modules/onnxruntime-web/**"
+  - "!node_modules/@huggingface/transformers/{src,types}/**"
+  - "!node_modules/@huggingface/transformers/dist/!(transformers.node.mjs)"
+  - "!node_modules/kokoro-js/{types/**,dist/kokoro.web.js,dist/kokoro.cjs}"
+  - "!node_modules/kokoro-js/voices/!(af_heart|af_bella|bf_emma|am_michael|am_fenrir|bm_george).bin"
+  - "!node_modules/onnxruntime-node/script/**"
 # Zip codesign toolset. The legacy 7z bundle contains macOS symlinks, and a
 # Windows runner cannot unpack those, so packaging stops before the installer exists.
 toolsets:
@@ -44,6 +53,9 @@ asarUnpack:
   - extension/**
   # node-pty loads .node binaries and starts helper programs and a worker script; none of that runs from inside app.asar
   - node_modules/node-pty/**
+  # 0.4.37: onnxruntime (the natural voice) and sharp (loaded by transformers) are N-API .node files with DLLs beside them
+  - node_modules/onnxruntime-node/bin/**
+  - node_modules/@img/**
 compression: normal
 win:
   target:
@@ -56,6 +68,11 @@ win:
   # the Windows installer is x64 only, so it keeps the win32-x64 node-pty binaries and drops the rest
   files:
     - "!node_modules/node-pty/prebuilds/{darwin-*,win32-arm64,linux-*}/**"
+    # 0.4.37: onnxruntime keeps win32 x64 only, without DirectML.dll (18 MB, GPU only; the voice runs on the CPU and
+    # onnxruntime loads DirectML only for a GPU session; checked by speaking with the file removed)
+    - "!node_modules/onnxruntime-node/bin/napi-v3/{darwin,linux}/**"
+    - "!node_modules/onnxruntime-node/bin/napi-v3/win32/arm64/**"
+    - "!node_modules/onnxruntime-node/bin/napi-v3/win32/x64/DirectML.dll"
   # Code signing: azureSignOptions (Azure Artifact Signing) is not set here on purpose.
   # The release job adds it as -c.win.azureSignOptions.* flags only when every signing
   # value exists (scripts/azure-sign-config.mjs). Local builds and PR CI stay unsigned.
@@ -79,6 +96,7 @@ mac:
   # Mac keeps the darwin node-pty binaries only
   files:
     - "!node_modules/node-pty/prebuilds/{win32-*,linux-*}/**"
+    - "!node_modules/onnxruntime-node/bin/napi-v3/{win32,linux}/**"
   gatekeeperAssess: false
   target: [dmg, zip]
   category: public.app-category.productivity

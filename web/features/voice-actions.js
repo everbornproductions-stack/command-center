@@ -416,7 +416,12 @@ export function createController(host, opts = {}) {
 function shortLine(t) { const s = String(t).replace(/\s+/g, " ").trim(); return s.length > 140 ? s.slice(0, 137) + "..." : s; }
 
 // ---- talk-back settings (saved under settings.voiceTalk; the older tap/hold settings stay under settings.voice) ----
-export const TALK_DEFAULTS = Object.freeze({ talk: false, speak: true, handsFree: false, hotkey: "Ctrl+Space", wakeWord: false, instant: true, elevenAgentId: "" });
+// 0.4.37 (Chris: voice too computer): voice is the natural voice on this PC (a Kokoro voice id), speed is how fast
+// every voice talks, paidVoice is the pick among OpenAI and ElevenLabs voices ("" = automatic), used only with paid voice on.
+export const TALK_DEFAULTS = Object.freeze({ talk: false, speak: true, handsFree: false, hotkey: "Ctrl+Space", wakeWord: false, instant: true, elevenAgentId: "", voice: "af_heart", speed: 1, paidVoice: "" });
+const LOCAL_VOICE_ID = /^[a-z]{2}_[a-z]{2,20}$/;
+const PAID_VOICE_ID = /^(?:openai|elevenlabs):[A-Za-z0-9_-]{1,40}$/;
+const speedOf = (n) => Math.round(Math.min(1.4, Math.max(0.7, n)) * 20) / 20;
 // 0.4.25: voice is free first, so the hint names the free keys only. Paid voices (OpenAI, ElevenLabs spoken replies,
 // Instant voice) are used only after "Use my OpenAI credits for voice" is turned on.
 export const NO_KEY_LINE = "Add a free Groq or Gemini key to talk.";
@@ -435,6 +440,9 @@ export function coerceTalk(v) {
     wakeWord: o.wakeWord === true,
     instant: o.instant !== false,
     elevenAgentId: typeof o.elevenAgentId === "string" && /^[A-Za-z0-9_-]{0,80}$/.test(o.elevenAgentId) ? o.elevenAgentId : "",
+    voice: typeof o.voice === "string" && LOCAL_VOICE_ID.test(o.voice) ? o.voice : TALK_DEFAULTS.voice,
+    speed: typeof o.speed === "number" && Number.isFinite(o.speed) ? speedOf(o.speed) : TALK_DEFAULTS.speed,
+    paidVoice: typeof o.paidVoice === "string" && PAID_VOICE_ID.test(o.paidVoice) ? o.paidVoice : "",
   };
 }
 
@@ -455,7 +463,41 @@ export function normalizeTalk(patch, current = TALK_DEFAULTS) {
     if (typeof patch.elevenAgentId !== "string" || !/^[A-Za-z0-9_-]{0,80}$/.test(patch.elevenAgentId)) throw Object.assign(new Error("That agent id is not valid."), { status: 400, code: "voice_invalid" });
     next.elevenAgentId = patch.elevenAgentId;
   }
+  if (patch.voice !== undefined) {
+    if (typeof patch.voice !== "string" || !LOCAL_VOICE_ID.test(patch.voice)) throw Object.assign(new Error("That voice is not on the list."), { status: 400, code: "voice_invalid" });
+    next.voice = patch.voice;
+  }
+  if (patch.speed !== undefined) {
+    if (typeof patch.speed !== "number" || !Number.isFinite(patch.speed)) throw Object.assign(new Error("Speed must be a number."), { status: 400, code: "voice_invalid" });
+    next.speed = speedOf(patch.speed);
+  }
+  if (patch.paidVoice !== undefined) {
+    if (typeof patch.paidVoice !== "string" || (patch.paidVoice !== "" && !PAID_VOICE_ID.test(patch.paidVoice))) throw Object.assign(new Error("That paid voice is not on the list."), { status: 400, code: "voice_invalid" });
+    next.paidVoice = patch.paidVoice;
+  }
   return next;
+}
+
+// 0.4.37 (Chris: voice too computer): when the natural voice is not set up, the browser voice speaks. Pick the least
+// robotic installed English voice: "Natural" or "Online" (Edge's neural voices) first, then other neural or Google
+// voices, and Microsoft David or Zira only when nothing else exists. voices = speechSynthesis.getVoices().
+export function pickBrowserVoice(voices) {
+  const list = Array.isArray(voices) ? voices.filter((v) => v && typeof v.name === "string") : [];
+  if (!list.length) return null;
+  const score = (v) => {
+    const n = v.name;
+    const lang = String(v.lang || "").toLowerCase();
+    let s = 0;
+    if (/^en[-_]us/.test(lang)) s += 30; else if (/^en/.test(lang)) s += 20; else s -= 100;
+    if (/natural/i.test(n)) s += 100;
+    if (/online/i.test(n)) s += 60;
+    if (/neural/i.test(n)) s += 50;
+    if (/google/i.test(n)) s += 25;
+    if (/\b(david|zira)\b/i.test(n)) s -= 60;
+    if (v.default) s += 1;
+    return s;
+  };
+  return list.map((v, i) => ({ v, s: score(v), i })).sort((a, b) => b.s - a.s || a.i - b.i)[0].v;
 }
 
 // A keydown event as "Ctrl+Space" (null for a bare modifier). Used for the push-to-talk hotkey.
