@@ -262,7 +262,7 @@ html[data-wall] .graph-wrap { background: color-mix(in srgb, var(--panel-solid) 
 
 html[data-theme="light"] {
   --bg: #f3f5f9; --bg-2: #ffffff; --panel: #ffffffd9; --panel-solid: #ffffff; --line: #d9dfe8; --line-2: #c3ccd9;
-  --text: #111827; --muted: #566071; --dim: #566071; --green: #047857; --amber: #a14a07; --red: #b91c1c; --grey: #9ca3af; --violet: #7c3aed;
+  --text: #111827; --muted: #566071; --dim: #566071; --green: #036b4d; --amber: #a14a07; --red: #b91c1c; --grey: #9ca3af; --violet: #7c3aed;
   /* 0.4.39 (Chris: readable everywhere): --dim was #7b8595 (3.7 : 1 on white); green, amber and red are used as text,
      and were #059669, #d97706 and #dc2626 (3.8, 3.2 and 4.8 : 1 on white, less on a grey well) */
   --field-bg: #ffffff; --field-text: #111827; --field-border: #8794a8; --field-placeholder: #5b6575;
@@ -293,7 +293,7 @@ html[data-theme="light"][data-text="large"] .dim, html[data-theme="light"][data-
 html[data-theme="light"] .btn.danger { background: #fde8e8; border-color: #f5b5b5; color: #b91c1c; }
 html[data-theme="light"] input[type=text], html[data-theme="light"] input[type=number], html[data-theme="light"] input[type=password], html[data-theme="light"] input[type=date], html[data-theme="light"] input[type=email], html[data-theme="light"] select, html[data-theme="light"] textarea { background: #ffffff; }
 html[data-theme="light"] .chip { background: #eef2f7; border-color: #d9dfe8; color: #334155; }
-html[data-theme="light"] .chip.green { color: #047857; border-color: #a7e3cc; }
+html[data-theme="light"] .chip.green { color: #036b4d; border-color: #a7e3cc; }
 html[data-theme="light"] .chip.amber { color: #92400e; border-color: #f3d19c; } /* 0.4.39: #b45309 was 4.47 : 1 on the chip */
 html[data-theme="light"] .chip.red { color: #b91c1c; border-color: #f5b5b5; }
 html[data-theme="light"] .chip.violet { color: #6d28d9; border-color: #d4c5f7; }
@@ -306,8 +306,8 @@ html[data-theme="light"] .edge { stroke: #c9d3e2; }
 html[data-theme="light"] .md code, html[data-theme="light"] .md pre { background: #f3f6fa; }
 html[data-theme="light"] .linkt:hover { background: #f3f6fa; }
 html[data-theme="light"] .skillgrid .cell { background: #f3f6fa !important; color: var(--text) !important; }
-html[data-theme="light"] .skillgrid .cell[style*="#113b3a"] { background: #d7f5e9 !important; color: #047857 !important; }
-html[data-theme="light"] .sig.ok { background: #d7f5e9; color: #047857; }
+html[data-theme="light"] .skillgrid .cell[style*="#113b3a"] { background: #d7f5e9 !important; color: #036b4d !important; }
+html[data-theme="light"] .sig.ok { background: #d7f5e9; color: #036b4d; }
 html[data-theme="light"] .sig.low, html[data-theme="light"] .sig.attention { background: #fde8e8; color: #b91c1c; }
 html[data-theme="light"] .sig.renewing { background: #fdf1d6; color: #92400e; }
 html[data-theme="light"] .mobile-nav { background: #ffffff; }

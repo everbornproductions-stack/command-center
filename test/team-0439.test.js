@@ -318,10 +318,13 @@ test("page: Team list with statuses and counts, a desk, Assign, Review, a duty, 
     await page.click("#tm-chat-stop");
     // 0.4.39 (merge with 0.4.38, where Send on an answered chat is a follow-up in the same chat): a new chat first, so
     // this question is the chat's own request
+    // the chat run is started through the app's own /chat route and opened like History does (CC.openRun), so this step
+    // checks Give to an agent itself, not the chat box (on the CI runner the box's Send went elsewhere)
     await page.evaluate(() => window.CC.layout?.newChat?.());
-    await page.waitForSelector("#view .ex-chat #orders", { timeout: 15000 });
-    await page.fill("#orders", "Write a thank-you note for Mrs. Lee");
-    await page.click("#go");
+    const runId = await page.evaluate(async () => (await window.CC.api("/chat", { method: "POST", body: { prompt: "Write a thank-you note for Mrs. Lee" } })).runId);
+    assert.ok(runId, "the chat run started");
+    await page.waitForFunction(async (id) => { try { const m = await window.CC.api(`/missions/${id}`); return ["done", "done-with-errors"].includes(m.status); } catch { return false; } }, runId, { timeout: 180000, polling: 1000 });
+    await page.evaluate((id) => window.CC.openRun(id), runId);
     // finished means done or done with errors (a practice run on the CI runner can end either way); on a timeout say what was seen
     await page.waitForFunction(() => { const l = window.CC.S.live; return String(l?.mission?.prompt || l?.prompt || "").includes("Mrs. Lee") && ["done", "done-with-errors"].includes(l?.status) && !!document.getElementById("tm-give-answer"); }, null, { timeout: 180000 }).catch(async (e) => {
       const seen = await page.evaluate(() => { const l = window.CC.S.live; return { kind: l?.kind, status: l?.status, prompt: String(l?.mission?.prompt || l?.prompt || "").slice(0, 60), give: !!document.getElementById("tm-give-answer"), view: window.CC.S.view }; });
