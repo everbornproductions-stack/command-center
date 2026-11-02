@@ -56,7 +56,8 @@ export function projectTeamHtml({ data, all = [], esc }) {
   const picked = new Set((data.saved ? data.team : data.suggested).map((e) => e.id));
   const top = data.saved ? data.team : data.suggested;
   const rest = all.filter((e) => !top.some((t) => t.id === e.id));
-  const row = (e) => `<label class="row small" style="gap:6px;align-items:flex-start;padding:3px 0"><input type="checkbox" data-team="${esc(e.id)}" ${picked.has(e.id) ? "checked" : ""}> <span><b>${esc(e.name)}</b> <span class="dim">${esc(e.oneLiner)}</span></span></label>`;
+  // 0.4.39 (Chris: agents as a team): someone already on the team links to their desk on the Team page
+  const row = (e) => `<div class="row small" style="gap:6px;align-items:flex-start;padding:3px 0"><label class="row" style="gap:6px;align-items:flex-start;flex:1"><input type="checkbox" data-team="${esc(e.id)}" ${picked.has(e.id) ? "checked" : ""}> <span><b>${esc(e.name)}</b> <span class="dim">${esc(e.oneLiner)}</span></span></label>${e.onTeam ? `<button type="button" class="btn sm" data-desk="emp-${esc(e.id)}" title="See what ${esc(e.name)} is doing for you">Open desk</button>` : ""}</div>`;
   return `<h3>Team for this project</h3>
     <div class="small muted">${data.saved ? "These AI employees work on this project. Missions here start with them." : "Suggested for this project. Untick anyone you don't need, then Save."}</div>
     <div style="margin-top:6px">${top.map(row).join("")}</div>
@@ -74,6 +75,7 @@ export async function renderProjectTeam(el, project, { api, esc, toast, onSaved 
     all = [...(ov.team || []), ...(ov.library || [])];
   } catch (e) { el.innerHTML = `<h3>Team for this project</h3><div class="dim small">${esc(e.message)}</div>`; return; }
   el.innerHTML = projectTeamHtml({ data, all, esc });
+  el.querySelectorAll("[data-desk]").forEach((b) => b.addEventListener("click", async () => { if (!window.CC.team) await window.CC.ensureView?.("agents"); window.CC.team?.open(b.dataset.desk); }));
   el.querySelector("#team-save").addEventListener("click", async () => {
     const ids = [...el.querySelectorAll("[data-team]:checked")].map((c) => c.dataset.team);
     try {

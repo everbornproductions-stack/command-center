@@ -90,7 +90,8 @@ test("groups: order and membership follow FEATURE-MAP.md", () => {
   assert.deepEqual(groupsOf(items).map((g) => g.id), GROUPS_MAC.map((g) => g.id));
   assert.deepEqual(by("work").slice(0, 3), ["command", "start", "projects"]);
   for (const id of ["liveops", "liveview", "compare", "refocus"]) assert.ok(by("work").includes(id), id);
-  assert.deepEqual(by("agents").filter((i) => i !== "outside-agents"), ["agents", "pipelines", "schedules"]);
+  // 0.4.39 (agents as a team): Team, Hire an agent and Prompts lead the group, as in the approved mockup
+  assert.deepEqual(by("agents").filter((i) => i !== "outside-agents"), ["agents", "hire-agent", "agent-prompts", "pipelines", "schedules"]);
   assert.deepEqual(by("myday"), ["everyday-inbox", "everyday-plan", "everyday-work"]);
   assert.deepEqual(by("business"), ["workspaces", "credits", "subscriptions", "reports"]);
   assert.deepEqual(by("people"), ["community", "ai-news", "userchat", "together"]);

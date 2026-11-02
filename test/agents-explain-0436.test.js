@@ -11,7 +11,10 @@ const EM = String.fromCharCode(0x2014);
 test("the Agents page starts with what agents do and what happens, and remembers a fold", { skip }, async () => {
   const t = await bootMac({ width: 1366, height: 800, mode: "expert" });
   try {
+    // 0.4.39: the Agents page is Team; the explainer leads its My agents tab
     await t.page.evaluate(() => { try { localStorage.removeItem("cc.agents.explained"); } catch {} window.CC.go("agents"); });
+    await t.page.waitForSelector('#tm-page [data-team-tab="mine"]', { timeout: 20000 });
+    await t.page.click('#tm-page [data-team-tab="mine"]');
     await t.page.waitForSelector("#ag-explain", { timeout: 20000 });
     const info = await t.page.evaluate(() => {
       const d = document.getElementById("ag-explain");

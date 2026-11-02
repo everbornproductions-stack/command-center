@@ -594,9 +594,21 @@ function paintPlan(stage, w, expert) {
       <div class="small dim">${expert ? `${esc(s.agentName || "unassigned")} · ${esc(s.capability || "")}${s.model ? ` · ${esc(s.model)}` : ""}` : esc(s.routedTo || "the best AI for this step")}</div>
       ${expert ? `<label class="lbl" for="sp-title-${esc(s.id)}">Title</label><input id="sp-title-${esc(s.id)}" type="text" data-title="${esc(s.id)}" value="${esc(s.title)}">
         <label class="lbl" for="sp-ins-${esc(s.id)}">Instructions</label><textarea id="sp-ins-${esc(s.id)}" rows="2" data-ins="${esc(s.id)}">${esc(s.instructions || "")}</textarea>` : `<div class="small">${esc(s.deliverable || "")}</div>`}
+      <button type="button" class="btn sm" data-sp-assign="${esc(s.id)}" title="Give this step to someone on your team. It lands on their desk.">Assign to...</button>
     </div>`).join("")}
     <div class="sp-actions"><button class="btn sm primary" type="button" id="sp-build">Build it</button></div>
     <p class="small dim">API chats do not appear in claude.ai, grok.com or ChatGPT history. Watch the work here, or open Live.</p>`;
+  // 0.4.39 (Chris: agents as a team): Assign to... gives one step to an agent on the Team page (web/features/team.js)
+  stage.querySelectorAll("[data-sp-assign]").forEach((b) => b.addEventListener("click", async () => {
+    const s = steps.find((x) => x.id === b.dataset.spAssign);
+    if (!s) return;
+    if (!window.CC.team) await window.CC.ensureView?.("agents");
+    const ins = stage.querySelector(`[data-ins="${s.id}"]`)?.value || s.instructions || s.deliverable || "";
+    window.CC.team?.give({ heading: "Assign this step", title: s.title, text: `${w.plan?.title ? `Project: ${w.plan.title}
+` : ""}Step: ${s.title}
+
+${ins}`.trim(), source: "project" });
+  }));
   stage.querySelector("#sp-build").addEventListener("click", async () => {
     try {
       if (expert) {
