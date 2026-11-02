@@ -108,7 +108,7 @@ test("startup files do not require a heavy module, and the installer budget hold
   const pkg = JSON.parse(read("package.json"));
   const names = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
   assert.deepEqual(heavySpecifiers(names), []);
-  assert.equal(pkg.version, "0.4.39");
+  assert.equal(pkg.version, "0.5.0");
 
   const yml = read("electron-builder.yml");
   assert.match(yml, /!addons\/\*\*/);
