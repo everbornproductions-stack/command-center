@@ -96,6 +96,8 @@ for (const mode of ["simple", "expert"]) {
       await page.click(`${firstActs(mode)} [data-sc-act='change']`);
       await page.waitForFunction(() => !document.getElementById("sc-changes").hidden && !!document.querySelector("#sc-changes #cc-check"), null, { timeout: WAIT });
       await page.waitForFunction(() => !!document.querySelector("#sc-changes [data-feature='finishpath'] [data-fp-good]"), null, { timeout: WAIT }).catch(() => {});
+      // Change this part comes from the versions feature, which draws a moment later on the CI runner
+      await page.waitForFunction(() => !!document.querySelector("#sc-changes #cc-v-change"), null, { timeout: WAIT }).catch(() => {});
       const short = await foldControls(page);
       assert.ok(short.n <= 11, `${short.n} controls: ${short.words.join(", ")}`);
       assert.deepEqual(short.covered, [], "nothing covered");
