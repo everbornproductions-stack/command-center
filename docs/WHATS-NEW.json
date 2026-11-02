@@ -1,4 +1,13 @@
 {
+  "0.4.39": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Agents are a Team now. Each agent has a desk: give it a task in one line, see what it is working on, review what is ready for your OK, and set duties it does every day, week or month. Nothing is sent or posted without your OK.",
+      "Hand any chat answer to an agent with Give to an agent, assign a project step to someone on your team, or open an agent's desk from a project.",
+      "Every page and box is easy to read in light and dark, on a laptop or a phone. Meldmind now measures all of its text before each release, so it stays that way.",
+      "Boxes and menus are solid instead of see-through, so the words in them always stand out from the picture behind."
+    ]
+  },
   "0.4.38": {
     "title": "What's new in Meldmind",
     "bullets": [
