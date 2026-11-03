@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.5.0
+lastUpdatedVersion: 0.5.1
 ---
 
 # Getting started
@@ -252,3 +252,7 @@ Agents are a Team now. Each agent has a desk: give it a task in one line, see wh
 ## A new chat that reads like a conversation (0.5.0)
 
 Simple and Expert now share one chat. Answers use the whole page, and one box at the bottom grows as you type. Modes, Free only, the mic, files and Send all live in the box. Under each answer you get Copy, Try again, Save as file and Give to an agent, plus Make changes. While the AIs work, one line shows the step and the cost so far. A new subject starts a new chat, and History in the sidebar is sorted by day with a search. The route preview closes when you send, the suggestions list closes on Send, and done messages no longer cover New chat.
+
+## A natural voice, and History in one place (0.5.1)
+
+Meldmind can now speak in a warm, human-sounding voice that runs on this PC for free. Get it once in Settings > Voice (about 88 MB), pick one of 6 voices and a speed, and play a sample. The top left button opens History in Simple and Expert. Expert's sidebar keeps its own Hide button, and History no longer sits in the middle of it. History is also easier to read, with the same calm, even text sizes as the Expert sidebar.

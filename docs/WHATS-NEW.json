@@ -1,4 +1,12 @@
 {
+  "0.5.1": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "A natural voice. Meldmind can now speak in a warm, human-sounding voice that runs on this PC for free. Get it once in Settings > Voice (about 88 MB), pick one of 6 voices and a speed, and play a sample.",
+      "The top left button opens History in Simple and Expert. Expert's sidebar keeps its own Hide button, and History no longer sits in the middle of it.",
+      "History is easier to read: the same calm, even text sizes as the Expert sidebar."
+    ]
+  },
   "0.5.0": {
     "title": "What's new in Meldmind",
     "bullets": [
