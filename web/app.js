@@ -385,7 +385,14 @@ function coveredControls() {
 }
 {
   const box = document.getElementById("toasts");
-  if (box && typeof MutationObserver === "function") new MutationObserver(() => { if (box.childElementCount) placeToasts(); }).observe(box, { childList: true });
+  // 0.5.0: placed again a moment later, since a page still laying out (a slow PC) can give the first measure the wrong spot
+  let again = 0;
+  if (box && typeof MutationObserver === "function") new MutationObserver(() => {
+    if (!box.childElementCount) return;
+    placeToasts();
+    clearTimeout(again);
+    again = setTimeout(() => { if (box.childElementCount) placeToasts(); }, 400);
+  }).observe(box, { childList: true });
 }
 // A click handler that forgot its try/catch still tells the person what went wrong instead of failing silently.
 // The same message is shown at most once every 10 s, so a failing background poll cannot flood the screen.
