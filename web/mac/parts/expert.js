@@ -164,15 +164,6 @@ function placesEl(CC) {
   }
   return nav;
 }
-// History for the sidebar: the newest chats, looked up again every 15 seconds while Expert is on.
-async function loadHistory(force = false) {
-  if (!st?.expert) return;
-  if (!force && Date.now() - (st.histAt || 0) < 15000) return;
-  st.histAt = Date.now();
-  try { st.chats = (await st.CC.api("/chathist?limit=8")).items || []; } catch { return; }
-  const box = st?.side?.querySelector("#mx-hist");
-  if (box) box.innerHTML = st.CC.layout?.historyHtml?.(st.chats, { cls: "mx-hchat", empty: `<div class="mx-none">Your chats show up here.</div>` }) || "";
-}
 
 function renderSide() {
   const { CC, side } = st;
@@ -219,15 +210,8 @@ function renderSide() {
   head.append(nc, col);
   inner.append(head);
   inner.append(placesEl(CC));
-  const hh = el("div", "mx-gh", "History");
-  hh.id = "mx-hist-h";
-  const hist = el("div", "mx-hist");
-  hist.id = "mx-hist";
-  hist.setAttribute("role", "list");
-  hist.setAttribute("aria-labelledby", "mx-hist-h");
-  hist.innerHTML = CC.layout?.historyHtml?.(st.chats || [], { cls: "mx-hchat", empty: `<div class="mx-none">Your chats show up here.</div>` }) || "";
-  hist.addEventListener("click", (e) => { const b = e.target.closest("[data-chat]"); if (!b) return; CC.layout?.openChat?.(b.dataset.chat); st?.bus?.emit("view", "command"); if (isPhone() && st && !st.collapsed) setCollapsed(true); });
-  inner.append(hh, hist);
+  // 0.5.1 (Chris: "history should be there also. not in the middle of the side bar"): History opens from the top left
+  // button, as in Simple, so the sidebar goes from the places straight to All features.
   inner.append(el("div", "mx-gh", "All features"));
   inner.append(box);
   // 0.5.0: Chat and Projects already sit in the top rows, so the groups leave them out (a search still finds them)
@@ -315,11 +299,6 @@ function tick() {
   const want = (st.CC.uiMode?.() || "simple") === "expert";
   if (want !== st.expert) setExpert(want);
   else syncSelected();
-  // 0.5.0: History follows a run that just finished (the Simple sidebar does the same)
-  const busy = !!(st.CC.S?.awaitingRun || ["running", "planning", "assembling"].includes(st.CC.S?.live?.status));
-  if (st.wasBusy && !busy) setTimeout(() => loadHistory(true), 600);
-  st.wasBusy = busy;
-  loadHistory();
 }
 
 function syncSelected() {
@@ -471,7 +450,6 @@ function setExpert(on) {
     document.body.classList.toggle("mx-side-closed", st.collapsed);
     st.lastKey = "";
     renderSide();
-    loadHistory(true);
   } else {
     closeLaunchpad(false);
     st.side.textContent = "";

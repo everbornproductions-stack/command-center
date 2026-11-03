@@ -159,7 +159,7 @@ test("the switch moves the real mode, the theme flips, the crumb and Help follow
   } finally { await t.close(); }
 });
 
-test("the sidebar button opens the side, talks on the bus, and Escape closes it", { skip }, async () => {
+test("the top left button opens History in Simple and Expert, talks on the bus, and Escape closes it", { skip }, async () => {
   const t = await bootMac({ mode: "simple" });
   try {
     await t.page.evaluate(() => { window.__macOpen = []; window.CC.mac.bus.on("open", (d) => window.__macOpen.push(d)); });
@@ -175,14 +175,21 @@ test("the sidebar button opens the side, talks on the bus, and Escape closes it"
     await t.page.keyboard.press("Escape");
     await t.page.waitForFunction(() => !document.body.classList.contains("mac-sideopen"), null, { timeout: 15000 });
 
-    // In Expert it opens the sidebar.
+    // 0.5.1 (Chris): in Expert it opens History too; the Expert sidebar has its own Hide button and stays as it is.
     await t.page.click("#mac-expert");
     await t.page.waitForFunction(() => window.CC.uiMode() === "expert", null, { timeout: 25000 });
+    const sideBefore = await t.page.evaluate(() => document.body.classList.contains("mx-side-closed"));
+    await t.page.evaluate(() => { window.__macOpen = []; });
     await t.page.click("#mac-sidebtn");
-    await t.page.waitForFunction(() => (window.__macOpen || []).some((e) => e.panel === "sidebar"), null, { timeout: 15000 });
-    const expertState = await t.page.evaluate(() => ({ open: document.body.classList.contains("mac-sideopen"), label: document.getElementById("mac-sidebtn").getAttribute("aria-label") }));
-    assert.equal(expertState.open, true);
-    assert.equal(expertState.label, "Show or hide the sidebar");
+    await t.page.waitForFunction(() => document.getElementById("mac-history-drawer")?.classList.contains("open"), null, { timeout: 15000 });
+    const expertState = await t.page.evaluate(() => ({ panels: window.__macOpen.map((e) => e.panel), sideClosed: document.body.classList.contains("mx-side-closed"), expanded: document.getElementById("mac-sidebtn").getAttribute("aria-expanded"), label: document.getElementById("mac-sidebtn").getAttribute("aria-label"), sideHistory: !!document.getElementById("mx-hist") }));
+    assert.deepEqual(expertState.panels, ["history"]);
+    assert.equal(expertState.sideClosed, sideBefore, "the sidebar is not opened or closed by this button");
+    assert.equal(expertState.expanded, "true");
+    assert.equal(expertState.label, "Show or hide history");
+    assert.equal(expertState.sideHistory, false, "History is not in the middle of the Expert sidebar");
+    await t.page.keyboard.press("Escape");
+    await t.page.waitForFunction(() => !document.getElementById("mac-history-drawer")?.classList.contains("open") && document.getElementById("mac-sidebtn").getAttribute("aria-expanded") === "false", null, { timeout: 15000 });
     assert.deepEqual(t.errors, []);
   } finally { await t.close(); }
 });
