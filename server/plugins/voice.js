@@ -7,7 +7,8 @@ import { decodeAudio, speechTargets } from "../speech.js";
 import { resolveWhisper } from "../local-whisper.js";
 import { transcribeWithFallback } from "../dictate.js";
 import { coerceTalk, normalizeTalk, actionList, MIC_NO_KEY_LINE } from "../../web/features/voice-actions.js";
-import { talkStatus, synthesize, mintRealtime, realtimeTools, interpretWithModel } from "../voice-speak.js";
+import { talkStatus, synthesize, mintRealtime, realtimeTools, interpretWithModel, PAID_VOICES } from "../voice-speak.js";
+import { LOCAL_VOICES, DEFAULT_LOCAL_VOICE, localVoiceOk, isReady as localReady, downloadStatus, startDownload, stopLocal, warm } from "../voice-local.js";
 import { cheapest } from "../router.js";
 import { completeFallback } from "../fallback.js";
 import { recordCall } from "../ledger.js";
@@ -24,6 +25,7 @@ function read(h) {
 // Paid speech is off unless the person turned it on. Free tiers never need this. It covers voice typing through
 // OpenAI and, from 0.4.25, spoken replies (ElevenLabs, OpenAI) and Instant voice too.
 const paidSpeech = (h) => (h.settings() || {}).speechPaid === true;
+const SAMPLE_LINE = "Hi, this is how I sound. Your website draft is ready. Want me to make the headline shorter?";
 
 export async function routes(req, res, url, body, h) {
   const p = url.pathname.replace(/^\/api\/voice/, "") || "/";
@@ -65,24 +67,51 @@ export async function routes(req, res, url, body, h) {
     getSecret: (id) => h.getSecret(id, h.PROVIDERS[id]?.keyEnv),
   });
   const talkSaved = () => coerceTalk((h.settings() || {}).voiceTalk);
+  const prefsOf = (s) => ({ voice: localVoiceOk(s.voice) ? s.voice : DEFAULT_LOCAL_VOICE, speed: s.speed, paidVoice: s.paidVoice });
+  const statusOf = (s) => talkStatus(secrets().hasSecret, s, { allowPaid: paidSpeech(h), localReady: localReady() });
   // Talk-back (0.4.21): settings, what this PC can do, spoken replies, instant voice tokens, a cheap model for loose phrases.
   if (p === "/talk" && req.method === "GET") {
     const saved = talkSaved();
-    return h.json(res, 200, { settings: saved, status: talkStatus(secrets().hasSecret, saved, { allowPaid: paidSpeech(h) }), actions: actionList() });
+    if (saved.talk && saved.speak) warm(); // 0.4.37: load the natural voice before the first answer, not during it
+    return h.json(res, 200, { settings: saved, status: statusOf(saved), actions: actionList() });
   }
   if (p === "/talk" && req.method === "POST") {
     let next;
     try { next = normalizeTalk(body || {}, talkSaved()); }
     catch (e) { return h.json(res, e.status || 400, { error: e.message, code: e.code || "voice_invalid" }); }
+    if (body?.voice !== undefined && !localVoiceOk(next.voice)) return h.json(res, 400, { error: "That voice is not on the list.", code: "voice_invalid" });
+    if (body?.paidVoice && !PAID_VOICES.some((v) => v.id === next.paidVoice)) return h.json(res, 400, { error: "That paid voice is not on the list.", code: "voice_invalid" });
     const cur = h.settings() || {};
     h.putDoc("settings", { ...cur, voiceTalk: next });
-    return h.json(res, 200, { settings: next, status: talkStatus(secrets().hasSecret, next, { allowPaid: paidSpeech(h) }) });
+    if (next.talk && next.speak) warm();
+    return h.json(res, 200, { settings: next, status: statusOf(next) });
   }
   if (p === "/speak" && req.method === "POST") {
     const text = String(body?.text || "").trim();
     if (!text) return h.json(res, 400, { error: "Nothing to say.", code: "voice_speak_empty" });
-    if (!talkSaved().speak) return h.json(res, 200, { engine: "text", text });
-    const out = await synthesize(text, { ...secrets(), fetchImpl: fetch, allowPaid: paidSpeech(h) });
+    const saved = talkSaved();
+    if (!saved.speak) return h.json(res, 200, { engine: "text", text });
+    const out = await synthesize(text, { ...secrets(), fetchImpl: fetch, allowPaid: paidSpeech(h), prefs: prefsOf(saved) });
+    return h.json(res, 200, out.engine === "browser" ? { engine: "browser", text: out.text } : out);
+  }
+  // 0.4.37 (Chris: voice too computer): Stop drops the sentences still waiting for the natural voice.
+  if (p === "/stop" && req.method === "POST") { stopLocal(); return h.json(res, 200, { ok: true }); }
+  // The natural voice: is it here, the one-click download (the only time it touches the internet), and the voice lists.
+  if (p === "/local" && req.method === "GET") {
+    return h.json(res, 200, { status: downloadStatus(), voices: LOCAL_VOICES, paidVoices: PAID_VOICES, paidOn: paidSpeech(h), settings: talkSaved() });
+  }
+  if (p === "/local/download" && req.method === "POST") {
+    if (process.env.CC_MODE === "hosted") return h.json(res, 409, { error: "The natural voice runs in the desktop app.", code: "voice_local_hosted" });
+    void startDownload();
+    return h.json(res, 202, { status: downloadStatus() });
+  }
+  if (p === "/local/sample" && req.method === "POST") {
+    const saved = talkSaved();
+    const voice = typeof body?.voice === "string" && localVoiceOk(body.voice) ? body.voice : prefsOf(saved).voice;
+    const paidVoice = typeof body?.paidVoice === "string" && PAID_VOICES.some((v) => v.id === body.paidVoice) ? body.paidVoice : saved.paidVoice;
+    const speed = typeof body?.speed === "number" ? body.speed : saved.speed;
+    // a paid sample only when paid voice is on and the person pressed Play on a paid voice
+    const out = await synthesize(SAMPLE_LINE, { ...secrets(), fetchImpl: fetch, allowPaid: paidSpeech(h) && body?.paid === true, prefs: { voice, speed, paidVoice } });
     return h.json(res, 200, out.engine === "browser" ? { engine: "browser", text: out.text } : out);
   }
   if (p === "/realtime" && req.method === "POST") {

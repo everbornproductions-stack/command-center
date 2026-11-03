@@ -210,3 +210,26 @@ body[data-style="mac"] #mac-history-drawer.open { pointer-events: auto; }
 .mac-hist-group-toggle { flex-wrap: nowrap; }
 .mac-hist-group-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mac-hist-count { flex: none; white-space: nowrap; }
+
+/* 0.5.1 (Chris: "simple history its fonts are all weird. the fonts in the side bar of expert are way easier to read"):
+   the drawer used rem sizes, so the text size setting blew its rows, chips and shouting group names up to mixed sizes.
+   It now uses the Expert sidebar's type: 13 px rows, 12 px group names in the dim colour, the same family and weights. */
+body[data-style="mac"] #mac-history-drawer { font-family: inherit; }
+body[data-style="mac"] #mac-history-drawer .mac-hist-title { font-size: 15px; font-weight: 650; letter-spacing: 0; }
+body[data-style="mac"] #mac-history-drawer .mac-hist-search { font-size: 13px; }
+body[data-style="mac"] #mac-history-drawer .mac-hist-chip { font-size: 12px; padding: 2px 9px; }
+body[data-style="mac"] #mac-history-drawer .mac-hist-group-label,
+body[data-style="mac"] #mac-history-drawer .mac-hist-group-toggle { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--mac-dim, #47474d); padding: 8px 8px 2px; }
+body[data-style="mac"] #mac-history-drawer .mac-hist-count { font-size: 12px; font-weight: 500; letter-spacing: 0; }
+body[data-style="mac"] #mac-history-drawer .mac-hist-item { font-size: 13px; padding: 5px 8px; min-height: 28px; color: var(--mac-tx, #1d1d1f); }
+body[data-style="mac"] #mac-history-drawer .mac-hist-item-title { line-height: 1.35; }
+body[data-style="mac"] #mac-history-drawer :is(.mac-hist-empty, .mac-hist-more) { font-size: 13px; }
+body[data-style="mac"] #mac-history-drawer .mac-hist-redo-btn { font-size: 12px; }
+/* Simple's 16 px floor for every button and box (styles.css) made the drawer's chips, group names and rows 16 px next to
+   12 to 13 px labels: the mixed sizes Chris saw. The drawer keeps the Expert sidebar sizes in Simple too. */
+body[data-ui][data-style="mac"] #mac-history-drawer .mac-hist-search { font-size: 13px !important; }
+body[data-ui][data-style="mac"] #mac-history-drawer .mac-hist-chip { font-size: 12px !important; }
+body[data-ui][data-style="mac"] #mac-history-drawer :is(.mac-hist-group-label, .mac-hist-group-toggle) { font-size: 12px !important; }
+body[data-ui][data-style="mac"] #mac-history-drawer .mac-hist-item { font-size: 13px !important; }
+body[data-ui][data-style="mac"] #mac-history-drawer :is(.mac-hist-more, .mac-hist-redo-btn) { font-size: 12px !important; }
+body[data-ui][data-style="mac"] #mac-history-drawer .mac-hist-close { font-size: 16px !important; }

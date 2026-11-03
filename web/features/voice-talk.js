@@ -3,7 +3,7 @@
 // instant two-way voice when a key exists, a "What can I say?" card and a number overlay.
 // The commands live in voice-actions.js (one registry shared with buttons). This file is the browser glue.
 // Anything marked data-voice-action="open_screen" data-voice-args='{"screen":"mindmedia"}' runs that registry action.
-import { ACTIONS, createController, helpFor, comboOf, stripWake, sentences, coerceTalk, isStop, HANDS_FREE_AUTO_OFF_MS, NO_KEY_LINE, TALK_DEFAULTS } from "./voice-actions.js";
+import { ACTIONS, createController, helpFor, comboOf, stripWake, sentences, coerceTalk, isStop, HANDS_FREE_AUTO_OFF_MS, NO_KEY_LINE, TALK_DEFAULTS, pickBrowserVoice } from "./voice-actions.js";
 import { connectInstant } from "./voice-realtime.js";
 
 const { $, toast, api, esc } = window.CC;
@@ -78,7 +78,8 @@ function stopSpeech() {
   try { audioEl?.pause(); } catch { /* nothing playing */ }
   audioEl = null;
   try { window.speechSynthesis?.cancel(); } catch { /* no built-in voice */ }
-  if (speaking) { speaking = false; paint(); }
+  // 0.4.37: the natural voice drops the sentences it has not made yet, so a Stop is quiet at once.
+  if (speaking) { speaking = false; paint(); api("/voice/stop", { method: "POST", body: {} }).catch(() => {}); }
 }
 
 function playBlob(b64, mime, gen) {
@@ -96,11 +97,23 @@ function playBlob(b64, mime, gen) {
   });
 }
 
+// 0.4.37 (Chris: voice too computer): with no voice chosen Windows read in its oldest voice (David). Pick the least
+// robotic installed voice (Natural / Online first, David and Zira last) and use the speed from Settings > Voice.
+let browserVoice = null;
+function chooseBrowserVoice() {
+  try { browserVoice = pickBrowserVoice(window.speechSynthesis?.getVoices?.() || []); } catch { browserVoice = null; }
+  return browserVoice;
+}
+try { window.speechSynthesis?.addEventListener?.("voiceschanged", chooseBrowserVoice); } catch { /* no built-in voice */ }
+
 function browserSay(text, gen) {
   return new Promise((resolve) => {
     const synth = window.speechSynthesis;
     if (!synth || gen !== speakGen) return resolve();
     const u = new SpeechSynthesisUtterance(text);
+    const v = browserVoice || chooseBrowserVoice();
+    if (v) { u.voice = v; u.lang = v.lang; }
+    u.rate = cfg.speed || 1;
     u.onend = resolve; u.onerror = resolve;
     synth.speak(u);
   });
@@ -120,9 +133,12 @@ async function speak(text, { long } = {}) {
   let next = fetchSpeech(list[0]);
   for (let i = 0; i < list.length; i++) {
     if (gen !== speakGen) return;
-    const cur = await next;
+    let cur = await next;
+    // 0.4.37: a Stop that reached the server after this sentence was asked for drops it; ask once more.
+    if (cur?.engine === "stopped" && gen === speakGen) cur = await fetchSpeech(list[i]);
     next = i + 1 < list.length ? fetchSpeech(list[i + 1]) : null;
     if (gen !== speakGen) return;
+    if (cur?.engine === "stopped") continue;
     if (cur?.engine === "text") break; // speech is switched off: the strip shows the words
     if (cur?.audio) await playBlob(cur.audio, cur.mime, gen);
     else await browserSay(cur?.text || list[i], gen);
@@ -723,6 +739,79 @@ function renderSettings(el) {
   el.querySelector("#vts-agent").addEventListener("change", (e) => { void setCfg({ elevenAgentId: e.target.value.trim() }); });
   el.querySelector("#vts-help").addEventListener("click", () => openHelp());
 }
+
+// ---------------------------------------------------------------- Settings > Voice (0.4.37, Chris: voice too computer)
+// The natural voice on this PC (one click to get it, with progress), the voice picker, speed and Play sample.
+// Paid voices show only when "Use my OpenAI credits for voice" is on.
+let voicePoll = null;
+const voiceLabel = (v) => `${v.name} (${v.gender}, ${v.note})`;
+
+function playSample(r) {
+  const gen = ++speakGen;
+  speaking = true; paint();
+  const done = () => { if (gen === speakGen) { speaking = false; paint(); } };
+  if (r?.audio) return playBlob(r.audio, r.mime, gen).then(done);
+  return browserSay(r?.text || "Hi, this is how I sound.", gen).then(done);
+}
+
+async function renderVoicePanel(el) {
+  clearTimeout(voicePoll);
+  let info;
+  try { info = await api("/voice/local"); } catch (e) { el.innerHTML = `<div class="panel" id="vt-voice"><h3>Voice</h3><div class="dim small">${esc(e.message || "Voice settings did not load.")}</div></div>`; return; }
+  const st = info.status || {};
+  cfg = coerceTalk(info.settings || cfg);
+  const local = info.voices || [];
+  const opt = (v, sel) => `<option value="${esc(v.id)}" ${v.id === sel ? "selected" : ""}>${esc(voiceLabel(v))}</option>`;
+  const getBox = st.ready ? "" : st.state === "downloading"
+    ? `<div class="small" style="margin-top:8px" id="vtv-line" aria-live="polite">${esc(st.line)}</div><progress id="vtv-bar" max="100" value="${Number(st.pct) || 0}" style="width:100%;max-width:360px"></progress>`
+    : `<div class="dim small" style="margin-top:8px" id="vtv-line" aria-live="polite">${esc(st.line)}</div><button class="btn sm" type="button" id="vtv-get" style="margin-top:6px">${st.state === "failed" ? "Try again" : `Get the natural voice (about ${esc(String(st.mb))} MB)`}</button>`;
+  el.innerHTML = `<div class="panel" id="vt-voice"><h3>Voice</h3>
+    <div class="dim small">${st.ready ? "Meldmind speaks with a natural voice that runs on this PC. Nothing leaves this computer to speak." : "Meldmind speaks with the built-in Windows voice for now."}</div>
+    ${getBox}
+    <div class="row small" style="gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap"><label for="vtv-voice">Natural voice</label>
+      <select id="vtv-voice" ${st.ready ? "" : "disabled"}>${local.map((v) => opt(v, cfg.voice)).join("")}</select></div>
+    ${info.paidOn ? `<div class="row small" style="gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap"><label for="vtv-paid">Paid voice</label>
+      <select id="vtv-paid"><option value="" ${cfg.paidVoice ? "" : "selected"}>Automatic (ElevenLabs, then OpenAI)</option>${(info.paidVoices || []).map((v) => opt(v, cfg.paidVoice)).join("")}</select>
+      <span class="dim">Uses your paid key, because Use my OpenAI credits for voice is on.</span></div>` : ""}
+    <div class="row small" style="gap:8px;margin-top:8px;align-items:center"><label for="vtv-speed">Speed</label>
+      <input type="range" id="vtv-speed" min="0.7" max="1.4" step="0.05" value="${esc(String(cfg.speed))}" style="width:180px"><span id="vtv-speed-n">${esc(cfg.speed.toFixed(2))}x</span></div>
+    <div class="row small" style="gap:8px;margin-top:10px"><button class="btn sm" type="button" id="vtv-sample">Play sample</button><button class="btn sm" type="button" id="vtv-stop">Stop</button></div></div>`;
+  const q = (s) => el.querySelector(s);
+  q("#vtv-get")?.addEventListener("click", async () => {
+    try { await api("/voice/local/download", { method: "POST", body: {} }); } catch (e) { toast(e.message, true); }
+    void renderVoicePanel(el);
+  });
+  q("#vtv-voice")?.addEventListener("change", (e) => { void setCfg({ voice: e.target.value }); });
+  q("#vtv-paid")?.addEventListener("change", (e) => { void setCfg({ paidVoice: e.target.value }); });
+  const sp = q("#vtv-speed");
+  sp.addEventListener("input", () => { q("#vtv-speed-n").textContent = `${Number(sp.value).toFixed(2)}x`; });
+  sp.addEventListener("change", () => { void setCfg({ speed: Number(sp.value) }); });
+  q("#vtv-sample").addEventListener("click", async () => {
+    stopSpeech();
+    const paidPick = q("#vtv-paid")?.value || "";
+    const body = { voice: q("#vtv-voice")?.value, speed: Number(sp.value), paid: !!(info.paidOn && paidPick), paidVoice: paidPick };
+    let r;
+    try { r = await api("/voice/local/sample", { method: "POST", body }); } catch { r = { engine: "browser", text: "Hi, this is how I sound." }; }
+    await playSample(r);
+  });
+  q("#vtv-stop").addEventListener("click", () => stopSpeech());
+  if (st.state === "downloading") {
+    const tick = async () => {
+      if (!el.isConnected) return;
+      let s;
+      try { s = (await api("/voice/local")).status; } catch { s = null; }
+      if (!s || !el.isConnected) return;
+      if (s.state !== "downloading") { void renderVoicePanel(el); return; }
+      const line = q("#vtv-line"); const bar = q("#vtv-bar");
+      if (line) line.textContent = s.line;
+      if (bar) bar.value = Number(s.pct) || 0;
+      voicePoll = setTimeout(tick, 700);
+    };
+    voicePoll = setTimeout(tick, 700);
+  }
+}
+
+CC.register({ id: "voice-pick", settings: { order: 17, render: (el) => { void renderVoicePanel(el); } } });
 
 CC.register({
   id: "voice-talk",
