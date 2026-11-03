@@ -135,6 +135,8 @@ test("contrast: the Expert inside text is at least 4.5:1 on the painted pixels i
         if (v === "credits") await t.page.waitForFunction(() => /API spend/.test(document.getElementById("view")?.innerText || ""), null, { timeout: 20000 }).catch(() => {});
         await t.page.evaluate(() => document.querySelectorAll("#toasts .toast").forEach((e) => e.remove()));
         const list = await paintedContrast(t.page, TEXT, { max: 60 });
+        // the 60 cap can stop before the Credits spend tiles on a slower runner: measure those labels on their own too
+        if (v === "credits") list.push(...await paintedContrast(t.page, "#view .k .l", { max: 6 }));
         assert.ok(list.length >= 6, `${theme} ${v}: measured ${list.length}`);
         list.forEach((x) => seen.add(x.text));
         assert.deepEqual(low(list), [], `${theme} ${v}`);

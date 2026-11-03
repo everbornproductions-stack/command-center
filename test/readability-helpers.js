@@ -274,6 +274,68 @@ export async function measureScreen(page, tries = 2) {
   return out;
 }
 
+// 0.5.0 (0.4.39 panel, FIXES-0441 item 10): one named control measured the way the release review measures it
+// (meldmind-panel-0439 harness, plib.mjs measure()): its text is hidden, its whole box (at most 400 x 60) is
+// pictured, every pixel of that picture is averaged, and the text colour is blended over that average. On a small
+// pill the rounded corners show the lighter surface around it, and glass lightens a fill, so a fill that passes as a
+// CSS value can still read under 4.5 : 1 here. The sweep above reads the median behind the tight text box and passes
+// those. An icon-only control (no text, an svg) is held to 3 : 1 with its icon colour (WCAG 1.4.11).
+// Returns null when no visible element matches, else {text, sel, fg, bg, ratio, need, icon, box}.
+// opts.match: only an element whose text matches this regexp source (case-insensitive, whole text).
+export async function boxContrast(page, selector, { match = "" } = {}) {
+  const it = await page.evaluate(({ selector, match }) => {
+    const parse = (s) => { const m = String(s).match(/rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+%?))?/); if (!m) return null; const a = m[4] === undefined ? 1 : m[4].endsWith("%") ? parseFloat(m[4]) / 100 : Number(m[4]); return [Number(m[1]), Number(m[2]), Number(m[3]), a]; };
+    const want = match ? new RegExp(`^(?:${match})$`, "i") : null;
+    const el = [...document.querySelectorAll(selector)].find((e) => {
+      const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+      if (want && !want.test((e.textContent || "").trim().replace(/\s+/g, " "))) return false;
+      return r.width > 6 && r.height > 6 && cs.visibility !== "hidden" && cs.display !== "none" && r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth;
+    });
+    if (!el) return null;
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    const text = (el.textContent || "").trim().replace(/\s+/g, " ");
+    const svg = el.querySelector("svg");
+    const icon = !text && !!svg;
+    let fg = parse(cs.color);
+    if (icon) { const s = getComputedStyle(svg.querySelector("path, line, polyline, circle, rect") || svg); const st = parse(s.stroke), fi = parse(s.fill); fg = st && st[3] > 0 ? st : fi && fi[3] > 0 ? fi : fg; }
+    let op = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) op *= Number(getComputedStyle(n).opacity || 1);
+    fg[3] *= op;
+    const cx = Math.min(innerWidth - 1, r.left + r.width / 2), cy = Math.min(innerHeight - 1, r.top + r.height / 2);
+    const hit = document.elementFromPoint(cx, cy);
+    const onTop = !!hit && (hit === el || el.contains(hit) || hit.contains(el));
+    const px = parseFloat(cs.fontSize), large = px >= 24 || (Number(cs.fontWeight) >= 700 && px >= 18.66);
+    el.dataset.ccBox = "1";
+    return { text: text.slice(0, 40) || el.getAttribute("aria-label") || "", sel: el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + [...el.classList].slice(0, 2).map((c) => "." + c).join(""), fg, icon, large, onTop, box: [r.x, r.y, Math.min(r.width, 400), Math.min(r.height, 60)] };
+  }, { selector, match });
+  if (!it) return null;
+  const hide = "[data-cc-box], [data-cc-box] * { color: transparent !important; -webkit-text-fill-color: transparent !important; text-shadow: none !important; stroke: transparent !important; fill: transparent !important; transition: none !important; }";
+  await page.evaluate(({ id, css }) => { const s = document.createElement("style"); s.id = id; s.textContent = css; document.head.appendChild(s); }, { id: HIDE_ID + "-box", css: hide });
+  let png;
+  try {
+    const [x, y, w, h] = it.box;
+    png = await page.screenshot({ clip: { x, y, width: w, height: h }, animations: "disabled", caret: "hide" });
+  } finally {
+    await page.evaluate((id) => { document.getElementById(id)?.remove(); document.querySelectorAll("[data-cc-box]").forEach((e) => delete e.dataset.ccBox); }, HIDE_ID + "-box");
+  }
+  const bg = await page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = "data:image/png;base64," + b64;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let r = 0, gg = 0, b = 0;
+    const n = d.length / 4;
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; }
+    return [r / n, gg / n, b / n];
+  }, png.toString("base64"));
+  const fg = blend(it.fg, bg);
+  const need = it.icon || it.large ? 3 : 4.5;
+  return { text: it.text, sel: it.sel, onTop: it.onTop, icon: it.icon, fg: hex(fg), bg: hex(bg), need, ratio: Math.round(ratio(fg, bg) * 100) / 100, box: it.box.map(Math.round) };
+}
+
 // The failures among measured items (disabled controls exempt).
 export const failing = (list) => list.filter((x) => !x.disabled && x.ratio < x.need);
 

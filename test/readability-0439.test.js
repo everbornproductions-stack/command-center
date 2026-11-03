@@ -28,7 +28,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { bootPage, findBrowser } from "./pw-helpers.js";
 import { waitBudget } from "./helpers.js";
-import { measureScreen, failing, scrollMain } from "./readability-helpers.js";
+import { measureScreen, failing, scrollMain, boxContrast } from "./readability-helpers.js";
 import { ratio } from "./paint-helpers.js";
 import { LABELS } from "../web/nav.js";
 import { FEATURES } from "../web/perf/registry.js";
@@ -387,6 +387,77 @@ for (const theme of ["light", "dark"]) {
     const r = await sweepClash(theme);
     record(name, r);
     assert.equal(r.found.length, 0, `${r.found.length} text items under the line:\n${report(r.found)}`);
+  });
+}
+
+// ---------- 0.5.0: the five controls the 0.4.39 release review read under 4.5 : 1 (FIXES-0441 item 10) ----------
+// The sweep above reads the median pixel behind the tight text box and passed all five. The review read each control's
+// whole box, averaged (boxContrast): the rounded corners and the glass lighten a pill, so a fill that is 4.9 : 1 as a
+// CSS value read 4.2 to 4.4 there. Each one is named here and read that way, light theme, Simple and Expert, at
+// 1366 x 800, 1024 x 768 and 390 x 844. Send in the chat is an icon now (0.5.0), so its arrow needs 3 : 1; the dock's
+// Send under other pages is text and needs 4.5 : 1. A control is read whole: the review's Settings "Save" (3.84) and
+// Expert 390 "+ New project" (3.63) were half under the Talk bar and the title bar, so their box held a strip of
+// those bars; here each control is scrolled fully into view first.
+const NAMED_CONTROLS = [
+  { name: "selected Team tab", view: "agents", sel: "#tm-page .tm-tab.on", ready: "#tm-page [data-agent]" },
+  { name: "Send with an answer on screen", view: "chat", sel: "#view #cb #go" },
+  { name: "chat dock Send under another page", view: "projects", sel: "#cc-dock-send" },
+  { name: "Settings Save", view: "settings", sel: "#view button.btn", match: "Save" },
+  { name: "History drawer selected All chip", view: "history drawer", sel: "#mac-history-drawer .mac-hist-chip.on", match: "All" },
+  { name: "Projects + New project", view: "projects", sel: "#view #newp" },
+];
+async function namedControls(mode) {
+  const t = await boot({ mode, theme: "light" });
+  const out = [];
+  const { page } = t;
+  try {
+    await openChat(page, mode);
+    await page.evaluate(() => { window.CC.layout?.newChat?.(); });
+    await openChat(page, mode);
+    await send(page, "Write a short thank-you note for a customer who bought a cake");
+    for (const [w, h] of [[1366, 800], [1024, 768], [390, 844]]) {
+      await page.setViewportSize({ width: w, height: h });
+      for (const c of NAMED_CONTROLS) {
+        if (c.view === "chat") await openChat(page, mode);
+        else if (c.view === "history drawer") {
+          await goView(page, "command");
+          await page.evaluate(() => window.CC.mac.bus.emit("open", { panel: "history", open: true }));
+          await page.waitForFunction(() => { const d = document.getElementById("mac-history-drawer"); return d && d.classList.contains("open") && !d.getAnimations().length; }, null, { timeout: WAIT });
+        } else await goView(page, c.view);
+        if (c.ready) await page.waitForSelector(c.ready, { timeout: WAIT });
+        await page.waitForFunction(({ sel, match }) => [...document.querySelectorAll(sel)].some((e) => (!match || new RegExp(`^(?:${match})$`, "i").test(e.textContent.trim())) && e.getBoundingClientRect().width > 6), { sel: c.sel, match: c.match || "" }, { timeout: WAIT });
+        // a control further down a long page (Settings at 390) is brought into view first, at once
+        await page.evaluate(({ sel, match }) => {
+          const el = [...document.querySelectorAll(sel)].find((e) => (!match || new RegExp(`^(?:${match})$`, "i").test(e.textContent.trim())) && e.getBoundingClientRect().width > 6);
+          const r = el.getBoundingClientRect();
+          const hit = document.elementFromPoint(Math.min(innerWidth - 1, r.left + r.width / 2), Math.min(innerHeight - 1, Math.max(0, r.top + r.height / 2)));
+          const onTop = !!hit && (hit === el || el.contains(hit));
+          if (r.top < 0 || r.bottom > innerHeight || !onTop) el.scrollIntoView({ block: "center", behavior: "instant" });
+        }, { sel: c.sel, match: c.match || "" });
+        await page.mouse.move(Math.round(w / 2), 2);
+        await settle(page);
+        const r = await boxContrast(page, c.sel, { match: c.match || "" });
+        out.push({ control: c.name, mode, size: `${w}x${h}`, ...(r || { ratio: 0, need: 4.5, missing: true }) });
+        if (c.view === "history drawer") {
+          await page.evaluate(() => window.CC.mac.bus.emit("open", { panel: "history", open: false }));
+          await page.evaluate(() => document.getElementById("mac-history-drawer")?.classList.remove("open"));
+        }
+      }
+    }
+    assert.deepEqual(t.errors, [], "no page errors");
+  } finally { await t.close(); }
+  return out;
+}
+for (const mode of ["simple", "expert"]) {
+  const name = `named-${mode}`;
+  test(`browser: the five 0.4.39 review leftovers read on their painted box in ${mode}, light (Team tab, Send, Settings Save, History All chip, + New project)`, { skip: skip || (ONLY && !ONLY.split(",").includes(name) ? "READ_ONLY" : false), timeout: 300000 }, async () => {
+    const list = await namedControls(mode);
+    for (const x of list) console.log(`${x.control} | ${x.mode} ${x.size} | ${x.sel || "-"} "${x.text || ""}" | ${x.ratio} : 1, needs ${x.need} (${x.fg} on ${x.bg}${x.icon ? ", icon" : ""})`);
+    const missing = list.filter((x) => x.missing).map((x) => `${x.control} ${x.size}`);
+    assert.deepEqual(missing, [], "every named control is on screen");
+    assert.deepEqual(list.filter((x) => !x.onTop).map((x) => `${x.control} ${x.size}`), [], "every named control is read where nothing covers it");
+    const bad = list.filter((x) => x.ratio < x.need);
+    assert.equal(bad.length, 0, `${bad.length} named controls under the line:\n${bad.map((x) => `${x.control} | ${x.mode} ${x.size} | ${x.sel} | ${x.ratio} : 1, needs ${x.need} (${x.fg} on ${x.bg})`).join("\n")}`);
   });
 }
 

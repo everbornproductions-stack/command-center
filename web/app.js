@@ -2105,6 +2105,21 @@ function scPrompt(l) {
   if (p && !isInternalRunText(p)) return p;
   return l?.id || S.awaitingRun || S.make?.active || l?.status === "running" ? String(S.lastPrompt || "") : "";
 }
+// The first answer of this chat: the run's own deliverable.
+function scFirstAnswer(l) {
+  return String(l?.deliverable || l?.agents?.[l?.primary]?.text || "");
+}
+// 0.5.0 (0.4.39 panel, FIXES-0441 item 1): every Give to an agent under an answer hands over that answer and its request.
+// The first answer's buttons carry no turn (data-turn="" in its Make changes, none on its icon row), and Number("") is 0,
+// which read the chat's first reply instead: the agent got an empty answer. No turn now means the first answer.
+function scGive(turn) {
+  const l = S.live || {};
+  const i = turn === undefined || turn === null || String(turn).trim() === "" ? NaN : Number(turn);
+  if (!Number.isInteger(i) || i < 0) return void window.CC.team?.giveAnswer?.({ prompt: scPrompt(l), answer: scFirstAnswer(l) });
+  const turns = scTurns(l);
+  const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user");
+  window.CC.team?.giveAnswer?.({ prompt: ask?.text || scPrompt(l), answer: scTurnText(turns[i]) || scFirstAnswer(l) });
+}
 // The quick changes under a reply. Each one is the next message in this chat.
 function scQuickHtml(turn) {
   return `<div class="sc-quick" role="group" aria-label="Make changes">${REPLY_CHANGES.map((c) => `<button type="button" class="btn sm" data-sc-quick="${esc(c.id)}" data-turn="${turn}">${esc(c.label)}</button>`).join("")}<button type="button" class="btn sm" data-sc-quick="other" data-turn="${turn}">Something else</button><button type="button" class="btn sm" data-sc-give data-turn="${turn}">Give to an agent</button></div>`;
@@ -2312,7 +2327,7 @@ function onSimpleChatClick(e) {
   }
   // 0.4.39 (Chris: agents as a team): Give to an agent, under a reply's Make changes (web/features/team.js)
   const give = t.closest?.("[data-sc-give]");
-  if (give) { const l = S.live || {}, i = Number(give.dataset.turn), turns = scTurns(l); const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user"); window.CC.team?.giveAnswer?.({ prompt: ask?.text || scPrompt(l), answer: scTurnText(turns[i]) }); return; }
+  if (give) return void scGive(give.dataset.turn);
   const quick = t.closest?.("[data-sc-quick]");
   if (quick) {
     if (quick.dataset.scQuick === "other") { $("#orders")?.focus(); return; }
@@ -2328,10 +2343,10 @@ function onSimpleChatClick(e) {
   const which = act.dataset.scAct;
   if (!row?.hasAttribute("data-turn")) {
     // the first answer of this chat: the run's own deliverable, with every old action behind Make changes
-    const text = l.deliverable || l.agents?.[l.primary]?.text || "";
+    const text = scFirstAnswer(l);
     if (which === "copy") return void copyDeliverable();
     if (which === "save") return void scSave(text, scPrompt(l), act);
-    if (which === "give") return void window.CC.team?.giveAnswer?.({ prompt: scPrompt(l), answer: text });
+    if (which === "give") return void scGive("");
     if (which === "change") return void scToggle(`main:${l.id || ""}`, wrap, act);
     if (which === "again") {
       const again = $("#cc-v-again");
@@ -2349,7 +2364,7 @@ function onSimpleChatClick(e) {
   const turn = turns[i];
   if (which === "copy") return void scCopy(scTurnText(turn));
   if (which === "save") return void scSave(scTurnText(turn), scPrompt(l), act);
-  if (which === "give") { const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user"); return void window.CC.team?.giveAnswer?.({ prompt: ask?.text || scPrompt(l), answer: scTurnText(turn) }); }
+  if (which === "give") return void scGive(i);
   if (which === "change") return void scToggle(`turn:${l.id}:${i}`, wrap, act);
   if (which === "again") {
     const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user");

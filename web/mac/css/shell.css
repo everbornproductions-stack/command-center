@@ -17,6 +17,10 @@ body[data-style="mac"] {
      the accent as text (links), and a filled accent with white text on it (4.9 : 1). */
   --mac-acc-text: #0a5fc0;
   --mac-acc-fill: #0a6fd6;
+  /* 0.5.0 (0.4.39 panel, FIXES-0441 item 10): a small selected pill with white text (the Team tab, the History "All"
+     chip). Its rounded ends and edge show the light page around it, so #0a6fd6 read 4.2 to 4.4 : 1 on the painted
+     pill. This one reads 5 : 1 or more there (7 : 1 as a flat colour). Light only: dark keeps each pill's own fill. */
+  --mac-acc-pill: #0a55ae;
   --mac-vio-text: #7e22ce; /* the Pro / Extreme marks on their violet tint */
   --mac-tx: #1d1d1f;
   --mac-dim: #47474d; /* 0.4.25: was #6e6e73, under 4.5:1 on the glass */
@@ -45,6 +49,7 @@ body[data-style="mac"][data-theme="dark"] {
   --mac-line: rgba(255, 255, 255, .1);
   --mac-tx: #f5f5f7;
   --mac-acc-text: #64b5ff;
+  --mac-acc-pill: initial; /* unset: each pill falls back to its own dark-theme fill */
   --mac-vio-text: #e0b8ff;
   --mac-dim: #c0c0c6; /* 0.4.25: was #a1a1a6 (the Expert switch measured 4.0:1) */
   --mac-bg1: #1b2140;
