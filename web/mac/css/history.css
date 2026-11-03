@@ -192,7 +192,9 @@ body[data-style="mac"] #mac-history-drawer.open { pointer-events: auto; }
 /* 0.4.34: grouped History (projects and kinds of work), filter chips, fold, show all */
 .mac-hist-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px 0; }
 .mac-hist-chip { font-size: 0.8125rem; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--mac-line, rgba(127,127,127,.35)); background: transparent; color: inherit; cursor: pointer; }
-.mac-hist-chip.on { background: var(--mac-acc-btn, #0062d6); border-color: transparent; color: #ffffff; }
+/* 0.5.0 (FIXES-0441 item 10): the selected chip read 4.34 to 4.4 : 1 in light: its see-through edge and round ends
+   showed the drawer around it. The edge is now the fill, and light takes the darker pill blue. */
+.mac-hist-chip.on { background: var(--mac-acc-pill, var(--mac-acc-btn, #0062d6)); border-color: var(--mac-acc-pill, var(--mac-acc-btn, #0062d6)); color: #ffffff; }
 .mac-hist-group-toggle { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; background: transparent; cursor: pointer; text-align: left; font-size: 0.8125rem; }
 .mac-hist-count { margin-left: auto; font-weight: 500; text-transform: none; letter-spacing: 0; }
 .mac-hist-more { display: block; width: 100%; margin: 2px 0 8px; padding: 6px 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; font-size: 0.8125rem; text-decoration: underline; cursor: pointer; text-align: left; }

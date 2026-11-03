@@ -27,7 +27,8 @@ async function hoverTip(page, sel, repick = null) {
   for (let i = 0; i < 4 && !ok; i++) {
     if (i && repick) sel = (await repick()) || sel; // a redrawn bar has a new button: tag it again
     await page.mouse.move(5, 790);
-    await page.hover(sel);
+    // a button hidden by a redraw is tried again (repick) instead of waiting out the 30 s default
+    if (!(await page.hover(sel, { timeout: 5000 }).then(() => true, () => false))) continue;
     // the tip must belong to this button (a slow runner can redraw the bar between the hover and the show)
     ok = await page.waitForFunction((s) => { const b = document.getElementById("cc-tip"); const el = document.querySelector(s); return b && !b.hidden && b.classList.contains("on") && b.textContent.length > 3 && el?.getAttribute("aria-describedby") === "cc-tip"; }, sel, { timeout: 4000 }).then(() => true, () => false);
   }
@@ -49,10 +50,23 @@ for (const theme of ["dark", "light"]) {
       await t.page.evaluate(() => { document.getElementById("mac-expert")?.click(); });
       await t.page.waitForFunction(() => document.body.dataset.ui === "expert", null, { timeout: 25000 });
       await t.page.evaluate(() => window.CC.go("command"));
-      const pick = async (m) => t.page.evaluate((mm) => {
+      // 0.5.0 (chat like the Claude app): the run modes are in the box's mode menu ("Auto team"); open it
+      await t.page.waitForSelector("#sc-team", { timeout: 20000 });
+      await t.page.click("#sc-team");
+      const find = (m) => t.page.evaluate((mm) => {
         const el = [...document.querySelectorAll(`[data-m="${mm}"]`)].find((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && b.closest("[role=group]"); });
         if (!el) return null; el.dataset.testTip = mm; return `[data-test-tip="${mm}"]`;
       }, m);
+      // the menu can close between hovers (a redraw on the CI runner): open it again when the button is not showing
+      const pick = async (m) => {
+        let sel = await find(m);
+        for (let i = 0; i < 3 && !sel; i++) {
+          await t.page.click("#sc-team");
+          await t.page.waitForFunction((mm) => [...document.querySelectorAll(`[data-m="${mm}"]`)].some((b) => b.getBoundingClientRect().width > 0), m, { timeout: 5000 }).catch(() => {});
+          sel = await find(m);
+        }
+        return sel;
+      };
       await t.page.waitForFunction(() => [...document.querySelectorAll('[data-m="single"]')].some((b) => b.getBoundingClientRect().width > 0), null, { timeout: 20000 });
       for (const [m, re] of [["single", /^Single: one AI answers/], ["council", /^Council:/], ["mission", /^Mission:/]]) {
         const sel = await pick(m);
@@ -74,11 +88,14 @@ for (const theme of ["dark", "light"]) {
       await t.page.evaluate(() => document.activeElement?.blur());
       const sel = await pick("council");
       await t.page.focus(sel); // programmatic focus after a key press counts as keyboard focus
-      await t.page.keyboard.press("Shift"); await t.page.focus(sel);
+      // 0.5.0: the mode menu was opened with a click, so the first programmatic focus is not keyboard focus; after a key
+      // press, focus it again (blurred first, so the focus event fires)
+      await t.page.keyboard.press("Shift"); await t.page.evaluate(() => document.activeElement?.blur()); await t.page.keyboard.press("Shift"); await t.page.focus(sel);
       const shown = await t.page.waitForFunction(() => { const b = document.getElementById("cc-tip"); return b && !b.hidden && /^Council:/.test(b.textContent); }, null, { timeout: 5000 }).then(() => true, () => false);
       assert.ok(shown, "Tab to a button shows its tip");
       await t.page.keyboard.press("Escape");
-      await t.page.waitForFunction(() => document.getElementById("cc-tip").hidden, null, { timeout: 5000 });
+      // 0.5.0: Esc also closes the mode menu and gives the focus back to its chip, which may show the chip's own tip
+      await t.page.waitForFunction(() => { const b = document.getElementById("cc-tip"); return b.hidden || !/^Council:/.test(b.textContent); }, null, { timeout: 5000 });
       assert.ok(SHOW_MS <= 500, "the hover delay is short");
     } finally { await t.close(); }
   });

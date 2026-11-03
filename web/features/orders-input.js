@@ -18,8 +18,10 @@ function renderCommand(el) {
   const orders = document.querySelector("#orders");
   // 0.4.38 (Chris: Expert Command as a chat): in the Expert chat box, Upload (and its status) sits in the box's bottom
   // row next to Mic and the attached files show under the text; Voice and the help words stay under More options.
-  const exRow = orders?.closest(".ex-box") ? document.getElementById("ex-upload-slot") : null;
-  const exChips = exRow ? document.getElementById("ex-chips-slot") : null;
+  // 0.5.0 (Chris: chat like the Claude app): both chat pages share one box; its round + clicks Upload (kept out of sight in
+  // the bottom row with its status) and the attached files show above the text
+  const exRow = orders?.closest(".cb-box") ? document.getElementById("cb-upload-slot") : null;
+  const exChips = exRow ? document.getElementById("cb-files") : null;
   if (exRow && exChips) {
     exRow.replaceChildren(el.querySelector("#ob-upload"), el.querySelector("#ob-file"), el.querySelector("#ob-status"));
     exChips.replaceChildren(el.querySelector("#ob-chips"), el.querySelector("#ob-modify"));

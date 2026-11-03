@@ -73,8 +73,8 @@ test("Expert 1366 x 800: the savings card says Estimate at 0 runs, a toast stays
     await go(t, "command");
     // 11b: a new install has no runs yet. "over 0 runs" is gone; the card says Estimate. 0.4.38 (Chris: Expert Command
     // as a chat): the card sits with the other Command tools under the chat box's More options.
-    await t.page.waitForSelector("#ex-more-btn", { timeout: WAIT });
-    await t.page.click("#ex-more-btn");
+    await t.page.waitForSelector("#cb-more", { timeout: WAIT }); // 0.5.0: More options is the box's "..." button
+    await t.page.click("#cb-more");
     await t.page.waitForSelector("[data-cc-saved-card]", { timeout: WAIT });
     const before = await t.page.evaluate(() => document.querySelector("[data-cc-saved-card]").textContent.replace(/\s+/g, " "));
     assert.match(before, /All time \$\d+\.\d{2}/, before);

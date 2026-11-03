@@ -114,7 +114,7 @@ test("source: the inside part is registered after panel, every rule is scoped to
 const TEXT = [
   // 0.4.38 (Chris: Expert Command as a chat): Command has no page header; its chat heading and links are measured instead
   "#view .cx-head .cx-title", "#view .cx-head .cx-sub", "#view .ex-hello", "#view .ex-sub", "#view .ex-link", "#view .panel > h3", "#view .panel > h3 .right", "#view .dim", "#view .muted", "#view .hint",
-  "#view .btn.primary", "#view #go", "#view .btn:not(.primary)", "#view .chip", "#view .seg button", "#view label.lbl",
+  "#view .btn.primary", "#view #go", "#view .cb-chip", "#view #cb-mode-label", "#view .cb-mk", "#view .cb-note", "#view .btn:not(.primary)", "#view .chip", "#view .seg button", "#view label.lbl",
   "#view .kpi .k .v", "#view .kpi .k .l", "#view .kpi .k .s",
   "#app .feed .feed-head > span", "#app .feed .ev .who", "#app .feed .ev .txt", "#app .feed .ev .t",
   "#app .strip .tile .name", "#app .strip .tile .sub", "#app .strip .tile .badge",
@@ -131,13 +131,19 @@ test("contrast: the Expert inside text is at least 4.5:1 on the painted pixels i
       const seen = new Set();
       for (const v of ["command", "credits", "projects", "settings", "subscriptions", "liveview", "history", "agents"]) {
         await go(t, v);
+        // Credits draws its spend rows after a fetch; on the CI runner they were not there yet (or a toast sat on them)
+        if (v === "credits") await t.page.waitForFunction(() => /API spend/.test(document.getElementById("view")?.innerText || ""), null, { timeout: 20000 }).catch(() => {});
+        await t.page.evaluate(() => document.querySelectorAll("#toasts .toast").forEach((e) => e.remove()));
         const list = await paintedContrast(t.page, TEXT, { max: 60 });
+        // the 60 cap can stop before the Credits spend tiles on a slower runner: measure those labels on their own too
+        if (v === "credits") list.push(...await paintedContrast(t.page, "#view .k .l", { max: 6 }));
         assert.ok(list.length >= 6, `${theme} ${v}: measured ${list.length}`);
         list.forEach((x) => seen.add(x.text));
         assert.deepEqual(low(list), [], `${theme} ${v}`);
       }
       // The ones the brief names were really measured.
-      for (const want of ["Marching orders", "Credits", "Send orders", "API spend", "$0.00"]) {
+      // 0.5.0 (chat like the Claude app): the chat greets ("What can I help with?") and Send is a round icon button
+      for (const want of ["What can I help with", "Credits", "Auto team", "API spend", "$0.00"]) {
         assert.ok([...seen].some((s) => s.startsWith(want)), `${theme}: measured "${want}"`);
       }
     } finally { await t.close(); }

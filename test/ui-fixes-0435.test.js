@@ -76,6 +76,9 @@ test("item 2: at 1366 x 768 the Council readers box holds its Send; on Free, Mis
   try {
     const p = t.page;
     await p.evaluate(() => window.CC.go("command"));
+    // 0.5.0 (chat like the Claude app): the run modes are in the box's mode menu ("Auto team"); open it
+    await p.waitForSelector("#sc-team", { timeout: WAIT });
+    await p.click("#sc-team");
     await p.waitForSelector("#run-mode [data-m='mission']", { timeout: WAIT });
     // (c) the Mission button says Pro on Free; its tip ends with Part of Pro. 0.4.38 (Chris: Expert Command as a chat):
     // the run bar folded into the chat box, so the box's pill is the one Mission button
@@ -102,6 +105,7 @@ test("item 2: at 1366 x 768 the Council readers box holds its Send; on Free, Mis
     await p.click("#cc-readers-cancel");
     await p.waitForFunction(() => !document.getElementById("cc-readers"), null, { timeout: WAIT });
     // (b) Mission on Free: Send opens the Pro box, never the readers box
+    await p.click("#sc-team");
     await p.click("#run-mode [data-m='mission']");
     await p.click("#go");
     await p.waitForSelector("#cc-upgrade", { timeout: WAIT });
@@ -192,6 +196,8 @@ test("item 5: Expert Command, the first hover on Council shows its tip; a Simple
     const p = t.page;
     await p.evaluate(() => window.CC.go("command"));
     // 0.4.38 (Chris: Expert Command as a chat): the run modes are pills on the chat box (the run bar folded into it)
+    await p.waitForSelector("#sc-team", { timeout: WAIT });
+    await p.click("#sc-team");
     await p.waitForSelector("#run-mode [data-m='council']", { timeout: WAIT });
     await waitOnScreen(p, "#run-mode [data-m='council']");
     // a scroll in a box that does not hold the button (the page settling) no longer cancels the waiting tip
@@ -326,7 +332,8 @@ test("item 11: under a Simple answer no two visible buttons share a label with t
   try {
     const p = e.page;
     await p.evaluate(() => window.CC.go("command"));
-    await p.waitForSelector("#run-mode [data-m='single']", { timeout: WAIT });
+    await p.waitForSelector("#sc-team", { timeout: WAIT });
+    await p.click("#sc-team");
     await p.click("#run-mode [data-m='single']");
     await p.fill("#orders", "Write a two line thank you note for a customer");
     await p.click("#go");
@@ -336,7 +343,8 @@ test("item 11: under a Simple answer no two visible buttons share a label with t
     await p.waitForFunction(() => document.querySelector("#ex-answer > .sc-acts")?.getBoundingClientRect().height > 0, null, { timeout: WAIT });
     const boxes = await p.evaluate(() => [...document.querySelectorAll("form.reply-box")].filter((f) => f.getBoundingClientRect().height > 0).map((f) => f.querySelector("label")?.textContent.trim()));
     assert.deepEqual(boxes, [], "no second reply box for a one-AI answer");
-    assert.deepEqual(await p.evaluate(() => [...document.querySelectorAll("#ex-answer > .sc-acts button")].map((b) => b.textContent.trim())), ["Copy", "Try again", "Make changes", "Save as file"]);
+    // 0.5.0: icon buttons (named for screen readers), then Make changes
+    assert.deepEqual(await p.evaluate(() => [...document.querySelectorAll("#ex-answer > .sc-acts button")].map((b) => b.getAttribute("aria-label") || b.textContent.replace(/\s*\u25be$/, "").trim())), ["Copy", "Try again", "Save as file", "Give to an agent", "Make changes"]);
   } finally { await e.close(); }
 });
 

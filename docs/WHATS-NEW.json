@@ -1,4 +1,13 @@
 {
+  "0.5.0": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "A new chat, in Simple and Expert. Answers use the whole page, and one box at the bottom grows as you type. Modes, Free only, the mic, files and Send all live in the box.",
+      "Under each answer: Copy, Try again, Save as file and Give to an agent, plus Make changes. While the AIs work, one line shows the step and the cost so far.",
+      "A new subject starts a new chat, and History in the sidebar is sorted by day with a search.",
+      "The route preview closes when you send, the suggestions list closes on Send, and done messages no longer cover New chat."
+    ]
+  },
   "0.4.39": {
     "title": "What's new in Meldmind",
     "bullets": [

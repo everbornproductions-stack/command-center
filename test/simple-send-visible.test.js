@@ -33,14 +33,16 @@ for (const [w, h] of SIZES) {
           const el = document.elementFromPoint(q.x + q.width / 2, q.y + q.height / 2);
           out[k] = { x: q.x, y: q.y, w: q.width, h: q.height, hit: el === b || b.contains(el), inView: q.top >= 0 && q.bottom <= innerHeight && q.left >= 0 && q.right <= innerWidth };
         }
-        const box = document.querySelector("#orders").getBoundingClientRect();
-        out.box = { w: box.width, h: box.height };
+        const box = document.querySelector("#orders")?.getBoundingClientRect();
+        out.box = { w: box?.width || 0, h: box?.height || 0 };
         return out;
       }, pairs);
       // Send and Mic are on the box itself.
       const r = await measure([["send", "#go"], ["mic", "#vo-mic"]]);
       // 0.4.21 (area H): "Show my AIs" is grouped behind the Auto team control, so open that first.
-      await t.page.click("#sc-team");
+      await t.page.click("#cb-more"); // 0.5.0: Show my AIs is under the box's "..." (More options)
+      // a redraw on the CI runner left no #orders for a moment: wait for the box and the opened menu before measuring
+      await t.page.waitForFunction(() => !!document.getElementById("orders") && (document.getElementById("cc-show-ais")?.getBoundingClientRect().width || 0) > 0, null, { timeout: 15000 }).catch(() => {});
       Object.assign(r, await measure([["ais", "#cc-show-ais"]]));
       for (const k of ["send", "mic", "ais"]) {
         assert.ok(r[k], `${k} exists`);

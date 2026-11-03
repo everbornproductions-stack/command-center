@@ -32,7 +32,8 @@ async function boot({ width, height, mode }) {
     await t.page.addStyleTag({ content: POPUPS });
     await t.page.evaluate(() => { window.CC.go("command"); window.CC.mac.bus.emit("chat"); });
     await t.page.waitForFunction((m) => document.body.dataset.ui === m && !!document.querySelector(m === "expert" ? "#view .ex-chat #orders" : "#view .sc-chat #orders"), mode, { timeout: WAIT });
-    if (mode === "expert") await t.page.click('#run-mode button[data-m="single"]');
+    // 0.5.0 (chat like the Claude app): the run modes are in the box's mode menu
+    if (mode === "expert") { await t.page.click("#sc-team"); await t.page.click('#run-mode button[data-m="single"]'); }
     return t;
   } catch (e) { await t.close(); throw e; }
 }

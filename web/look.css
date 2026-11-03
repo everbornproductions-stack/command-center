@@ -37,7 +37,10 @@ html[data-look="glass"] body .gate-card,
 html[data-look="glass"] body #cc-tour .card,
 html[data-look="glass"] body #cc-keysetup .box,
 html[data-look="glass"] body .nav-panel,
+html[data-look="glass"] body .tm-dlg-box,
 html[data-look="glass"] body #cc-suggest .psg { background: var(--mm-glass-fill-solid); }
+/* 0.5.0 (0.4.39 panel item 2): the Team dialogs were 60% see-through; solid like the others, with no blur */
+html[data-look="glass"] body .tm-dlg-box { -webkit-backdrop-filter: none; backdrop-filter: none; }
 /* The stage picture: sharp under glass (the app used to blur it first, which left nothing to see through the panes). */
 html[data-look="glass"][data-wall="image"] #cc-wall,
 html[data-look="glass"][data-wall="photo"] #cc-wall { inset: 0; filter: saturate(1.15); transform: none; }

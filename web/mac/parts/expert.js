@@ -130,6 +130,50 @@ function itemButton(item, limits, cls) {
   return b;
 }
 
+// 0.5.0 (Chris: chat like the Claude app): the same first rows as the Simple sidebar.
+const PLACES = [["chat", "💬", "Chat"], ["make", "✦", "Make something"], ["team", "🤝", "Team"], ["projects", "▦", "Projects"], ["mindmedia", "▣", "MindMedia"]];
+function placeOn(CC, id) {
+  const v = CC.S?.view;
+  if (id === "chat") return v === "command";
+  if (id === "make") return v === "start";
+  if (id === "team") return v === "agents";
+  return v === id;
+}
+function goPlace(CC, id) {
+  CC.S.cmdShortcut = "";
+  if (id === "chat") { if (CC.layout?.openChatPage) CC.layout.openChatPage(); else CC.go("command"); }
+  else if (id === "make") CC.go("start");
+  else CC.go(id === "team" ? "agents" : id);
+  st?.bus?.emit("view", CC.S.view);
+  if (isPhone() && st && !st.collapsed) setCollapsed(true);
+}
+function placesEl(CC) {
+  const nav = el("nav", "mx-places");
+  nav.setAttribute("aria-label", "Places");
+  for (const [id, icon, label] of PLACES) {
+    const b = el("button", "mx-pl");
+    b.type = "button";
+    b.id = `mx-place-${id}`;
+    b.dataset.place = id;
+    const ic = el("span", "mx-ic", icon);
+    ic.setAttribute("aria-hidden", "true");
+    b.append(ic, el("span", "mx-nm", label));
+    if (placeOn(CC, id)) { b.classList.add("on"); b.setAttribute("aria-current", "page"); }
+    b.addEventListener("click", () => goPlace(CC, id));
+    nav.append(b);
+  }
+  return nav;
+}
+// History for the sidebar: the newest chats, looked up again every 15 seconds while Expert is on.
+async function loadHistory(force = false) {
+  if (!st?.expert) return;
+  if (!force && Date.now() - (st.histAt || 0) < 15000) return;
+  st.histAt = Date.now();
+  try { st.chats = (await st.CC.api("/chathist?limit=8")).items || []; } catch { return; }
+  const box = st?.side?.querySelector("#mx-hist");
+  if (box) box.innerHTML = st.CC.layout?.historyHtml?.(st.chats, { cls: "mx-hchat", empty: `<div class="mx-none">Your chats show up here.</div>` }) || "";
+}
+
 function renderSide() {
   const { CC, side } = st;
   const q = st.q.trim();
@@ -157,10 +201,8 @@ function renderSide() {
   col.title = "Hide the sidebar";
   col.setAttribute("aria-label", "Hide the sidebar");
   col.addEventListener("click", () => setCollapsed(true));
-  head.append(box, col);
-  inner.append(head);
-  // 0.4.38 (0.4.37 panel item 2): every order goes on in the same chat, so New chat is a clear button at the top.
-  // It starts an empty Command chat; the next order is a new run and a new History row.
+  // 0.5.0 (Chris: chat like the Claude app): New chat at the top, then Chat, Make something, Team, Projects, MindMedia,
+  // then History by day; the search and every group follow under "All features", Settings and more at the bottom.
   const nc = el("button", "mx-new");
   nc.type = "button";
   nc.id = "mx-new-chat";
@@ -174,11 +216,26 @@ function renderSide() {
     st?.bus?.emit("view", "command");
     if (isPhone() && st && !st.collapsed) setCollapsed(true);
   });
-  inner.append(nc);
-  const shown = q ? search(st.items, q) : st.items;
+  head.append(nc, col);
+  inner.append(head);
+  inner.append(placesEl(CC));
+  const hh = el("div", "mx-gh", "History");
+  hh.id = "mx-hist-h";
+  const hist = el("div", "mx-hist");
+  hist.id = "mx-hist";
+  hist.setAttribute("role", "list");
+  hist.setAttribute("aria-labelledby", "mx-hist-h");
+  hist.innerHTML = CC.layout?.historyHtml?.(st.chats || [], { cls: "mx-hchat", empty: `<div class="mx-none">Your chats show up here.</div>` }) || "";
+  hist.addEventListener("click", (e) => { const b = e.target.closest("[data-chat]"); if (!b) return; CC.layout?.openChat?.(b.dataset.chat); st?.bus?.emit("view", "command"); if (isPhone() && st && !st.collapsed) setCollapsed(true); });
+  inner.append(hh, hist);
+  inner.append(el("div", "mx-gh", "All features"));
+  inner.append(box);
+  // 0.5.0: Chat and Projects already sit in the top rows, so the groups leave them out (a search still finds them)
+  const onTop = (i) => ["command", "projects"].includes(i.open?.view) && !i.open?.mode && !i.open?.tab && !i.open?.focus;
+  const shown = q ? search(st.items, q) : st.items.filter((i) => !onTop(i));
   const groups = groupsOf(shown);
   if (!groups.length) inner.append(el("div", "mx-none", "Nothing matches. Try a shorter word."));
-  const cur = st.items.find((i) => isSelected(CC, i));
+  const cur = shown.find((i) => isSelected(CC, i));
   for (const g of groups) {
     const isOpen = q ? true : !!open[g.id] || cur?.group === g.id;
     const gh = el("button", "grp");
@@ -216,6 +273,15 @@ function renderSide() {
   all.type = "button";
   all.addEventListener("click", () => openLaunchpad());
   inner.append(all);
+  const foot = el("button", "mx-pl mx-foot");
+  foot.type = "button";
+  foot.id = "mx-settings";
+  foot.title = "Settings, keys, look and help";
+  const fi = el("span", "mx-ic", "⚙");
+  fi.setAttribute("aria-hidden", "true");
+  foot.append(fi, el("span", "mx-nm", "Settings and more"));
+  foot.addEventListener("click", () => { CC.go("settings"); st?.bus?.emit("view", "settings"); if (isPhone() && st && !st.collapsed) setCollapsed(true); });
+  inner.append(foot);
   side.append(inner);
   const rb = el("button", "mx-reopen", "▶");
   rb.type = "button";
@@ -249,6 +315,11 @@ function tick() {
   const want = (st.CC.uiMode?.() || "simple") === "expert";
   if (want !== st.expert) setExpert(want);
   else syncSelected();
+  // 0.5.0: History follows a run that just finished (the Simple sidebar does the same)
+  const busy = !!(st.CC.S?.awaitingRun || ["running", "planning", "assembling"].includes(st.CC.S?.live?.status));
+  if (st.wasBusy && !busy) setTimeout(() => loadHistory(true), 600);
+  st.wasBusy = busy;
+  loadHistory();
 }
 
 function syncSelected() {
@@ -400,6 +471,7 @@ function setExpert(on) {
     document.body.classList.toggle("mx-side-closed", st.collapsed);
     st.lastKey = "";
     renderSide();
+    loadHistory(true);
   } else {
     closeLaunchpad(false);
     st.side.textContent = "";

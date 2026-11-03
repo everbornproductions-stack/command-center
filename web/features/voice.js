@@ -64,7 +64,9 @@ function paint() {
     const on = session.recording;
     btn.classList.toggle("primary", on);
     btn.classList.toggle("vo-live", on);
-    btn.textContent = btn.hasAttribute("data-simple-mic") ? (on ? "Stop" : "Mic") : buttonLabel(session);
+    // 0.5.0 (Chris: chat like the Claude app): the chat box's mic is a round icon button; only its label changes
+    if (btn.dataset.icon === "1") btn.setAttribute("aria-label", on ? "Stop recording" : "Talk instead of typing");
+    else btn.textContent = btn.hasAttribute("data-simple-mic") ? (on ? "Stop" : "Mic") : buttonLabel(session);
     btn.title = buttonTitle(session);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
   }

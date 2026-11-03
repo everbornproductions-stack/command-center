@@ -53,6 +53,8 @@ async function load(stage) {
 
 function setValue(el, value) {
   el.value = value;
+  // 0.5.0 (panel 0438 item 3): a picked prompt starts a new chat when it is sent from the chat box
+  if (el.id === "orders" && window.CC?.S) window.CC.S.scFresh = true;
   el.dispatchEvent(new Event("input", { bubbles: true }));
   el.focus();
 }
@@ -118,7 +120,8 @@ function mountButton(id) {
     if (e.key === "Escape" && wrap.querySelector(".pd-btn").getAttribute("aria-expanded") === "true") { e.preventDefault(); close(wrap); wrap.querySelector(".pd-btn").focus(); }
   });
   // 0.4.38 (Chris: Expert Command as a chat): in the Expert chat box, Prompts sits in the help line under the box
-  const slot = id === "orders" && el.closest(".ex-box") ? document.getElementById("ex-prompts-slot") : null;
+  // 0.5.0 (Chris: chat like the Claude app): in the shared chat box, Prompts is under More options ("...")
+  const slot = id === "orders" && el.closest(".cb-box") ? document.getElementById("cb-prompts-slot") : null;
   if (slot) slot.appendChild(wrap); else el.insertAdjacentElement("afterend", wrap);
 }
 

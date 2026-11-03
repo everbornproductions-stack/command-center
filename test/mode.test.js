@@ -69,8 +69,9 @@ test("the shell keeps the toggle, the simple chat, and the hotkeys", () => {
   assert.match(app, /function renderSimpleChat/);
   assert.match(app, /uiModeChosen: true/);
   assert.match(app, /PLACEHOLDER/);
-  assert.match(read("web", "simple-ui.js"), /Ask anything\. Meldmind picks the best AI for you\./);
-  assert.match(app, /aria-label="Marching orders"/);
+  // 0.5.0 (chat like the Claude app): the box says "Ask anything, or say what to make"; Expert names it Marching orders
+  assert.match(read("web", "simple-ui.js"), /Ask anything, or say what to make/);
+  assert.match(app, /aria-label="\$\{expert \? "Marching orders"/);
   assert.match(app, /e\.key === "Enter" && \(e\.ctrlKey \|\| e\.metaKey\)/);
   assert.match(app, /getAttribute\("role"\) !== "button"/);
   assert.match(nav, /altKey \|\| ctrlKey \|\| metaKey/);
@@ -107,18 +108,23 @@ test("the Simple chat page is the thread over the chat box; My day and recent ch
   const simple = app.slice(app.indexOf("function scMakePage"), app.indexOf("function paintStarters"));
   // 0.4.37 (Chris: Simple chat layout; was 0.4.17 box first): the classic Make something page keeps My day and recent
   // chats; the Chat page is the examples, then the question, the answer and its Make changes fold, then the box.
-  const order = ['id="simple-home"', "simpleDayHtml()", 'id="simple-recent"', 'id="cc-starters"', 'id="sc-q"', 'id="simple-answer"', 'id="cc-answer-line"', 'id="sc-turns"', '<h3>Chat</h3>', 'id="orders"'];
+  // 0.5.0 (chat like the Claude app): the Chat page is the greeting, then the question, the answer (the shared block with
+  // its Make changes fold), the replies, then the shared chat box (its starters are under More options)
+  const order = ['id="simple-home"', "simpleDayHtml()", 'id="simple-recent"', 'cb-hello" id="sc-hello"', 'id="sc-q"', "chatAnswerHtml(false", 'id="sc-turns"', "chatBoxHtml(false)"];
   let at = -1;
   for (const bit of order) {
     const next = simple.indexOf(bit);
     assert.ok(next > at, `${bit} is in order`);
     at = next;
   }
-  assert.match(simple, /STARTERS\.slice\(0, SIMPLE_STARTER_COUNT\)/);
+  const box = app.slice(app.indexOf("function chatBoxHtml("), app.indexOf("function chatAnswerHtml("));
+  assert.match(box, /STARTERS\.slice\(0, SIMPLE_STARTER_COUNT\)/);
+  assert.match(box, /id="orders"/);
+  assert.match(app.slice(app.indexOf("function chatAnswerHtml("), app.indexOf("function cbMake(")), /id="cc-answer-line"/);
   assert.equal(SIMPLE_STARTER_COUNT, 3);
   for (const gone of ["cc-zapier-slot", "pp-popular", "graduate-slot"]) assert.equal(simple.includes(gone), false, gone);
-  // Only voice (the Mic button) and desk (recent chats) draw on the Simple chat page.
-  assert.deepEqual([...SIMPLE_COMMAND].sort(), ["chat-history", "desk", "voice"]);
+  // Only voice (the Mic button), desk (recent chats), the quick picks and Upload (the box's +) draw on the Simple chat page.
+  assert.deepEqual([...SIMPLE_COMMAND].sort(), ["chat-history", "desk", "orders-input", "voice"]);
   assert.match(app, /if \(simple && kind === "command" && !SIMPLE_COMMAND\.has\(f\.id\)\) continue;/);
   assert.match(app, /function simpleDayHtml/);
   assert.match(app, /data-day=/);

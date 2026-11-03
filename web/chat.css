@@ -1,9 +1,16 @@
-/* The Simple Chat page (0.4.37). Chris, 2026-11-01: "Why does simple mode not look like expert mode when you click on
-   chat? Expert mode's interface is a lot cleaner." Approved mockup: meldmind-dogfood/mockups/simple-chat-0437.html.
-   One centred conversation column (about 780 px) on a flat background like Expert's: the question as a bubble on the
-   right, each answer in a card with four buttons under it, follow-ups below in the same chat, and the short chat box
-   pinned at the bottom with the Talk line under it. Everything here keys on .sc-chat (drawn by app.js renderSimpleChat),
-   so Expert and every other page are untouched. Light and dark come from the theme; sizes use rem so Large text works. */
+/* The chat page, Simple and Expert (0.5.0). Chris, 2026-11-02, after 0.4.38: "It's a chat now but doesn't look right.
+   If we are going more this route, why not make it look more like you here [the Claude app]? It looks weird to have a
+   small chat box and then weird wasted space everywhere, and the marching orders scroll up and down like it is."
+   Approved mockup: meldmind-dogfood/mockups/chat-v2-050.html (chat-v2-050-empty.png, chat-v2-050-convo.png).
+   - A new chat: a greeting with the box right in the middle of the page and the make chips as one row under it.
+   - In a conversation: one column (about 760 px) fills the page, newest at the bottom, and only the conversation
+     scrolls. The box is pinned at the bottom and never scrolls inside itself (only its text area does, past 8 lines).
+   - Your messages are rounded bubbles on the right; answers are plain text under a small "Meldmind · <AI>" label, with
+     small icon buttons and Make changes under each one.
+   Both pages draw the same parts (app.js chatBoxHtml, chatAnswerHtml) inside .chat2: .sc-chat in Simple, .ex-chat in
+   Expert. Colours come from the theme through the --sc-* tokens (Expert maps them to its --ex-* tokens in
+   expert-chat.css), so light and dark both read. Rules under the box start with #app #view #cb so the Mac look's
+   Expert paper (mac/css/inside.css) and the classic styles do not restyle it. Sizes use rem so Large text works. */
 
 /* ---------- tokens: the theme's own colours, with the mockup's in light ---------- */
 body[data-ui="simple"] {
@@ -22,6 +29,7 @@ body[data-ui="simple"] {
   --sc-warn-line: #6b5420;
   --sc-warn-tx: #fde68a;
   --sc-side: #0f141d;
+  --sc-shadow: rgba(0, 0, 0, .28);
 }
 html[data-theme="light"] body[data-ui="simple"], body[data-ui="simple"][data-theme="light"] {
   --sc-canvas: #f6f7f9;
@@ -37,6 +45,7 @@ html[data-theme="light"] body[data-ui="simple"], body[data-ui="simple"][data-the
   --sc-warn-line: #f1d9a6;
   --sc-warn-tx: #5c3d00;
   --sc-side: #f1efec;
+  --sc-shadow: rgba(16, 24, 40, .08);
 }
 /* the Mac look's light / dark button sets body[data-theme]; it wins over the classic theme */
 html body[data-ui="simple"][data-style="mac"][data-theme="dark"] {
@@ -53,6 +62,7 @@ html body[data-ui="simple"][data-style="mac"][data-theme="dark"] {
   --sc-warn-line: #6b5420;
   --sc-warn-tx: #fde68a;
   --sc-side: #0f141d;
+  --sc-shadow: rgba(0, 0, 0, .28);
 }
 
 /* ---------- the page: a flat background, no wallpaper or glass behind the chat ---------- */
@@ -68,74 +78,115 @@ body[data-ui="simple"][data-view="command"].mm-side-on:has(#view > .sc-chat) #cc
 body[data-ui="simple"]:not([data-style="mac"]):has(#view > .sc-chat) .toasts { top: 70px; bottom: auto; }
 /* the Mac title bar's "Use the 3 steps" is the sidebar's Make something when the sidebar shows */
 body.mm-side-on[data-ui="simple"] #mf-return { display: none; }
+/* 0.5.0: the Talk bar row leaves the chat pages (the box's mic and More options carry Talk; Ctrl+Space still works).
+   It comes back only while Talk waits for a yes or no, so that question can still be answered with a click. */
+body:has(#view > .chat2) #vt-bar:not([data-state="waiting"]) { display: none !important; }
 
-.sc-chat { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; height: 100%; width: 100%; color: var(--sc-text); background: var(--sc-canvas); }
-.sc-chat [hidden] { display: none !important; }
-.sc-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 28px 24px 8px; overscroll-behavior: contain; }
-.sc-col { max-width: 780px; margin: 0 auto; min-width: 0; }
-.sc-chat .md { overflow-wrap: anywhere; }
-.sc-chat .md pre { overflow-x: auto; max-width: 100%; }
+.chat2 { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; height: 100%; width: 100%; color: var(--sc-text); background: var(--sc-canvas); position: relative; }
+.chat2 [hidden] { display: none !important; }
+#app #view .chat2 .sc-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 28px 24px 16px; overscroll-behavior: contain; }
+#app #view .chat2 .sc-col { max-width: 760px; margin: 0 auto; min-width: 0; }
+.chat2 .md { overflow-wrap: anywhere; }
+.chat2 .md pre { overflow-x: auto; max-width: 100%; }
 
-/* ---------- empty: "Ask anything", one line, three small chips ---------- */
-.sc-chat[data-state="run"] .sc-empty, .sc-chat[data-state="empty"] .sc-thread { display: none; }
-.sc-empty { text-align: center; margin-top: 16vh; }
-.sc-empty .sc-hello { margin: 0 0 6px; font-size: 1.75rem; font-weight: 700; letter-spacing: -.01em; color: var(--sc-text); }
-.sc-empty .sc-sub { margin: 0 0 18px; color: var(--sc-muted); font-size: .9375rem; }
-.sc-starters { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-.sc-try { padding: 7px 14px; border: 1px solid var(--sc-line); background: var(--sc-card); color: var(--sc-text); border-radius: 999px; font: inherit; font-size: .84375rem; cursor: pointer; }
-.sc-try:hover { border-color: var(--sc-acc); }
-.sc-try:focus-visible, .sc-new:focus-visible, .sc-acts .btn:focus-visible { outline: 2px solid var(--sc-acc); outline-offset: 2px; }
+/* ---------- a new chat: the greeting and the box in the middle of the page ---------- */
+.chat2[data-state="run"] .sc-empty, .chat2[data-state="empty"] .sc-thread { display: none; }
+#app #view .chat2[data-state="empty"]:not([data-page="make"]) { justify-content: center; padding-bottom: 6vh; }
+#app #view .chat2[data-state="empty"]:not([data-page="make"]) .sc-scroll { flex: 0 0 auto; overflow: visible; padding-top: 0; padding-bottom: 6px; }
+#app #view .chat2 .sc-empty:not(.sc-make) { text-align: center; margin: 0; }
+#app #view .chat2 .cb-hello { margin: 0 0 14px; padding: 0; border: 0; font-size: 1.875rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; color: var(--sc-text); text-transform: none; background: none; }
+#app #view .chat2 .cb-modeline { margin: -6px 0 10px; color: var(--sc-muted); font-size: .9375rem; }
+/* Expert's old empty-page cards (Welcome back, popular prompts) are not drawn on the chat; History is in the sidebar */
+#app #view .chat2 :is(#pp-popular, #ex-home) { display: none; }
+#app #view .chat2 #graduate-slot:empty { display: none; }
 /* the classic look's Make something page keeps its chips, ideas and Made recently cards */
 .sc-empty.sc-make { margin-top: 6vh; text-align: left; }
 .sc-empty.sc-make .sc-hello { text-align: center; margin-bottom: 14px; }
 .sc-empty.sc-make .sc-chips { justify-content: center; margin-bottom: 18px; }
-.sc-col:has(.sc-make) { max-width: 1100px; }
-.sc-chat[data-page="make"] .sc-panel { max-width: 1100px; }
-body[data-ui="simple"] .sc-chat[data-page="make"] .sc-box #orders { min-height: 96px; }
+#app #view .chat2 .sc-col:has(.sc-make) { max-width: 1100px; }
+.chat2[data-page="make"] .cb-panel { max-width: 1100px; }
+#app #view .chat2[data-page="make"] #cb .cb-box #orders { min-height: 96px; }
+#app #view .chat2[data-page="make"] #cb #cb-make { display: none; }
 /* a picture, video or voice made in chat is big: up to 70vh in the column */
-.sc-chat #mk-root .mk-media img, .sc-chat #mk-root .mk-media video { max-height: 70vh; width: auto; max-width: 100%; }
+.chat2 #mk-root .mk-media img, .chat2 #mk-root .mk-media video { max-height: 70vh; width: auto; max-width: 100%; }
 
-/* ---------- the thread ---------- */
-.sc-head { display: flex; justify-content: flex-end; margin: -12px 0 6px; }
+/* ---------- the conversation ---------- */
+.chat2 .sc-head { display: none; justify-content: flex-end; margin: -12px 0 6px; }
 .sc-new { border: 0; background: transparent; color: var(--sc-muted); font: inherit; font-size: .8125rem; padding: 4px 8px; border-radius: 8px; cursor: pointer; }
 .sc-new:hover { background: var(--sc-soft); color: var(--sc-text); }
-.sc-resume:empty { display: none; }
-.sc-resume-line { margin: 0 0 14px; font-size: .8125rem; color: var(--sc-muted); text-align: center; }
-.sc-resume-line .linkish { border: 0; background: transparent; color: var(--sc-acc); font: inherit; padding: 0 4px; cursor: pointer; text-decoration: underline; }
-.sc-me { margin: 0 0 18px auto; max-width: 72%; width: fit-content; background: var(--sc-me); border: 1px solid var(--sc-me-line); color: var(--sc-text); padding: 10px 14px; border-radius: 14px 14px 4px 14px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9375rem; }
-.sc-chat .sc-ai { display: block; margin: 0 0 22px; padding: 0; border: 0; background: transparent; box-shadow: none; max-width: none; }
-.sc-card { background: var(--sc-card); border: 1px solid var(--sc-line); border-radius: 14px; padding: 16px 18px; color: var(--sc-text); min-width: 0; }
-.sc-card .md { font-size: .9375rem; line-height: 1.55; }
-.sc-card .md > :first-child { margin-top: 0; }
-.sc-card .md > :last-child { margin-bottom: 0; }
-.sc-card .md h2, .sc-card .md h3 { font-size: 1rem; margin: 12px 0 4px; }
-.sc-who { display: flex; align-items: baseline; gap: 6px; margin: 0 0 8px; font-size: .78125rem; font-weight: 400; color: var(--sc-muted); text-transform: none; letter-spacing: 0; }
-.sc-who b { color: var(--sc-text); font-weight: 600; }
-.sc-who span:not(:empty)::before { content: "\00b7"; margin-right: 6px; }
-.sc-chat #out-follow:empty, .sc-chat #cc-fail-slot:empty, .sc-check:empty { display: none; }
-/* the answer check inside the card, under the answer text */
-.sc-check .cc-answer-check { margin: 12px 0 0 !important; padding: 9px 12px !important; border: 1px solid var(--sc-warn-line) !important; border-left-width: 1px !important; border-radius: 10px; background: var(--sc-warn-bg); color: var(--sc-warn-tx); font-size: .84375rem; }
+#app #view .chat2 .sc-me { margin: 0 0 24px auto; max-width: 78%; width: fit-content; background: var(--sc-me); border: 1px solid var(--sc-me-line); color: var(--sc-text); padding: 10px 16px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1rem; line-height: 1.5; box-shadow: none; }
+#app #view .chat2 .sc-me.ex-me { white-space: normal; }
+.chat2 .ex-me .ex-tag { font-size: .75rem; color: var(--sc-muted); margin: 0 0 3px; }
+.chat2 .ex-me .ex-q { white-space: pre-wrap; overflow-wrap: anywhere; }
+#app #view .chat2 .sc-ai { display: block; margin: 0 0 28px; padding: 0; border: 0; background: transparent; box-shadow: none; max-width: none; }
+/* an answer is plain text, no card border */
+#app #view .chat2 .sc-card { background: transparent; border: 0; border-radius: 0; padding: 0; color: var(--sc-text); min-width: 0; box-shadow: none; }
+#app #view .chat2 .sc-card .md { font-size: 1rem; line-height: 1.6; color: var(--sc-text); }
+.chat2 .sc-card .md > :first-child { margin-top: 0; }
+.chat2 .sc-card .md > :last-child { margin-bottom: 0; }
+#app #view .chat2 .sc-card .md :is(h1, h2, h3) { font-size: 1.0625rem; margin: 14px 0 4px; color: var(--sc-text); }
+#app #view .chat2 .sc-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0 0 8px; padding: 0; border: 0; font-size: .8125rem; font-weight: 400; color: var(--sc-muted); text-transform: none; letter-spacing: 0; background: none; }
+#app #view .chat2 .sc-who b { color: var(--sc-muted); font-weight: 600; font-size: .8125rem; }
+.chat2 .sc-who span:not(:empty)::before { content: "\00b7"; margin-right: 6px; }
+.chat2 #out-follow:empty, .chat2 #cc-fail-slot:empty, .chat2 .sc-check:empty { display: none; }
+/* the answer check: a slim notice inside the answer */
+.sc-check .cc-answer-check { margin: 12px 0 0 !important; padding: 8px 12px !important; border: 1px solid var(--sc-warn-line) !important; border-left-width: 1px !important; border-radius: 10px; background: var(--sc-warn-bg); color: var(--sc-warn-tx); font-size: .84375rem; }
 .sc-check .cc-answer-check .dim { color: inherit; opacity: .85; }
-/* a long code block folds; it opens under the answer when clicked */
+/* a long code block folds; it opens under the answer when clicked (a file answer keeps its preview card) */
 .sc-code { margin: 10px 0; border: 1px solid var(--sc-line); border-radius: 10px; background: var(--sc-soft); }
 .sc-code > summary { cursor: pointer; padding: 8px 12px; font-size: .84375rem; font-weight: 600; }
 .sc-code[open] > summary { border-bottom: 1px solid var(--sc-line); }
 .sc-code > pre { margin: 0; padding: 10px 12px; max-height: 60vh; overflow: auto; }
+.sc-pending .reply-live { color: var(--sc-text); }
 
-/* ---------- the four buttons and the Make changes fold ---------- */
-.sc-acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; }
-.sc-chat .sc-acts .btn { padding: 6px 13px; min-height: 34px; border-radius: 9px; border: 1px solid var(--sc-line); background: var(--sc-card); color: var(--sc-text); font: inherit; font-weight: 600; font-size: .84375rem; cursor: pointer; box-shadow: none; }
-.sc-chat .sc-acts .btn:hover:not(:disabled) { border-color: var(--sc-acc); }
-.sc-chat .sc-acts .btn.primary { background: var(--sc-acc); border-color: var(--sc-acc); color: var(--sc-on-acc); }
-.sc-chat .sc-acts .btn[aria-expanded="true"] { background: var(--sc-soft); }
-.sc-changes { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-card); display: grid; gap: 8px; min-width: 0; }
+/* ---------- the working line and the steps behind it ---------- */
+#app #view .chat2 .cb-work { margin: 0 0 10px; }
+#app #view .chat2 .cb-work-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 32px; padding: 5px 12px; border: 1px solid var(--sc-line-2); border-radius: 10px; background: var(--sc-card); color: var(--sc-text); font: inherit; font-size: .8125rem; font-weight: 500; cursor: pointer; box-shadow: none; text-align: left; }
+#app #view .chat2 .cb-work-btn:disabled { cursor: default; opacity: 1; }
+#app #view .chat2 .cb-work-btn:hover:not(:disabled) { border-color: var(--sc-acc); }
+#app #view .chat2 .cb-work-btn #cb-work-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat2 .cb-pulse { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sc-muted); }
+.chat2 .cb-work[data-busy="1"] .cb-pulse { background: var(--green, #22c55e); animation: cb-pulse 1.2s ease-in-out infinite; }
+@keyframes cb-pulse { 50% { opacity: .35; } }
+/* the steps (#ops-panel; the Live Ops page adopts the same node) open from the working line */
+#app #view .chat2 #ops-panel { display: none; margin: 0 0 12px; padding: 4px 12px 8px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-soft); box-shadow: none; overflow: visible; max-height: none; color: var(--sc-text); }
+#app #view .chat2 .cb-answer[data-steps="open"] #ops-panel { display: block; }
+#app #view .chat2 #ops-panel > h3 { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin: 0; padding: 4px 0 0; border: 0; font-size: .8125rem; background: none; }
+.chat2 #ops-panel > h3 :is(.ex-lo-title, #ops-head) { display: none; }
+#app #view .chat2 #ops-panel > h3 > button { flex: none; width: auto; margin: 0; padding: 3px 9px; min-height: 0; border-radius: 6px; font-size: .75rem; font-weight: 600; }
+#app #view .chat2 #ops-panel .ex-link { border: 0; background: transparent; color: var(--sc-acc-text, var(--sc-text)); text-decoration: underline; cursor: pointer; }
+.chat2 #ops-panel :is(#graph, .lv-ops-foot) { display: none !important; }
+#app #view .chat2 #ops-panel #tasks { margin: 0; gap: 0; }
+#app #view .chat2 #ops-panel #tasks > .empty { padding: 8px 0; text-align: left; color: var(--sc-muted); font-size: .875rem; }
+#app #view .chat2 #ops-panel .task { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 4px 10px; padding: 7px 0; border: 0; border-bottom: 1px solid var(--sc-line); border-radius: 0; background: transparent; font-size: .875rem; color: var(--sc-text); }
+#app #view .chat2 #ops-panel .task:last-of-type { border-bottom: 0; }
+.chat2 #ops-panel .task > :is(.chip, .bar) { display: none; }
+#app #view .chat2 #ops-panel .task .who { font-family: inherit; font-size: .75rem; color: var(--sc-muted); }
+#app #view .chat2 #ops-panel .task .cost { font-size: .75rem; color: var(--sc-muted); }
+.chat2 #ops-panel .task .st { width: 9px; height: 9px; }
+.chat2 #ops-panel .task-follow { grid-column: 2 / -1; }
+.chat2 #ops-panel .task-answer .md, .chat2 #ops-panel .ans .body { max-height: none; overflow: visible; }
+.chat2 #ops-panel #council:empty { display: none; }
+.chat2 #ops-panel #council .cat-h { margin: 8px 0 6px !important; font-size: .75rem; color: var(--sc-muted); }
+.chat2 #ops-panel .council-cols { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-flow: row; gap: 8px; overflow: visible; margin-bottom: 8px; }
+.chat2 #ops-panel .ans { min-width: 0; }
+
+/* ---------- under each answer: the icon buttons and Make changes ---------- */
+/* the first answer's buttons wait until the run is done (a mission's answer is put together at the end) */
+#app #view .chat2[data-busy="1"] :is(#ex-answer, #simple-answer) > :is(.sc-acts, .sc-changes) { display: none; }
+#app #view .chat2 .sc-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 10px 0 0 -6px; }
+#app #view .chat2 .sc-acts .cb-ic { display: inline-grid; place-items: center; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--sc-muted); cursor: pointer; box-shadow: none; }
+#app #view .chat2 .sc-acts .cb-ic:hover:not(:disabled) { background: var(--sc-soft); color: var(--sc-text); }
+#app #view .chat2 .sc-acts .cb-change { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; min-height: 30px; padding: 4px 10px; border: 1px solid var(--sc-line-2); border-radius: 8px; background: transparent; color: var(--sc-text); font: inherit; font-size: .8125rem; font-weight: 500; cursor: pointer; box-shadow: none; }
+#app #view .chat2 .sc-acts .cb-change:hover, #app #view .chat2 .sc-acts .cb-change[aria-expanded="true"] { background: var(--sc-soft); }
+.chat2 .sc-acts :is(.cb-ic, .cb-change):focus-visible, .chat2 .sc-new:focus-visible { outline: 2px solid var(--sc-acc); outline-offset: 2px; }
+#app #view .chat2 .sc-changes { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-card); display: grid; gap: 8px; min-width: 0; color: var(--sc-text); }
 .sc-changes > :empty { display: none; }
 .sc-changes .answer-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sc-changes .mm-bar { margin: 0; border: 0; padding: 0; background: transparent; }
-/* Copy and Try again are already the first two buttons */
+/* Copy and Try again are already in the icon row */
 .sc-changes #cc-copy-main, .sc-changes #cc-v-again { display: none; }
 .sc-quick { display: flex; flex-wrap: wrap; gap: 6px; }
-.sc-pending .reply-live { color: var(--sc-text); }
 
 /* 0.4.38 (0.4.37 panel item 6: Make changes opened 38 controls in one block, three of them covered). The first answer's
    fold starts short: "Change the answer" (the reply quick changes) and "Check, save or finish" (Double-check, Change this
@@ -144,6 +195,8 @@ body[data-ui="simple"] .sc-chat[data-page="make"] .sc-box #orders { min-height: 
 .sc-changes .sc-grp-h { font-size: .75rem; font-weight: 600; color: var(--sc-muted); margin: 2px 0 -2px; }
 .sc-changes .sc-all-btn { justify-self: start; }
 #sc-changes:not(.sc-all) > :is(#cc-answer-line, #sc-mm-slot) { display: none !important; }
+/* 0.5.0 (panel 0438 item 4): a repeat of an action already in the fold waits out of sight (app.js scDedupe) */
+#sc-changes.sc-all [data-sc-dup] { display: none !important; }
 #sc-changes:not(.sc-all) #deliv-extras { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 #sc-changes:not(.sc-all) #deliv-extras > :not(.answer-main):not([data-feature="next-actions"]):not([data-feature="finishpath"]):not([data-feature="versions"]):not([data-feature="desk"]) { display: none !important; }
 #sc-changes:not(.sc-all) #deliv-extras > :is(.answer-main, [data-feature="next-actions"], [data-feature="finishpath"], [data-feature="versions"]),
@@ -159,49 +212,121 @@ body[data-ui="simple"] .sc-chat[data-page="make"] .sc-box #orders { min-height: 
 /* the desk block stays only for a Double-check result (the practice note and the writer are in the card already) */
 #sc-changes:not(.sc-all) #deliv-extras [data-feature="desk"]:not(:has(.cc-desk-tools > .panel:not(#cc-practice))) { display: none !important; }
 
-/* ---------- the chat box, pinned under the column ---------- */
-.sc-chat .orders { flex: none; position: relative; display: block; padding: 10px 24px 12px; margin: 0; overflow: visible; max-height: none; background: var(--sc-canvas); }
-.sc-chat .sc-panel { max-width: 780px; margin: 0 auto; padding: 0; border: 0; background: transparent; box-shadow: none; display: flex; flex-direction: column; gap: 8px; -webkit-backdrop-filter: none; backdrop-filter: none; }
-.sc-chat .sc-panel > h3 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
-body[data-ui="simple"] .sc-chat .sc-box { display: grid; gap: 4px; background: var(--sc-card); border: 1px solid var(--sc-line-2); border-radius: 16px; padding: 10px 12px 8px 14px; box-shadow: 0 4px 18px rgba(0, 0, 0, .06); -webkit-backdrop-filter: none; backdrop-filter: none; }
-body[data-ui="simple"] .sc-chat .sc-box:focus-within { border-color: var(--sc-acc); }
-body[data-ui="simple"] .sc-chat .sc-box #orders { min-height: 2.6em; height: auto; max-height: calc(6 * 1.5em + 12px); overflow-y: auto; resize: none; border: 0; background: transparent; box-shadow: none; outline: none; color: var(--sc-text); font: inherit; font-size: .9375rem; line-height: 1.5; padding: 2px 0; width: 100%; }
-body[data-ui="simple"] .sc-chat .sc-box #orders::placeholder { color: var(--sc-muted); }
-.sc-chat .simple-send-row { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; min-width: 0; }
-.sc-chat .simple-send-row #vo-mic { border: 1px solid var(--sc-line); background: var(--sc-card); color: var(--sc-text); border-radius: 9px; padding: 6px 12px; font-weight: 600; }
-.sc-chat .sc-team { color: var(--sc-muted); background: transparent; border: 0; font: inherit; font-size: .84375rem; padding: 4px 6px; border-radius: 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.sc-chat .sc-team:hover, .sc-chat .sc-team[aria-expanded="true"] { color: var(--sc-text); background: var(--sc-soft); }
-.sc-chat .cc-freeonly { color: var(--sc-muted); font-size: .84375rem; }
-body[data-ui="simple"] .sc-chat .sc-box #go { min-width: 84px; background: var(--sc-acc); border-color: var(--sc-acc); color: var(--sc-on-acc); border-radius: 10px; font-weight: 700; padding: 8px 18px; }
-body[data-ui="simple"] .sc-chat .sc-box #go:disabled { opacity: .6; }
-.sc-chat #cc-auto-line:empty, .sc-chat #cc-emp-hint:empty, .sc-chat #cc-precost:empty { display: none; }
-.sc-chat #cc-auto-line, .sc-chat #cc-precost { color: var(--sc-muted); font-size: .78125rem; }
-/* quick picks and the composer AI row wait behind Auto team (More options), like the rest of the extras */
-.sc-chat .sc-box #hh-picks, .sc-chat #cc-composer-ais { display: none; }
-.sc-chat .sc-panel.more-open .sc-box #hh-picks, .sc-chat .sc-panel.more-open #cc-composer-ais, .sc-chat[data-busy="1"] #cc-composer-ais { display: flex; }
-.sc-chat .sc-more { display: none; gap: 8px; border: 1px solid var(--sc-line); border-radius: 12px; padding: 10px 12px; background: var(--sc-card); max-height: 40vh; overflow-y: auto; }
-.sc-chat .sc-panel.more-open .sc-more { display: grid; }
-.sc-chat .sc-live { display: flex; align-items: center; gap: 10px; padding: 6px 12px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-card); font-size: .8125rem; }
+/* ---------- the chat box, pinned at the bottom (mid page on a new chat) ---------- */
+#app #view #cb { flex: none; position: relative; z-index: 6; display: block; margin: 0; padding: 8px 24px 10px; overflow: visible; max-height: none; border: 0; box-shadow: none; background: var(--sc-canvas); }
+#app #view .chat2[data-state="empty"] #cb { background: transparent; }
+#app #view #cb .cb-panel { max-width: 760px; margin: 0 auto; padding: 0; border: 0; background: transparent; box-shadow: none; display: flex; flex-direction: column; gap: 8px; -webkit-backdrop-filter: none; backdrop-filter: none; min-width: 0; }
+#app #view #cb .cb-sr, #app #view #cb .cb-sr * { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; padding: 0; border: 0; }
+#app #view #cb .cb-box { position: relative; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 14px 14px 10px 18px; border: 1px solid var(--sc-line-2); border-radius: 22px; background: var(--sc-card); box-shadow: 0 6px 24px var(--sc-shadow); overflow: visible; min-width: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+#app #view #cb .cb-box:focus-within { border-color: var(--sc-acc); }
+/* the text area grows with the words up to about 8 lines, then scrolls inside itself (app.js cbGrow) */
+#app #view #cb #orders { display: block; width: 100%; min-height: 1.6em; height: auto; max-height: calc(8 * 1.5em + 6px); margin: 0; padding: 2px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; outline: none; resize: none; overflow-y: hidden; color: var(--sc-text); font: inherit; font-size: 1rem; line-height: 1.5; }
+#app #view .chat2[data-state="empty"] #cb #orders { min-height: 3em; }
+#app #view #cb #orders::placeholder { color: var(--sc-muted); opacity: 1; }
+#app #view #cb #orders:focus, #app #view #cb #orders:focus-visible { outline: none; box-shadow: none; }
+#app #view #cb .cb-files:empty, #app #view #cb .cb-files :is(#ob-chips, #ob-modify):empty { display: none; }
+/* the bottom row: + , the mode chip, Free only ... More options, mic, Send */
+#app #view #cb .cb-row { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: nowrap; }
+#app #view #cb .cb-gap { flex: 1 1 auto; min-width: 0; }
+#app #view #cb .cb-pop-wrap { position: static; display: inline-flex; min-width: 0; }
+#app #view #cb .cb-slot { display: contents; }
+/* Upload (web/features/orders-input.js) is clicked by the + ; its own button stays out of sight, its status shows */
+#app #view #cb #cb-upload-slot #ob-upload, #app #view #cb #cb-upload-slot #ob-file { display: none; }
+#app #view #cb #ob-status { color: var(--sc-muted); font-size: .75rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#app #view #cb #ob-status:empty { display: none; }
+#app #view #cb :is(.cb-round, .cb-send) { flex: none; display: inline-grid; place-items: center; width: 34px; height: 34px; min-width: 0; min-height: 0; margin: 0; padding: 0; border-radius: 50%; font: inherit; line-height: 1; cursor: pointer; box-shadow: none; }
+#app #view #cb .cb-round { border: 1px solid var(--sc-line-2); background: transparent; color: var(--sc-text); }
+#app #view #cb .cb-round:hover, #app #view #cb .cb-round[aria-expanded="true"] { background: var(--sc-soft); }
+#app #view #cb #vo-mic.vo-live, #app #view #cb #vo-mic[aria-pressed="true"] { border-color: var(--red, #f87171); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red, #f87171) 35%, transparent); }
+body:has(#vt-bar[data-talk="on"]) #app #view #cb #vo-mic { border-color: var(--sc-acc); }
+body:has(#vt-bar[data-state="listening"]) #app #view #cb #vo-mic { box-shadow: 0 0 0 3px color-mix(in srgb, var(--red, #f87171) 40%, transparent); }
+#app #view #cb .cb-send { position: relative; width: 36px; height: 36px; border: 0; background: var(--sc-acc); color: var(--sc-on-acc); }
+/* the screen reader word ("Send") stays inside the round button, on its own colour */
+#app #view #cb .cb-send .cb-sr { top: 50%; left: 50%; }
+#app #view #cb .cb-send:hover:not(:disabled) { filter: brightness(1.08); }
+#app #view #cb .cb-send:disabled { opacity: .45; cursor: default; }
+#app #view #cb :is(.cb-round, .cb-send, .cb-chip, .cb-mk, .cb-mitem, .cb-modes button, .cb-x):focus-visible { outline: 2px solid var(--sc-acc); outline-offset: 2px; }
+#app #view #cb .cb-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; min-height: 0; min-width: 0; max-width: 100%; margin: 0; padding: 0 12px; border: 1px solid var(--sc-line-2); border-radius: 999px; background: transparent; color: var(--sc-text); font: inherit; font-size: .84375rem; font-weight: 500; white-space: nowrap; cursor: pointer; box-shadow: none; }
+#app #view #cb .cb-chip:hover, #app #view #cb .cb-chip[aria-expanded="true"] { background: var(--sc-soft); }
+#app #view #cb .sc-team #cb-mode-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#app #view #cb .cb-spark, #app #view #cb .cb-caret { color: var(--sc-muted); font-size: .75rem; flex: none; }
+/* Free only: a chip; the real checkbox is inside it (Settings and the Get free AIs card use the same setting) */
+#app #view #cb .cb-free { position: relative; }
+/* the checkbox itself is drawn as the small dot, so it stays the thing a click or a tap lands on */
+#app #view #cb .cb-free .cb-check { -webkit-appearance: none; appearance: none; flex: none; width: 10px; height: 10px; min-width: 0; min-height: 0; margin: 0; padding: 0; border-radius: 50%; border: 1.5px solid var(--sc-muted); background: transparent; box-shadow: none; cursor: pointer; }
+#app #view #cb .cb-free:has(.cb-check:checked) { border-color: var(--sc-acc); }
+#app #view #cb .cb-free .cb-check:checked { background: var(--sc-acc); border-color: var(--sc-acc); }
+#app #view #cb .cb-free .cb-check:focus { outline: none; }
+#app #view #cb .cb-free:focus-within { outline: 2px solid var(--sc-acc); outline-offset: 2px; }
+/* the two pop-ups: the mode menu (every mode, and in Expert Priority, When, the check and the cap) and More options */
+#app #view #cb .cb-pop { position: absolute; bottom: calc(100% + 8px); left: 8px; z-index: 40; display: grid; gap: 4px; align-content: start; width: min(320px, calc(100% - 16px)); max-height: min(62vh, 480px); overflow: auto; margin: 0; padding: 8px; border: 1px solid var(--sc-line-2); border-radius: 14px; background: var(--sc-card); color: var(--sc-text); box-shadow: 0 16px 40px var(--sc-shadow); text-align: left; }
+#app #view #cb .cb-pop.cb-pop-down { bottom: auto; top: calc(100% + 8px); }
+#app #view #cb .cb-more-pop { left: auto; right: 8px; width: min(440px, calc(100% - 16px)); gap: 8px; padding: 10px 12px; }
+#app #view #cb .cb-mh { margin: 6px 4px 0; font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--sc-muted); }
+#app #view #cb .cb-mh:first-child { margin-top: 2px; }
+#app #view #cb .cb-modes { display: grid; gap: 1px; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+#app #view #cb .cb-modes button { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 34px; margin: 0; padding: 6px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--sc-text); font: inherit; font-size: .875rem; font-weight: 500; text-align: left; cursor: pointer; box-shadow: none; }
+#app #view #cb .cb-modes button:hover { background: var(--sc-soft); }
+#app #view #cb .cb-modes button.on { background: var(--sc-soft); font-weight: 700; }
+#app #view #cb .cb-modes button.on::after { content: "\2713"; margin-left: auto; color: var(--sc-text); }
+#app #view #cb .cb-mrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; padding: 2px 4px; }
+#app #view #cb .cb-mlbl { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--sc-text); font-size: .8125rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
+#app #view #cb .cb-select { width: auto; min-width: 0; max-width: 12rem; height: auto; min-height: 30px; margin: 0; padding: 3px 8px; border: 1px solid var(--sc-line-2); border-radius: 8px; background: var(--sc-card); color: var(--sc-text); font: inherit; font-size: .8125rem; box-shadow: none; }
+#app #view #cb .cb-mitem { display: inline-flex; align-items: center; min-height: 30px; margin: 0; padding: 4px 10px; border: 1px solid var(--sc-line-2); border-radius: 8px; background: transparent; color: var(--sc-text); font: inherit; font-size: .8125rem; font-weight: 500; cursor: pointer; box-shadow: none; }
+#app #view #cb .cb-mitem:hover, #app #view #cb .cb-mitem[aria-pressed="true"] { background: var(--sc-soft); }
+#app #view #cb .cb-est:empty { display: none; }
+#app #view #cb .cb-est { padding: 4px 6px 0; color: var(--sc-muted); font-size: .75rem; }
+#app #view #cb .cb-more-pop .hint, #app #view #cb .cb-more-pop .dim, #app #view #cb .cb-more-pop #cls-hint { margin: 0; color: var(--sc-muted); font-size: .75rem; max-width: none; }
+#app #view #cb .cb-more-pop #cls-hint:empty { display: none; }
+#app #view #cb .cb-more-pop .pd-wrap { display: inline-block; }
+#app #view #cb .cb-more-pop .pd-panel { max-height: 40vh; }
+#app #view #cb .cb-more-pop #cc-composer-ais { display: flex; flex-wrap: wrap; gap: 6px; }
+#app #view #cb .cb-more-pop #cmd-extras > :empty { display: none; }
+#app #view #cb .cb-more-pop .lbl { margin: 6px 4px -2px; font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--sc-muted); }
+#app #view #cb .cb-route { position: relative; margin: 0; padding-right: 36px; max-height: 26vh; overflow: auto; }
+#app #view #cb .cb-route-x { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; min-height: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--sc-text); font: inherit; font-size: 1.125rem; line-height: 1; cursor: pointer; box-shadow: none; }
+#app #view #cb .cb-route-x:hover { background: var(--sc-soft); }
+#app #view #cb .cb-chatting:not(:has(.tm-chatting)) { display: none; }
+/* under the box: the make chips and the resume chip (a new chat only), then one quiet line */
+#app #view #cb .cb-under { display: grid; gap: 6px; justify-items: center; min-width: 0; }
+#app #view .chat2[data-state="run"] #cb :is(#cb-make, #sc-resume) { display: none; }
+#app #view #cb .cb-make { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 6px 0 2px; max-width: 100%; }
+#app #view #cb :is(.cb-mk, .cb-x) { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; margin: 0; padding: 5px 12px; border: 1px solid var(--sc-line-2); border-radius: 999px; background: transparent; color: var(--sc-text); font: inherit; font-size: .84375rem; font-weight: 500; white-space: nowrap; cursor: pointer; box-shadow: none; }
+#app #view #cb :is(.cb-mk, .cb-x):hover { background: var(--sc-soft); }
+#app #view #cb .cb-mk-ic { font-size: .8125rem; line-height: 1; }
+#app #view #cb .cb-mk { font-size: .8125rem; }
+#app #view #cb .sc-resume:empty { display: none; }
+#app #view #cb .cb-resume-chip { display: inline-flex; align-items: center; gap: 4px; margin: 0; }
+#app #view #cb .cb-x { padding: 6px 10px; }
+#app #view #cb .cb-note { margin: 0; padding: 0; color: var(--sc-muted); font-size: .75rem; text-align: center; max-width: none; }
+#app #view #cb :is(.cb-auto, .cb-voice) { color: var(--sc-muted); font-size: .75rem; text-align: center; }
+#app #view #cb .cb-auto:empty, #app #view #cb #cc-emp-hint:empty { display: none; }
 
-/* ---------- the Talk bar: one quiet line under the box ---------- */
-body[data-ui="simple"][data-view="command"] .view-col:has(> #view > .sc-chat) > #vt-bar { background: var(--sc-canvas); border-top: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-
-/* ---------- phones: the same column, the box above the Talk bar ---------- */
+/* ---------- phones: the same column; the box keeps one row ---------- */
 @media (max-width: 760px) {
-  .sc-scroll { padding: 16px 16px 6px; }
-  .sc-chat .orders { padding: 6px 16px 8px; }
-  .sc-empty { margin-top: 8vh; }
-  .sc-empty .sc-hello { font-size: 1.5rem; }
-  .sc-me { max-width: 86%; }
-  .sc-card { padding: 14px; }
-  .sc-acts { gap: 6px; }
-  .sc-chat .sc-acts .btn { padding: 5px 9px; font-size: .8125rem; }
-  .sc-chat .simple-send-row { flex-wrap: wrap; gap: 6px 8px; }
-  .sc-chat .simple-send-row > span { margin-left: auto !important; }
-  body[data-ui="simple"] .sc-chat .sc-box #go { margin-left: auto; }
-  .sc-chat .cc-freeonly { font-size: .78125rem; }
+  #app #view .chat2 .sc-scroll { padding: 16px 16px 10px; }
+  #app #view .chat2 .sc-head { display: flex; }
+  #app #view #cb { padding: 6px 12px 8px; }
+  #app #view #cb .cb-box { padding: 10px 10px 8px 14px; border-radius: 18px; gap: 6px; }
+  #app #view #cb .cb-row { gap: 6px; }
+  #app #view #cb .cb-chip { padding: 0 10px; font-size: .8125rem; }
+  #app #view #cb :is(.cb-round, .cb-send) { width: 32px; height: 32px; }
+  #app #view #cb .cb-make { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; width: 100%; padding-bottom: 2px; }
+  #app #view #cb .cb-make::-webkit-scrollbar { display: none; }
+  #app #view #cb .cb-mk { padding: 5px 11px; font-size: .8125rem; }
+  #app #view .chat2 .cb-hello { font-size: 1.5rem; }
+  #app #view .chat2 .sc-me { max-width: 86%; }
 }
-@media (prefers-reduced-motion: reduce) { .sc-chat * { scroll-behavior: auto !important; } }
+@media (max-width: 480px) {
+  #app #view #cb .cb-narrow-x { display: none; }
+}
+@media (max-width: 420px) {
+  #app #view #cb .cb-spark { display: none; }
+  #app #view #cb .cb-row { gap: 5px; }
+  #app #view #cb .cb-chip { gap: 4px; padding: 0 8px; }
+  #app #view #cb :is(.cb-round, .cb-send) { width: 30px; height: 30px; }
+}
+@media (prefers-reduced-motion: reduce) { .chat2 * { scroll-behavior: auto !important; } .chat2 .cb-pulse { animation: none !important; } }
 
 /* 0.4.38 (0.4.37 panel item 4): on a chat page app.js placeChatToast() moves a toast that would sit on the answer's
    buttons or the chat box to the top right corner (or just above the box) */

@@ -27,7 +27,8 @@ test("page shell: accessibility, error states and empty states", () => {
   // labelled selects in the chat box's bottom row
   assert.match(app, /id="run-mode" role="group" aria-label="/);
   for (const id of ["cost-mode", "when-mode"]) assert.match(app, new RegExp(`<select id="${id}"[^>]*aria-label="`));
-  assert.match(app, /<textarea id="orders"[^>]*aria-label="Marching orders"/);
+  // 0.5.0 (chat like the Claude app): one box for both chat pages; Expert names it "Marching orders"
+  assert.match(app, /<textarea id="orders"[^>]*aria-label="\$\{expert \? "Marching orders"/);
   // clickable cards and rows work from the keyboard
   assert.match(app, /class="tile [^`]*role="button" tabindex="0" aria-label=/);
   assert.match(app, /class="pcard"[^`]*role="button" tabindex="0"/);

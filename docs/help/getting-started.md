@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.4.39
+lastUpdatedVersion: 0.5.0
 ---
 
 # Getting started
@@ -248,3 +248,7 @@ Expert Command is a chat now, like Simple: your orders as a message, the answer 
 ## Your agents work as a team, and everything is easy to read (0.4.39)
 
 Agents are a Team now. Each agent has a desk: give it a task in one line, see what it is working on, review what is ready for your OK, and set duties it does every day, week or month. Nothing is sent or posted without your OK. Hand any chat answer to an agent with Give to an agent, assign a project step to someone on your team, or open an agent's desk from a project. Every page and box is easy to read in light and dark, on a laptop or a phone. Meldmind now measures all of its text before each release, so it stays that way. Boxes and menus are solid instead of see-through, so the words in them always stand out from the picture behind.
+
+## A new chat that reads like a conversation (0.5.0)
+
+Simple and Expert now share one chat. Answers use the whole page, and one box at the bottom grows as you type. Modes, Free only, the mic, files and Send all live in the box. Under each answer you get Copy, Try again, Save as file and Give to an agent, plus Make changes. While the AIs work, one line shows the step and the cost so far. A new subject starts a new chat, and History in the sidebar is sorted by day with a search. The route preview closes when you send, the suggestions list closes on Send, and done messages no longer cover New chat.

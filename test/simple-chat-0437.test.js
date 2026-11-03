@@ -21,7 +21,8 @@ const RUN = waitBudget(180000);
 const ROOT = path.join(import.meta.dirname, "..");
 const SHOTS = process.env.CC_SHOTS || "";
 const POPUPS = "#cc-startup,#demo-bar,#cc-desktop-prompt,#ea-news-overlay,.cc-tour-invite,#cc-look-offer{display:none!important}";
-const LABELS = ["Copy", "Try again", "Make changes", "Save as file"];
+// 0.5.0 (chat like the Claude app): icon buttons (named for screen readers) then Make changes
+const LABELS = ["Copy", "Try again", "Save as file", "Give to an agent", "Make changes"];
 
 async function shot(page, name) {
   if (!SHOTS) return;
@@ -73,6 +74,8 @@ async function boxClear(page) {
     return {
       inside: r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth,
       lowHalf: r.top > innerHeight * 0.45,
+      // 0.5.0: on a new chat the box sits mid page (its centre in the middle third)
+      mid: (r.top + r.height / 2) > innerHeight / 3 && (r.top + r.height / 2) < innerHeight * 2 / 3,
       covered,
       aboveTalk: !talk || r.bottom <= talk.top + 1,
       aboveDock: !dock || dock.top >= innerHeight - 1 || r.bottom <= dock.top + 1,
@@ -108,7 +111,7 @@ async function threadOrder(page) {
       colW: col.width,
       colMid: col.left + col.width / 2,
       scroll: document.getElementById("sc-scroll").getBoundingClientRect(),
-      acts: [...document.querySelectorAll("#sc-thread .sc-acts")].map((a) => [...a.querySelectorAll("button")].map((b) => b.textContent.trim())),
+      acts: [...document.querySelectorAll("#sc-thread .sc-acts")].map((a) => [...a.querySelectorAll("button")].map((b) => b.getAttribute("aria-label") || b.textContent.replace(/\s*▾$/, "").trim())),
       runId: window.CC.S.live?.id,
       thread: (window.CC.S.live?.mission?.thread || []).length,
     };
@@ -136,30 +139,30 @@ test("browser 1366 x 800: empty Chat page, two answers in one column, four butto
   try {
     const { page } = t;
     // ---- the empty page: a short heading, one line, three chips; none of the old make tiles or cards ----
+    // 0.5.0 (chat like the Claude app): a greeting, the box mid page and the make chips as one row under it
     const empty = await page.evaluate(() => ({
       hello: document.querySelector("#view .sc-chat #sc-hello")?.textContent,
-      sub: !!document.querySelector("#view .sc-chat .sc-sub")?.textContent,
-      chips: [...document.querySelectorAll("#view .sc-try")].filter((b) => b.getBoundingClientRect().height > 0).length,
+      chips: [...document.querySelectorAll("#view #cb-make [data-cb-make]")].filter((b) => b.getBoundingClientRect().height > 0).length,
       old: ["[data-sc-chip]", "#sc-ideas", "#sc-media", "#sc-projects", "#simple-home", "#hh-picks .hh-pick"].filter((s) => { const e = document.querySelector(`#view ${s}`); return e && e.getBoundingClientRect().height > 0; }),
       makeWords: /What do you want to make/.test(document.getElementById("view").innerText),
       side: [...document.querySelectorAll("#cc-side .side-nav .side-item")].map((b) => b.textContent.trim()),
       lit: document.querySelector("#cc-side .side-item.active")?.textContent.trim(),
     }));
-    assert.equal(empty.hello, "Ask anything");
-    assert.ok(empty.sub);
-    assert.equal(empty.chips, 3);
+    assert.equal(empty.hello, "What can I help with?");
+    assert.equal(empty.chips, 7);
     assert.deepEqual(empty.old, [], "no old make chips, ideas, Made recently or Projects cards on the Chat page");
     assert.equal(empty.makeWords, false);
-    assert.deepEqual(empty.side.map((s) => s.replace(/^\W+/u, "")), ["Chat", "Make something", "Projects", "MindMedia"]);
+    assert.deepEqual(empty.side.map((s) => s.replace(/^\W+/u, "")), ["Chat", "Make something", "Team", "Projects", "MindMedia"]);
     assert.match(empty.lit, /Chat$/);
-    // a chip only fills the box
-    await page.click("#view .sc-try");
-    assert.match(await page.inputValue("#orders"), /insurance/);
+    // a make chip starts the existing make path (the Mac look's steps); nothing is sent
+    await page.click("#view #cb-make [data-cb-make='image']");
+    await page.waitForFunction(() => document.body.dataset.macFlow === "on" && window.CC.mac.flow.state.path === "image", null, { timeout: WAIT });
     assert.equal(await page.evaluate(() => window.CC.S.live?.id || ""), "");
-    await page.fill("#orders", "");
+    await page.evaluate(() => window.CC.mac.bus.emit("chat"));
+    await page.waitForFunction(() => document.body.dataset.macFlow === "off" && !!document.querySelector("#view .sc-chat #orders"), null, { timeout: WAIT });
     assert.deepEqual(await nothingAbove(page), { above: [], nextOutside: false, resumeBanner: 0 });
     const box0 = await boxClear(page);
-    assert.ok(box0.inside && box0.lowHalf && !box0.covered.length && box0.aboveTalk && box0.aboveDock, JSON.stringify(box0));
+    assert.ok(box0.inside && box0.mid && !box0.covered.length && box0.aboveTalk && box0.aboveDock, JSON.stringify(box0));
     await shot(page, "simple-chat-0437-1366-empty.png");
 
     // ---- two answers in the same chat ----

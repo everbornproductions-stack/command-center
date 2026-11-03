@@ -2580,3 +2580,13 @@ No locked decision was changed. Square, Stripe and billing were not touched. dat
 ## 0.4.21 lead notes
 - Areas A-J were built in worktrees and merged into integration/0.4.21; layout is docs/layout-0421.md. Old tests changed on purpose are listed in the PR body. Expert-mode browser tests click #mode-expert because the sample project keeps its own mode.
 - PR #125 opened; final push carries no skip-ci tag so Windows CI runs.
+
+## 0.5.0 chat like the Claude app (branch fix/050-chat)
+- Chris, 2026-11-02, after 0.4.38: the chat should look like the Claude app. Approved mockup: meldmind-dogfood/mockups/chat-v2-050.html.
+- Simple Chat and Expert Command draw the same chat (app.js chatBoxHtml, chatAnswerHtml; styles in web/chat.css for both, Expert colours in web/expert-chat.css). A new chat is a greeting with the box mid page and the make chips under it; in a conversation only the column scrolls and the box is pinned at the bottom.
+- The box: + (Upload), the mode chip (#sc-team) with every mode (#run-mode / #simple-run-mode) and in Expert Priority, When, the check and the cap; Free only chip; "..." (Preview route, Prompts, Talk, project, SSN line, starters, AIs, the command tools); mic; round Send that becomes Stop.
+- Under each answer: Copy, Try again, Save as file, Give to an agent (icons with labels) and Make changes. While the AIs work: one working line that opens #ops-panel (Pause, Stop, Open live view).
+- The Talk bar row is hidden on the chat pages unless Talk waits for a yes; Ctrl+Space still works.
+- Sidebars: Team joins the Simple sidebar; History is grouped by day in both modes; the Expert sidebar starts with the same rows, its groups follow under All features.
+- Polish: a Team task runs quietly (no take-over of the chat, no done toast, failures still toast); Settings with More options no longer runs off the right edge at 1366.
+- Test: test/chat-v2-050.test.js. Older tests changed where they checked the 0.4.37/0.4.38 box layout (listed in the commit).

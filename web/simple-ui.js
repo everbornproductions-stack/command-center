@@ -58,7 +58,9 @@ export function setupPhase({ fresh = false, requested = "", fullRestart = false,
   return "scan";
 }
 
-export const PLACEHOLDER = "Ask anything. Meldmind picks the best AI for you.";
+export const PLACEHOLDER = "Ask anything, or say what to make";
+// 0.5.0 (Chris: chat like the Claude app): the box once a chat is going says "Reply to Meldmind..."
+export const REPLY_PLACEHOLDER = "Reply to Meldmind...";
 
 export const STARTERS = [
   { id: "customer", label: "Reply to a customer", text: "Help me reply to a customer. I will paste what they wrote." },
@@ -81,12 +83,48 @@ export const CHAT_EMPTY = {
 };
 
 // 0.4.37: exactly four buttons under every answer. Everything else waits behind Make changes.
+// 0.5.0 (Chris: chat like the Claude app): small icon buttons (Copy, Try again, Save as file, Give to an agent), each with
+// a tooltip and a label for screen readers, then "Make changes" with its short list and All options.
 export const ANSWER_BUTTONS = [
-  { id: "copy", label: "Copy" },
-  { id: "again", label: "Try again" },
+  { id: "copy", label: "Copy", icon: "copy" },
+  { id: "again", label: "Try again", icon: "again" },
+  { id: "save", label: "Save as file", icon: "save" },
+  { id: "give", label: "Give to an agent", icon: "agent" },
   { id: "change", label: "Make changes" },
-  { id: "save", label: "Save as file" },
 ];
+
+// 0.5.0: the greeting on a new chat, with the person's first name when Meldmind knows it.
+export function chatGreeting(name) {
+  const first = String(name || "").trim().split(/\s+/)[0].replace(/[^\p{L}\p{M}'-]/gu, "").slice(0, 30);
+  return first ? `What can I help with, ${first}?` : "What can I help with?";
+}
+// 0.5.0: the make shortcuts as one row of small chips under the box. Each starts the existing make path.
+export const MAKE_CHIPS = [
+  { id: "website", label: "Website", icon: "🌐", text: "Build a website for my " },
+  { id: "image", label: "Image", icon: "🖼", text: "Make an image of " },
+  { id: "video", label: "Video", icon: "🎬", text: "Make a 5 second video of " },
+  { id: "campaign", label: "Campaign", icon: "📣", text: "Plan a marketing campaign for my " },
+  { id: "spreadsheet", label: "Spreadsheet", icon: "📊", text: "Make a spreadsheet for " },
+  { id: "document", label: "Document", icon: "📄", text: "Write a document about " },
+  { id: "more", label: "More", icon: "⋯", text: "" },
+];
+export const CHAT_NOTE = "Meldmind picks the best AI. Free AIs go first. Ctrl+Enter sends.";
+
+// 0.5.0 (panel 0438 item 3: "11 unrelated asks gave 2 History rows"): does a message typed after an answer go on in the
+// same chat? Yes when it is short, points back ("it", "that", "shorter", "again"...) or shares a topic word with an
+// earlier question in the chat; no when it is a new subject, which then starts a new chat (a new History row).
+const BACK_WORDS = /\b(it|its|that|this|these|those|them|they|their|again|shorter|longer|simpler|shorten|lengthen|expand|more|less|instead|also|another|same|above|previous|earlier|rewrite|redo|reword|rephrase|change|edit|fix|add|remove|delete|drop|continue|translate|why|formal|casual|warmer|friendlier|tone|version|answer|reply)\b/i;
+const STOP_WORDS = new Set(["with", "that", "this", "from", "your", "have", "what", "about", "make", "write", "please", "need", "want", "some", "into", "then", "than", "just", "like", "would", "could", "should", "will", "there", "help", "give", "tell", "show", "list", "ideas", "short", "plan", "create", "build", "draft", "good", "best", "each", "only", "very", "much", "many", "next", "here", "when", "where", "which", "while", "being", "been", "were", "does", "doing", "for", "they", "my", "our"]);
+const topicWords = (s) => new Set((String(s || "").toLowerCase().match(/[a-z0-9']+/g) || []).filter((w) => w.length >= 4 && !STOP_WORDS.has(w)));
+export function goesOn(text, earlier = []) {
+  const t = String(text || "").toLowerCase();
+  const words = t.match(/[a-z0-9']+/g) || [];
+  if (words.length <= 3) return true;
+  if (BACK_WORDS.test(t)) return true;
+  const mine = topicWords(t);
+  for (const e of earlier) for (const w of topicWords(e)) if (mine.has(w)) return true;
+  return false;
+}
 
 // 0.4.37: quick changes for a reply further down the chat. Each one is sent as the next message in the same chat.
 export const REPLY_CHANGES = [
@@ -140,3 +178,13 @@ export function savingsCount(status, saved) {
   if (status === "failed" || status === "aborted") return 0;
   return Number(saved) || 0;
 }
+
+// 0.5.0: every way to run it, in the box's mode menu (Simple and Expert).
+export const CHAT_MODES = [
+  { id: "auto", label: "Auto team", tip: "Meldmind picks Single, Mission or Council for you and says which" },
+  { id: "single", label: "Single", tip: "Best single AI for the job" },
+  { id: "council", label: "Council", tip: "Several AIs answer, review each other, and one writes the verdict" },
+  { id: "mission", label: "Mission", tip: "Plan, split across AIs, check, put together" },
+  { id: "research", label: "Research", tip: "Search the web and answer with numbered sources" },
+  { id: "opinion", label: "Second opinion", tip: "Two AIs answer the same thing. Differences are shown in plain words. Both answers stay." },
+];

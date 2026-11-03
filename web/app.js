@@ -6,7 +6,7 @@ import { isNavStateEnabled, captureViewDraft, restoreViewDraft, createNavHistory
 import { failureHtml, wireLimitButtons } from "./failure-cause.js";
 import { costLineText } from "./cost-line.js";
 import { runCheck as runSendCheck, showBanner as showSendBanner, clearBanner as clearSendBanner, splitNote } from "./send-check.js";
-import { ANSWER_BUTTONS, CHAT_EMPTY, EXPERT_SETUP, FAILURE, MODE_STEP, PLACEHOLDER, REPLY_CHANGES, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, answerFileName, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
+import { ANSWER_BUTTONS, CHAT_EMPTY, CHAT_MODES, CHAT_NOTE, EXPERT_SETUP, FAILURE, MAKE_CHIPS, MODE_STEP, PLACEHOLDER, REPLY_CHANGES, REPLY_PLACEHOLDER, RESTART_SETUP_LABEL, STARTERS, TEXT_SIZES, WELCOME, answerFileName, chatGreeting, goesOn, nextRestartPhase, setupPhase, spendLine } from "./simple-ui.js";
 import { compareTable } from "./compare.js";
 import { arrangeAnswerActions } from "./answer-actions.js";
 import { councilRequest, simpleAnswerLine } from "./council-offer.js";
@@ -305,7 +305,7 @@ function toast(msg, err = false, link = null, ttl = 0) {
 //  - Expert with no Live feed column (1024 x 768): bottom right, just above the chat dock and the Talk bar, off the
 //    page's own buttons at the top right.
 // Expert with the Live feed column keeps the 0.4.31 place (top right, over the feed). The Pro box rule still wins.
-const CHAT_GUARD = "#view :is(.sc-chat, .ex-chat) :is(.sc-acts button, .sc-changes button, .sc-changes select, .sc-box, .ex-box, .sc-quick button, #sc-live)";
+const CHAT_GUARD = "#view :is(.sc-chat, .ex-chat) :is(.sc-acts button, .sc-changes button, .sc-changes select, .sc-box, .ex-box, .sc-quick button, #sc-live, #cb-work, #sc-new)"; // 0.5.0 (panel 0438 item 6): New chat too
 function chatToastClear() {
   const vis = (r) => r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight;
   const toasts = [...document.querySelectorAll("#toasts .toast")].map((e) => e.getBoundingClientRect()).filter(vis);
@@ -357,7 +357,9 @@ function placeToasts() {
   }
   const feed = shown(document.getElementById("feed"));
   if (feed && feed.width > 160 && feed.right > innerWidth - 80) { delete body.dataset.toastAt; return; }
-  if (!bottomAbove([".cc-dock", "#vt-bar"])) { delete body.dataset.toastAt; return; }
+  // 0.5.0: with no chat dock or Talk bar down there (a page still drawing them), bottom right anyway: the default top right
+  // spot sits on the page's own buttons (CI: New artifact on Artifacts at 1024)
+  if (!bottomAbove([".cc-dock", "#vt-bar"])) { body.style.setProperty("--cc-toast-bottom", "16px"); body.dataset.toastAt = "bottom"; }
   // 0.4.36: a page with a box or button in that corner (Everyday inbox on a shorter screen): the toast moves up just
   // above it, a few times if need be, while it stays in the lower half; else below the title bar if that spot is clear.
   const start = body.style.getPropertyValue("--cc-toast-bottom");
@@ -385,7 +387,14 @@ function coveredControls() {
 }
 {
   const box = document.getElementById("toasts");
-  if (box && typeof MutationObserver === "function") new MutationObserver(() => { if (box.childElementCount) placeToasts(); }).observe(box, { childList: true });
+  // 0.5.0: placed again a moment later, since a page still laying out (a slow PC) can give the first measure the wrong spot
+  let again = 0;
+  if (box && typeof MutationObserver === "function") new MutationObserver(() => {
+    if (!box.childElementCount) return;
+    placeToasts();
+    clearTimeout(again);
+    again = setTimeout(() => { if (box.childElementCount) placeToasts(); }, 400);
+  }).observe(box, { childList: true });
 }
 // A click handler that forgot its try/catch still tells the person what went wrong instead of failing silently.
 // The same message is shown at most once every 10 s, so a failing background poll cannot flood the screen.
@@ -625,6 +634,7 @@ function handle(ev) {
     case "task.update": onTask(ev); return;
     case "mission.update": onMission(ev.mission); return;
     case "council.update": onCouncil(ev.council); return;
+    case "team.task": onTeamTask(ev.task); return;
     case "ledger.entry": {
       const entry = ev.entry;
       if (S.ledger && entry.kind === "call") { S.ledger.month += entry.cost; S.ledger.today += entry.cost; S.ledger.calls++; const b = S.ledger.byProvider[entry.provider]; if (b) { b.month += entry.cost; b.today += entry.cost; b.calls++; if (isUsageJob(entry) && (entry.ts || Date.now()) >= windowStart()) b.calls30 = (b.calls30 || 0) + 1; } renderBudget(); renderStrip(); }
@@ -656,6 +666,17 @@ function noteRunJob(entry) {
 }
 function isQuiet(id) {
   return !!(id && S.backgroundQuiet?.has(id) && S.live?.id !== id);
+}
+// 0.5.0 polish (Chris): a task given to a Team agent runs on its own. It no longer takes over the chat on screen or pops
+// an "Answer done" toast when it finishes (the agent's desk in Team shows it); a task that fails still says so. The
+// server sends team.task with the run id before the run starts (server/plugins/team.js startTask).
+const teamTaskSeen = new Map();
+function onTeamTask(t) {
+  if (!t?.id) return;
+  const was = teamTaskSeen.get(t.id);
+  teamTaskSeen.set(t.id, t.status);
+  if (t.runId && t.source !== "use" && t.status === "working" && S.live?.id !== t.runId) S.backgroundQuiet?.add(t.runId);
+  if (t.status === "failed" && was !== "failed" && S.backgroundQuiet?.has(t.runId)) toast(`${t.agentName || "The agent"} could not finish ${t.title || "the task"}: ${t.error || "the run failed"}`, true);
 }
 // 0.4.21 (dogfood 15): when a new run starts, the last run's "Mission done in 383s, $0.1471" line leaves the live
 // feed, so it is never read as this run's result.
@@ -778,7 +799,8 @@ function onMission(m) {
         const base = replyTurns(m) > 0 ? `Reply ready · ${costWord}` : `${noun} ${stateWord} · ${costWord}`;
         // 0.4.37 (Chris: "Expert mode's interface is a lot cleaner"): on the Simple chat page the answer is already in
         // the conversation, so a "done" toast only covers it; a failure still shows
-        const onChat = S.uiMode === "simple" && S.view === "command" && !failed;
+        // 0.5.0 (Chris: chat like the Claude app): Expert's chat is the same chat, so the same rule holds there
+        const onChat = S.view === "command" && !!document.querySelector("#view .chat2") && !failed;
         if (!onChat) toast(failed && m.error ? m.error : base, failed);
       }
       maybeNotifyFinish("Meldmind finished a run", m.status === "failed" && cost === 0 ? "Nothing was charged" : `${noun} ${stateWord}`);
@@ -803,7 +825,8 @@ function onCouncil(c) {
     if (S.live.finishStamp !== stamp) {
       S.live.finishStamp = stamp;
       graph?.resetAll(); S.activeByProvider = {}; runJobs = {}; refreshGraphUsage(); renderStrip();
-      toast(replyTurns(c) > 0 ? `Reply ready · ${money(c.cost, 4)}` : `Council done · ${money(c.cost, 4)}`);
+      // 0.5.0: on the chat page the verdict is already in the conversation, so no "done" toast covers it
+      if (!(S.view === "command" && document.querySelector("#view .chat2"))) toast(replyTurns(c) > 0 ? `Reply ready · ${money(c.cost, 4)}` : `Council done · ${money(c.cost, 4)}`);
       maybeNotifyFinish("Meldmind finished a run", "Council done");
     }
   }
@@ -1698,11 +1721,228 @@ function mergedSingleTurns(run) {
 }
 // 0.4.21: the Free only switch next to Send (the same setting as Settings and the Get free AIs card)
 // 0.4.38 (Chris: Expert Command as a chat): short = "Free only" in the Expert chat box row; the tip says the rest
-function freeOnlyHtml(short = false) { const on = !!S.freeOnly?.on; return `<label class="row small cc-freeonly" id="cc-freeonly-wrap" style="gap:6px;white-space:nowrap" title="On: only AIs on this PC and free allowances are used. Nothing is charged."><input type="checkbox" id="cc-freeonly" ${on ? "checked" : ""}> ${short ? "Free only" : "Free only (never spend money)"}</label>`; }
+// 0.5.0 (Chris: chat like the Claude app): a small chip in the box's bottom row; the checkbox inside still drives it
+function freeOnlyHtml() { const on = !!S.freeOnly?.on; return `<label class="cb-chip cb-free cc-freeonly" id="cc-freeonly-wrap" title="On: only AIs on this PC and free allowances are used. Nothing is charged."><input type="checkbox" id="cc-freeonly" class="cb-check" aria-label="Free only (never spend money)" ${on ? "checked" : ""}><span>Free<span class="cb-narrow-x"> only</span></span></label>`; }
 // 0.4.21: Auto picks the mode and says so in one plain line; the picker is under More options in Simple too
-const AUTO_MODES = [["auto", "Auto", "Meldmind picks Single, Mission or Council for you"], ["single", "Single", "One AI answers"], ["council", "Council", "Several AIs answer and one writes the verdict"], ["mission", "Mission", "Plan, split across AIs, check, assemble"]];
-function teamLabel() { const m = AUTO_MODES.find((x) => x[0] === (S.simpleRunMode || "auto")); return m && m[0] !== "auto" ? `${esc(m[1])} mode` : "Auto team"; }
-function simpleModeHtml() { const cur = S.simpleRunMode || "auto"; return `<div class="sc-mode" id="sc-mode"><div class="lbl">More options: how to run it</div><div class="seg" id="simple-run-mode" role="group" aria-label="How to run it">${AUTO_MODES.map(([id, label, tip]) => `<button type="button" data-m="${id}" class="${cur === id ? "on" : ""}" title="${esc(tip)}">${esc(label)}${id === "mission" && !S.license?.limits?.missions ? ' <span class="cc-pro-mark" aria-label="Part of Pro">Pro</span>' : ""}</button>`).join("")}</div></div>`; }
+// 0.5.0: every mode is in the box's mode menu, in Simple and in Expert (Research and Second opinion too)
+const AUTO_MODES = CHAT_MODES.map((m) => [m.id, m.label, m.tip]);
+const PRO_MARK = ' <span class="cc-pro-mark" aria-label="Part of Pro">Pro</span>';
+function teamLabel() {
+  const cur = S.uiMode === "expert" ? (S.cmdMode || "auto") : (S.simpleRunMode || "auto");
+  const m = AUTO_MODES.find((x) => x[0] === cur);
+  if (!m || m[0] === "auto") return "Auto team";
+  return m[0] === "opinion" ? "Second opinion" : `${m[1]} mode`;
+}
+// On a phone the chip drops the word "mode" ("Single ▾") so the box keeps one row
+function teamLabelHtml() { return esc(teamLabel()).replace(/ mode$/, '<span class="cb-narrow-x"> mode</span>'); }
+function simpleModeHtml() { const cur = S.simpleRunMode || "auto"; return `<div class="cb-mh">How to run it</div><div class="cb-modes" id="simple-run-mode" role="group" aria-label="How to run it">${AUTO_MODES.map(([id, label, tip]) => `<button type="button" data-m="${id}" class="${cur === id ? "on" : ""}" aria-pressed="${cur === id}" title="${esc(tip)}">${esc(label)}${id === "mission" && !S.license?.limits?.missions ? PRO_MARK : ""}</button>`).join("")}</div>`; }
+// 0.5.0 (Chris, 2026-11-02, after 0.4.38: "why not make it look more like you here [the Claude app]? It looks weird to
+// have a small chat box and then weird wasted space everywhere"): Simple Chat and Expert Command are one chat. A new chat
+// is a greeting with the box in the middle of the page and the make chips under it; in a conversation the column fills
+// the page, only the conversation scrolls, and the box is pinned at the bottom. Approved mockup:
+// meldmind-dogfood/mockups/chat-v2-050.html. Styles: web/chat.css (both pages) and web/expert-chat.css (Expert only).
+const CB_SVG = (d, w = 18) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CB_ICON = {
+  plus: CB_SVG("M12 5v14M5 12h14"),
+  mic: CB_SVG("M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3"),
+  send: CB_SVG("M12 19V5M5 12l7-7 7 7"),
+  stop: `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/></svg>`,
+  dots: CB_SVG("M5 12h.01M12 12h.01M19 12h.01", 20),
+  copy: CB_SVG("M9 9h10v10H9zM5 15V5h10", 16),
+  again: CB_SVG("M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5", 16),
+  save: CB_SVG("M12 4v11M7 10l5 5 5-5M5 20h14", 16),
+  agent: CB_SVG("M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 12 0v1M17 8v6M14 11h6", 16),
+};
+function projBarBtn() { const on = document.body.classList.contains("mm-more"); return `<button type="button" class="cb-mitem" id="cb-projbar" aria-pressed="${on}" title="Show the Project tools row above the chat: Continue this project, Images, Media, Remix, Builders, Publish">Project tools</button>`; }
+// The first name for the greeting, when Meldmind has one (Settings can hold it; nothing asks for it).
+function greetName() { return S.settings?.firstName || S.settings?.yourName || ""; }
+// The chat box, the same on both pages. Expert only has more inside the mode menu (Priority, When, the check, the cap).
+function chatBoxHtml(expert) {
+  const modeSel = S.cmdMode || "auto";
+  const when = S.whenMode || "now";
+  const busy = runBusy();
+  const thread = !!(S.live?.id || S.make?.active || S.awaitingRun);
+  const modes = expert ? `<div class="cb-mh">How to run it</div><div class="cb-modes ex-pills" id="run-mode" role="group" aria-label="How to run it">
+            <button data-m="auto" class="${modeSel === "auto" ? "on" : ""}" title="Meldmind picks Single, Mission or Council for you and says which">Auto team</button>
+            <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
+            <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
+            <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan, assign to specialists, check, put together">Mission${S.license?.limits?.missions ? "" : PRO_MARK}</button>
+            <button data-m="research" class="${modeSel === "research" ? "on" : ""}" title="Search the web and answer with numbered sources">Research</button>
+            <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
+          </div>
+          <div class="cb-mrow"><label class="cb-mlbl" for="cost-mode">Priority</label><select id="cost-mode" class="cb-select" aria-label="Priority">${PRIORITY.map(([m, label]) => `<option value="${m}" ${priorityNow() === m ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+          <div class="cb-mrow"><label class="cb-mlbl" for="when-mode">When</label><select id="when-mode" class="cb-select" aria-label="When"><option value="now" ${when === "now" ? "selected" : ""}>Now</option><option value="offpeak" ${when === "offpeak" ? "selected" : ""}>Off-peak</option></select></div>
+          <div class="cb-mrow"><label class="cb-mlbl" style="gap:6px"><input type="checkbox" id="qa" ${S.settings.qa !== false ? "checked" : ""}> AI-to-AI check</label><label class="cb-mlbl" style="gap:6px">Cap $<input type="number" id="budget" value="${S.settings.missionBudget || 2}" step="0.5" min="0.1" style="width:70px;padding:4px 6px"></label></div>` : simpleModeHtml();
+  const talk = `<div class="cb-mh">Talk</div><div class="cb-mrow cb-talk-row"><button type="button" class="cb-mitem" id="cb-talk" aria-pressed="false" title="Talk to Meldmind. It answers out loud. Ctrl+Space works too.">Talk out loud</button><label class="cb-mlbl" title="Keeps the microphone open until you stop talking. Turns itself off after 10 quiet minutes."><input type="checkbox" id="cb-hands"> Hands-free</label><button type="button" class="cb-mitem" id="cb-talk-help">What can I say?</button></div>`;
+  const more = expert ? `<div class="cb-mrow"><button type="button" class="cb-mitem" id="preview">Preview route</button><button class="cb-mitem" id="cc-get-free-expert" type="button" title="One-click links to free AI keys. Ollama and LM Studio are found by themselves.">Get free AIs</button><span id="cb-prompts-slot" class="cb-slot"></span></div>
+          ${talk}
+          ${projectField()}<div class="cb-mrow">${projBarBtn()}</div>
+          <p class="hint cb-hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+          <span class="dim small" id="cls-hint"></span>
+          <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
+          <div id="cmd-extras"></div>`
+    : `<div class="cb-mrow"><button class="cb-mitem" type="button" id="cc-get-free-simple">Get free AIs</button><button class="cb-mitem" type="button" id="cc-show-ais" title="Show or hide the bar of your connected AIs at the bottom">${S.settings?.simpleStrip ? "Hide my AIs" : "Show my AIs"}</button><span id="cb-prompts-slot" class="cb-slot"></span></div>
+          ${talk}
+          <div class="cb-mh">Starters</div><div class="cb-mrow" id="cc-starters-more">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="cb-mitem" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
+          ${projectField()}<div class="cb-mrow">${projBarBtn()}</div>
+          <p class="hint cb-hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
+          <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
+          <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
+          <div id="cmd-extras"></div>`;
+  return `<div class="orders cb-orders ${expert ? "ex-orders" : ""}" id="cb">
+      <div class="cb-panel ${expert ? "ex-panel" : "sc-panel"}">
+        <h3 class="cb-sr">${expert ? "Marching orders" : "Chat"}</h3>
+        ${expert ? `<div id="route" class="route ex-route cb-route" style="display:none"></div>` : ""}
+        <div id="ex-chatting" class="cb-chatting"></div><!-- 0.4.39 (merge of the Team page): "Chatting with <agent>" shows here -->
+        <div class="cb-box ${expert ? "ex-box" : "sc-box"}" id="cb-box">
+          <div class="cb-files" id="cb-files"></div>
+          <textarea id="orders" rows="1" aria-label="${expert ? "Marching orders" : "What do you want?"}" aria-describedby="mask-line" placeholder="${esc(thread ? REPLY_PLACEHOLDER : PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
+          <div class="cb-row" id="cb-row">
+            <button type="button" class="cb-round" id="cb-add" aria-label="Add a file" title="Add a file: a picture, video, screenshot or document">${CB_ICON.plus}</button>
+            <span class="cb-slot" id="cb-upload-slot"></span>
+            <div class="cb-pop-wrap">
+              <button type="button" class="cb-chip sc-team" id="sc-team" aria-haspopup="true" aria-expanded="false" aria-controls="cb-menu" title="How to run it. Auto team picks the AIs, the price and the way to run it for you."><span class="cb-spark" aria-hidden="true">&#9672;</span><span id="cb-mode-label">${teamLabelHtml()}</span><span class="cb-caret" aria-hidden="true">&#9662;</span></button>
+              <div class="cb-pop cb-menu" id="cb-menu" hidden>
+                ${modes}
+                <div class="cb-est small dim" id="cb-est"></div>
+              </div>
+            </div>
+            ${freeOnlyHtml()}
+            <span class="cb-gap"></span>
+            <div class="cb-pop-wrap">
+              <button type="button" class="cb-round" id="cb-more" aria-haspopup="true" aria-expanded="false" aria-controls="cb-more-pop" aria-label="More options" title="More options: Talk, Prompts, project, and more">${CB_ICON.dots}</button>
+              <div class="cb-pop cb-more-pop ${expert ? "ex-more" : "sc-more"}" id="cb-more-pop" hidden>
+                ${more}
+              </div>
+            </div>
+            <button class="cb-round" type="button" id="vo-mic" data-simple-mic data-icon="1" aria-pressed="false" aria-label="Talk instead of typing" title="Say it instead of typing. Hold Ctrl+Space to talk to Meldmind out loud.">${CB_ICON.mic}</button>
+            <button class="cb-send cb-stop" id="stop-research" type="button" style="display:none" aria-label="Stop" title="Stop this deep research run">${CB_ICON.stop}</button>
+            <button class="cb-send cb-stop" id="stop-chat" type="button" style="display:none" aria-label="Stop" title="Stop this answer. What is written so far is kept.">${CB_ICON.stop}</button>
+            <button class="cb-send" id="go" type="button" aria-label="${busy ? "Still working..." : (expert ? "Send orders" : "Send")}" title="Send (Ctrl+Enter)" ${busy ? "disabled" : ""}>${CB_ICON.send}</button>
+          </div>
+        </div>
+        <div class="cb-under">
+          <div class="cb-make" id="cb-make" role="group" aria-label="Make something">${MAKE_CHIPS.map((c) => `<button type="button" class="cb-mk" data-cb-make="${esc(c.id)}"><span class="cb-mk-ic" aria-hidden="true">${c.icon}</span>${esc(c.label)}</button>`).join("")}</div>
+          <div class="sc-resume cb-resume" id="sc-resume"></div>
+          <div id="cc-emp-hint" aria-live="polite"></div>
+          <p class="cb-note" id="send-hint" role="note">${esc(CHAT_NOTE)}</p>
+          <div class="cb-voice small" id="cb-voice" role="status" aria-live="polite" hidden></div>
+          <div class="small dim cb-auto" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</div>
+        </div>
+      </div>
+    </div>`;
+}
+// The answer block: the label, the working line with the steps fold, the answer, the check, then the icon row and
+// Make changes. Simple and Expert draw the same block (#simple-answer or #ex-answer).
+function chatAnswerHtml(expert, mainOpen, mainAll) {
+  return `<div class="sc-ai cb-answer" id="${expert ? "ex-answer" : "simple-answer"}" data-steps="none" ${S.live?.id || S.make?.active ? "" : "hidden"}>
+            <div class="sc-card">
+              <h3 class="sc-who"><b>Meldmind</b><span id="out-head"></span></h3>
+              <div class="cb-work" id="cb-work" hidden><button type="button" class="cb-work-btn" id="ex-steps-btn" aria-expanded="false" aria-controls="ops-panel"><i class="cb-pulse" aria-hidden="true"></i><span id="cb-work-text"></span><span class="cb-caret" id="cb-work-caret" aria-hidden="true">&#9662;</span></button></div>
+              <div class="ops ex-steps cb-steps" id="ops-panel">
+                <h3 class="ex-steps-h"><span class="ex-lo-title">Live ops</span> <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button><button type="button" class="ex-link" id="ex-live">Open live view</button></h3>
+                ${expert ? `<div class="graph-wrap" id="graph"></div>` : ""}
+                <div id="tasks" class="tasks"></div>
+                <div id="council"></div>
+              </div>
+              <div class="md" id="out-md"></div>
+              <div class="sc-check" id="sc-check"></div>
+              <div id="cc-fail-slot"></div>
+              <div id="out-follow"></div>
+            </div>
+            ${scButtonsHtml("", mainOpen)}
+            <div class="sc-changes${mainAll ? " sc-all" : ""}" id="sc-changes" ${mainOpen ? "" : "hidden"}>
+              ${scChangesTop(mainAll)}
+              ${expert ? "" : `<div id="cc-answer-line" class="answer-line small"></div>`}
+              <div id="sc-mm-slot"></div>
+              <div id="deliv-extras"></div>
+              ${scAllBtn(mainAll)}
+            </div>
+          </div>`;
+}
+// Puts a make chip to work: the Mac look's steps for that kind (Simple), or the start of the sentence in the box.
+function cbMake(kind) {
+  const chip = MAKE_CHIPS.find((c) => c.id === kind);
+  if (!chip) return;
+  const mac = document.body.dataset.style === "mac" && window.CC.mac?.flow && S.uiMode === "simple";
+  if (kind === "more") { if (window.CC.layout?.makeSomething && S.uiMode === "simple") window.CC.layout.makeSomething(); else window.CC.go("start"); return; }
+  if (mac) { try { window.CC.mac.bus.emit("flow", { step: "home" }); window.CC.mac.flow.start(kind); return; } catch { /* the box below still works */ } }
+  scFillBox(chip.text);
+}
+// The two small pop-ups in the box: the mode menu and More options. One open at a time; Esc or a click outside closes.
+function cbPop(id, on) {
+  const pop = document.getElementById(id);
+  if (!pop) return;
+  const btn = document.querySelector(`[aria-controls="${id}"]`);
+  const want = on ?? pop.hidden;
+  for (const other of document.querySelectorAll("#cb .cb-pop")) if (other !== pop && !other.hidden) { other.hidden = true; document.querySelector(`[aria-controls="${other.id}"]`)?.setAttribute("aria-expanded", "false"); }
+  pop.hidden = !want;
+  btn?.setAttribute("aria-expanded", String(want));
+  if (id === "cb-more-pop") S.exMoreOpen = want;
+  if (want) { placeCbPop(pop); window.CC.layout?.estimate?.(); }
+}
+// A pop-up opens above the box, or below it when the box sits mid page with more room under it (a new chat); it is
+// never taller than the room it has, and scrolls inside itself past that.
+function placeCbPop(pop) {
+  const box = $("#cb-box")?.getBoundingClientRect();
+  const view = $("#view")?.getBoundingClientRect();
+  if (!box || !view) return;
+  pop.classList.remove("cb-pop-down");
+  pop.style.maxHeight = "";
+  const want = pop.scrollHeight + 2;
+  const above = box.top - Math.max(view.top, 0) - 16;
+  const below = Math.min(view.bottom, innerHeight) - box.bottom - 16;
+  const down = want > above && below > above;
+  pop.classList.toggle("cb-pop-down", down);
+  pop.style.maxHeight = `${Math.max(160, Math.floor(Math.min(down ? below : above, 480, innerHeight * 0.7)))}px`;
+}
+function cbPopsClose() { for (const p of document.querySelectorAll("#cb .cb-pop")) if (!p.hidden) cbPop(p.id, false); }
+document.addEventListener("click", (e) => { if (!e.target.closest?.(".cb-pop-wrap") && document.querySelector("#cb .cb-pop:not([hidden])")) cbPopsClose(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.querySelector("#cb .cb-pop:not([hidden])")) { const open = document.querySelector("#cb .cb-pop:not([hidden])"); cbPopsClose(); document.querySelector(`[aria-controls="${open.id}"]`)?.focus(); } });
+// The text box grows with the words up to about 8 lines, then scrolls inside itself (never the box around it).
+function cbGrow(box = $("#orders")) {
+  if (!box?.closest?.("#cb")) return;
+  box.style.height = "auto";
+  const cs = getComputedStyle(box);
+  const max = parseFloat(cs.maxHeight) || 9999;
+  box.style.height = `${Math.min(box.scrollHeight + 2, max)}px`;
+  box.style.overflowY = box.scrollHeight > max ? "auto" : "hidden";
+}
+// What both pages wire in the box: the menus, Add a file, the make chips, Talk and the growing text box.
+function wireChatBox(v) {
+  const root = v.querySelector("#cb");
+  if (!root) return;
+  root.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.closest("[data-route-close]")) return void hideRoute();
+    if (t.closest("#sc-team")) return void cbPop("cb-menu");
+    if (t.closest("#cb-more")) return void cbPop("cb-more-pop");
+    if (t.closest("#cb-add")) { const up = $("#ob-upload"); if (up) up.click(); else toast("Upload is not ready yet. Try again in a moment.", true); return; }
+    const mk = t.closest("[data-cb-make]");
+    if (mk) return void cbMake(mk.dataset.cbMake);
+    if (t.closest("#cb-talk")) { window.CC.voice?.talk?.(); setTimeout(paintCbTalk, 300); return; }
+    if (t.closest("#cb-talk-help")) { cbPopsClose(); window.CC.voice?.openHelp?.(); return; }
+    // the Project tools row (Continue this project, Images, Remix, Publish...) shows above the chat on request
+    if (t.closest("#cb-projbar")) { const on = !document.body.classList.contains("mm-more"); document.body.classList.toggle("mm-more", on); t.closest("#cb-projbar").setAttribute("aria-pressed", String(on)); return; }
+  });
+  root.querySelector("#cb-hands")?.addEventListener("change", async (e) => {
+    const on = e.target.checked;
+    try { await window.CC.voice?.setSettings?.({ handsFree: on }); if (on && !window.CC.voice?.isTalking?.()) await window.CC.voice?.talk?.(); } catch (err) { toast(err.message, true); }
+    paintCbTalk();
+  });
+  const box = $("#orders");
+  box?.addEventListener("input", () => { cbGrow(box); hideRoute(); });
+  requestAnimationFrame(() => cbGrow(box));
+  paintCbTalk();
+}
+// The Talk items in More options follow the voice settings (web/features/voice-talk.js).
+function paintCbTalk() {
+  const v = window.CC.voice;
+  const t = $("#cb-talk");
+  if (t) { const on = !!v?.isTalking?.(); t.setAttribute("aria-pressed", String(on)); t.textContent = on ? "Stop talking" : "Talk out loud"; }
+  const h = $("#cb-hands");
+  if (h) h.checked = !!v?.settings?.handsFree;
+}
 // 0.4.37 (Chris, 2026-11-01: "Why does simple mode not look like expert mode when you click on chat? Expert mode's
 // interface is a lot cleaner."): the Simple Chat page is one centred column on a flat background, like Expert. The
 // question is a bubble on the right, the answer a card with four buttons under it (Copy, Try again, Make changes,
@@ -1719,10 +1959,9 @@ function scEmptyHtml() {
       </div>
       <div id="simple-home"><div id="simple-continue"></div>${simpleDayHtml()}<div id="simple-recent"></div></div>
     </div>`;
+  // 0.5.0 (Chris: chat like the Claude app): a greeting; the box and the make chips sit right under it, mid page
   return `<div class="sc-empty" id="sc-empty">
-      <h2 class="sc-hello" id="sc-hello">${esc(CHAT_EMPTY.title)}</h2>
-      <p class="sc-sub">${esc(CHAT_EMPTY.line)}</p>
-      <div class="sc-starters" id="cc-starters" role="group" aria-label="Try one">${CHAT_EMPTY.chips.map((c) => `<button type="button" class="sc-try" data-sc-try="${esc(c.id)}">${esc(c.label)}</button>`).join("")}</div>
+      <h2 class="sc-hello cb-hello" id="sc-hello">${esc(chatGreeting(greetName()))}</h2>
     </div>`;
 }
 // 0.4.38 (0.4.37 panel item 6: "Make changes opens 38 controls in one block, three of them covered"): the first answer's
@@ -1735,10 +1974,36 @@ function scChangesTop(all) {
 function scAllBtn(all) {
   return `<button type="button" class="btn sm sc-all-btn" data-sc-all aria-expanded="${all ? "true" : "false"}">${all ? "Fewer options" : "All options"}</button>`;
 }
-// The four buttons. turn is "" for the first answer, or the index of a reply in the chat's thread.
+// 0.5.0 (panel 0438 item 4: "All options opens 52 controls with repeats"): the Next bar, the finish pair and More
+// actions repeat each other ("Make it shorter" twice, "Finish" three times). The first of each action stays; a repeat is
+// marked and hidden while All options is open (chat.css). Nothing is removed: the first one does the same thing.
+function scDedupe() {
+  const fold = $("#sc-changes");
+  if (!fold) return;
+  const seen = new Set();
+  for (const b of fold.querySelectorAll("button, summary")) {
+    if (b.matches("[data-sc-all]")) continue;
+    const k = String(b.textContent || b.getAttribute("aria-label") || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (!k) continue;
+    if (seen.has(k)) { if (b.dataset.scDup !== "1") b.dataset.scDup = "1"; }
+    else { if (b.dataset.scDup) delete b.dataset.scDup; seen.add(k); }
+  }
+}
+function watchChanges() {
+  const f = $("#sc-changes");
+  if (!f || f.dataset.dedupe) return;
+  f.dataset.dedupe = "1";
+  let q = 0;
+  new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; scDedupe(); }); }).observe(f, { childList: true, subtree: true, characterData: true });
+  scDedupe();
+}
+// The buttons under an answer. turn is "" for the first answer, or the index of a reply in the chat's thread.
+// 0.5.0 (Chris: chat like the Claude app): small icon buttons with tooltips and screen reader labels, then Make changes
 function scButtonsHtml(turn, open) {
   const t = turn === "" ? "" : ` data-turn="${turn}"`;
-  return `<div class="sc-acts" role="group" aria-label="Answer actions"${t}>${ANSWER_BUTTONS.map((b) => `<button type="button" class="btn sm${b.id === "save" ? " primary" : ""}" data-sc-act="${b.id}"${b.id === "change" ? ` aria-expanded="${open ? "true" : "false"}"` : ""}>${esc(b.label)}</button>`).join("")}</div>`;
+  return `<div class="sc-acts" role="group" aria-label="Answer actions"${t}>${ANSWER_BUTTONS.map((b) => b.icon
+    ? `<button type="button" class="cb-ic" data-sc-act="${b.id}" aria-label="${esc(b.label)}" title="${esc(b.label)}">${CB_ICON[b.icon]}</button>`
+    : `<button type="button" class="cb-change" data-sc-act="${b.id}" aria-expanded="${open ? "true" : "false"}">${esc(b.label)} <span class="cb-caret" aria-hidden="true">&#9662;</span></button>`).join("")}</div>`;
 }
 function renderSimpleChat(v) {
   const mainOpen = !!S.scOpen?.[`main:${S.live?.id || ""}`];
@@ -1747,67 +2012,23 @@ function renderSimpleChat(v) {
   const was = $("#sc-scroll");
   const keep = was ? { top: was.scrollTop, end: was.scrollHeight - was.scrollTop - was.clientHeight < 6 } : null;
   v.innerHTML = `
-  <div class="sc-chat" id="sc-chat" data-state="${scState()}" data-page="${scMakePage() ? "make" : "chat"}">
+  <div class="sc-chat chat2" id="sc-chat" data-state="${scState()}" data-page="${scMakePage() ? "make" : "chat"}">
     <div class="sc-scroll" id="sc-scroll">
       <div class="sc-col">
-        <div class="sc-resume" id="sc-resume"></div>
         ${scEmptyHtml()}
         <div class="sc-thread" id="sc-thread">
           <div class="sc-head"><button type="button" class="sc-new" id="sc-new" title="Start a new chat. This one stays in History.">New chat</button></div>
           <div class="sc-me" id="sc-q" hidden></div>
-          <div class="sc-ai" id="simple-answer" ${S.live?.id || S.make?.active ? "" : "hidden"}>
-            <div class="sc-card">
-              <h3 class="sc-who"><b>Answer</b><span id="out-head"></span></h3>
-              <div class="md" id="out-md"></div>
-              <div class="sc-check" id="sc-check"></div>
-              <div id="cc-fail-slot"></div>
-              <div id="out-follow"></div>
-            </div>
-            ${scButtonsHtml("", mainOpen)}
-            <div class="sc-changes${mainAll ? " sc-all" : ""}" id="sc-changes" ${mainOpen ? "" : "hidden"}>
-              ${scChangesTop(mainAll)}
-              <div id="cc-answer-line" class="answer-line small"></div>
-              <div id="sc-mm-slot"></div>
-              <div id="deliv-extras"></div>
-              ${scAllBtn(mainAll)}
-            </div>
-          </div>
+          ${chatAnswerHtml(false, mainOpen, mainAll)}
           <div id="sc-turns" aria-live="polite"></div>
         </div>
       </div>
     </div>
-    <div class="orders">
-      <div class="panel sc-panel">
-        <h3>Chat</h3>
-        <div class="sc-live" id="sc-live" role="status" hidden><span class="dock-pulse" aria-hidden="true"></span><span id="sc-live-text"></span><button type="button" class="btn sm" id="sc-live-open" aria-haspopup="dialog">See live</button></div>
-        <div class="sc-box">
-          <textarea id="orders" rows="2" aria-label="What do you want?" aria-describedby="mask-line" placeholder="${esc(PLACEHOLDER)}">${esc(S.lastOrders || "")}</textarea>
-          <div class="row simple-send-row">
-            <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
-            <button type="button" class="sc-team" id="sc-team" aria-expanded="false" aria-controls="sc-more" title="Auto team picks the AIs, the price and the way to run it for you. Open More options to change it.">Auto team</button>
-            <button class="btn" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
-            <button class="btn" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
-            <span style="margin-left:auto">${freeOnlyHtml()}</span>
-            <button class="btn primary" id="go" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send"}</button>
-          </div>
-          <div class="small dim" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</div>
-        </div>
-        <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
-        <div id="cc-emp-hint" aria-live="polite"></div>
-        <div class="sc-more" id="sc-more">
-          ${simpleModeHtml()}
-          <div class="row"><button class="btn sm" type="button" id="cc-get-free-simple">Get free AIs</button></div>
-          <p class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</p>
-          <p class="hint" id="send-hint" role="note">Press Ctrl+Enter to send (Cmd+Enter on a Mac).</p>
-          <div class="row" id="cc-starters-more" style="flex-wrap:wrap;gap:6px">${STARTERS.slice(0, SIMPLE_STARTER_COUNT).map((s) => `<button type="button" class="btn sm" data-starter="${esc(s.id)}">${esc(s.label)}</button>`).join("")}</div>
-          ${projectField()}
-          <div id="cc-spend" class="dim small">${esc(spendLine(S.ledger?.month || 0))}</div>
-          <div class="row"><button class="btn sm" type="button" id="cc-show-ais" title="Show or hide the bar of your connected AIs at the bottom">${S.settings?.simpleStrip ? "Hide my AIs" : "Show my AIs"}</button></div>
-        </div>
-        <div id="cmd-extras"></div>
-      </div>
-    </div>
+    ${chatBoxHtml(false)}
   </div>`;
+  wireChatBox(v);
+  watchChanges();
+  wireOpsButtons();
   wireProjectPicker();
   paintContinueCard();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; paintStarters(); const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
@@ -1835,16 +2056,20 @@ function renderSimpleChat(v) {
     const b = e.target.closest("button"); if (!b) return;
     S.simpleRunMode = b.dataset.m; S.autoLine = "";
     $$("#simple-run-mode button").forEach((x) => x.classList.toggle("on", x === b));
-    const t = $("#sc-team"); if (t) t.textContent = teamLabel();
+    markSeg($("#simple-run-mode"));
+    const t = $("#cb-mode-label"); if (t) t.innerHTML = teamLabelHtml();
     const line = $("#cc-auto-line"); if (line) line.textContent = "";
+    cbPop("cb-menu", false);
   });
   $("#cc-get-free-simple")?.addEventListener("click", () => window.CC.freeAis?.open?.());
   $("#stop-chat")?.addEventListener("click", stopChat);
   $("#stop-research").addEventListener("click", stopResearch);
   paintStarters();
-  renderOutput();
+  // 0.5.0: Simple shows a mission's steps in the answer too (the working line opens them)
+  renderOps();
   renderExtras("command", "#cmd-extras");
   renderComposerAis();
+  syncSendButton();
   const sc = $("#sc-scroll");
   if (keep && sc) sc.scrollTop = keep.end ? sc.scrollHeight : keep.top;
 }
@@ -1859,6 +2084,7 @@ function scFillBox(text) {
   paintStarters();
   box.focus();
   try { box.setSelectionRange(text.length, text.length); } catch { /* fine */ }
+  cbGrow(box);
 }
 // The text of one turn in the chat's thread (a council or mission reply can be several AIs' parts).
 function scTurnText(t) {
@@ -1878,6 +2104,21 @@ function scPrompt(l) {
   const p = String(l?.mission?.prompt || l?.council?.prompt || l?.mission?.goal || "").trim();
   if (p && !isInternalRunText(p)) return p;
   return l?.id || S.awaitingRun || S.make?.active || l?.status === "running" ? String(S.lastPrompt || "") : "";
+}
+// The first answer of this chat: the run's own deliverable.
+function scFirstAnswer(l) {
+  return String(l?.deliverable || l?.agents?.[l?.primary]?.text || "");
+}
+// 0.5.0 (0.4.39 panel, FIXES-0441 item 1): every Give to an agent under an answer hands over that answer and its request.
+// The first answer's buttons carry no turn (data-turn="" in its Make changes, none on its icon row), and Number("") is 0,
+// which read the chat's first reply instead: the agent got an empty answer. No turn now means the first answer.
+function scGive(turn) {
+  const l = S.live || {};
+  const i = turn === undefined || turn === null || String(turn).trim() === "" ? NaN : Number(turn);
+  if (!Number.isInteger(i) || i < 0) return void window.CC.team?.giveAnswer?.({ prompt: scPrompt(l), answer: scFirstAnswer(l) });
+  const turns = scTurns(l);
+  const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user");
+  window.CC.team?.giveAnswer?.({ prompt: ask?.text || scPrompt(l), answer: scTurnText(turns[i]) || scFirstAnswer(l) });
 }
 // The quick changes under a reply. Each one is the next message in this chat.
 function scQuickHtml(turn) {
@@ -1915,10 +2156,11 @@ function paintTurns() {
     const on = !!open[`turn:${l.id}:${i}`];
     const who = t.label || (t.provider ? pname(t.provider) : "");
     const body = t.error ? `<div class="small" style="color:var(--red)">${esc(t.error)}</div>` : `<div class="md">${md(scTurnText(t))}</div>`;
-    return `<div class="sc-ai sc-reply" data-turn="${i}"><div class="sc-card"><h3 class="sc-who"><b>Answer</b>${who ? `<span>${esc(who)}</span>` : ""}</h3>${body}</div>${t.error ? "" : `${scButtonsHtml(i, on)}<div class="sc-changes" ${on ? "" : "hidden"}>${scQuickHtml(i)}</div>`}</div>`;
+    // 0.5.0 (Chris: chat like the Claude app): "Meldmind · <AI>" over a plain answer, the icon row under it
+    return `<div class="sc-ai sc-reply" data-turn="${i}"><div class="sc-card"><h3 class="sc-who"><b>Meldmind</b>${who ? `<span>${esc(who)}</span>` : ""}</h3>${body}</div>${t.error ? "" : `${scButtonsHtml(i, on)}<div class="sc-changes" ${on ? "" : "hidden"}>${scQuickHtml(i)}</div>`}</div>`;
   }).join("");
   const live = Object.values(l.agents || {}).find((a) => a?.role === "followup" && !a.done && a.text);
-  const pending = replying ? `${S.scAsk ? me(S.scAsk) : ""}<div class="sc-ai sc-pending"><div class="sc-card"><h3 class="sc-who"><b>Answer</b><span>Writing...</span></h3><div class="reply-live md" data-reply-live="job:">${live ? md(live.text) : `<p class="dim">Writing the answer...</p>`}</div></div></div>` : "";
+  const pending = replying ? `${S.scAsk ? me(S.scAsk) : ""}<div class="sc-ai sc-pending"><div class="sc-card"><h3 class="sc-who"><b>Meldmind</b><span>Writing...</span></h3><div class="reply-live md" data-reply-live="job:">${live ? md(live.text) : `<p class="dim">Writing the answer...</p>`}</div></div></div>` : "";
   box.innerHTML = html + pending;
   box.querySelectorAll(".sc-reply .md").forEach(scFoldCode);
   if (S.scStick) {
@@ -1968,6 +2210,9 @@ function scFrame(l) {
   if (!chat) return;
   const st = scState();
   if (chat.dataset.state !== st) chat.dataset.state = st;
+  // 0.5.0: "Reply to Meldmind..." once a chat is going
+  const box = $("#orders");
+  if (box?.closest("#cb")) { const ph = st === "run" ? REPLY_PLACEHOLDER : PLACEHOLDER; if (box.placeholder !== ph) box.placeholder = ph; }
   const q = $("#sc-q");
   // 0.4.38: in Expert the order bubble carries a tag line of how it ran ("Mission · Balanced · Free only")
   if (q && chat.classList.contains("ex-chat")) {
@@ -1999,6 +2244,10 @@ function scFollowOk(prompt) {
   if (!["done", "done-with-errors"].includes(l.status)) return false;
   if (!(l.deliverable || l.agents?.[l.primary]?.text)) return false;
   if (projectIntent(prompt) || window.CC.makeChat?.intent?.(prompt)) return false;
+  // 0.5.0 (panel 0438 item 3): a prompt picked from Prompts, or a new subject, starts a new chat (a new History row)
+  if (S.scFresh) { S.scFresh = false; return false; }
+  const earlier = [scPrompt(l), ...scTurns(l).filter((t) => t.role === "user").map((t) => t.text || "")];
+  if (!goesOn(prompt, earlier)) return false;
   return true;
 }
 async function sendSimpleFollow(text) {
@@ -2056,6 +2305,14 @@ function onSimpleChatClick(e) {
   const tryChip = t.closest?.("[data-sc-try]");
   if (tryChip) { const c = CHAT_EMPTY.chips.find((x) => x.id === tryChip.dataset.scTry); if (c) scFillBox(c.text); return; }
   if (t.closest?.("#sc-new")) { if (window.CC.layout?.newChat) window.CC.layout.newChat(); else { S.live = newLive(); S.lastOrders = ""; render(); } return; }
+  // 0.5.0: the working line opens the steps; Open live view is inside them (Expert: the Live view page, Simple: the overlay)
+  if (t.closest?.("#ex-steps-btn")) {
+    const id = S.live?.id || "";
+    S.exStepsOpen = { ...(S.exStepsOpen || {}), [id]: $("#ex-answer, #simple-answer")?.dataset.steps !== "open" };
+    paintExHead();
+    return;
+  }
+  if (t.closest?.("#ex-live")) { if (S.uiMode === "expert") window.CC.go("liveview"); else window.CC.layout?.seeLive?.(); return; }
   // 0.4.38 (panel 0437 item 6): All options / Fewer options in the first answer's Make changes
   const allBtn = t.closest?.("[data-sc-all]");
   if (allBtn) {
@@ -2065,11 +2322,12 @@ function onSimpleChatClick(e) {
     S.scOpen = { ...(S.scOpen || {}), [`all:${S.live?.id || ""}`]: on };
     allBtn.setAttribute("aria-expanded", String(on));
     allBtn.textContent = on ? "Fewer options" : "All options";
+    scDedupe();
     return;
   }
   // 0.4.39 (Chris: agents as a team): Give to an agent, under a reply's Make changes (web/features/team.js)
   const give = t.closest?.("[data-sc-give]");
-  if (give) { const l = S.live || {}, i = Number(give.dataset.turn), turns = scTurns(l); const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user"); window.CC.team?.giveAnswer?.({ prompt: ask?.text || scPrompt(l), answer: scTurnText(turns[i]) }); return; }
+  if (give) return void scGive(give.dataset.turn);
   const quick = t.closest?.("[data-sc-quick]");
   if (quick) {
     if (quick.dataset.scQuick === "other") { $("#orders")?.focus(); return; }
@@ -2085,9 +2343,10 @@ function onSimpleChatClick(e) {
   const which = act.dataset.scAct;
   if (!row?.hasAttribute("data-turn")) {
     // the first answer of this chat: the run's own deliverable, with every old action behind Make changes
-    const text = l.deliverable || l.agents?.[l.primary]?.text || "";
+    const text = scFirstAnswer(l);
     if (which === "copy") return void copyDeliverable();
     if (which === "save") return void scSave(text, scPrompt(l), act);
+    if (which === "give") return void scGive("");
     if (which === "change") return void scToggle(`main:${l.id || ""}`, wrap, act);
     if (which === "again") {
       const again = $("#cc-v-again");
@@ -2105,6 +2364,7 @@ function onSimpleChatClick(e) {
   const turn = turns[i];
   if (which === "copy") return void scCopy(scTurnText(turn));
   if (which === "save") return void scSave(scTurnText(turn), scPrompt(l), act);
+  if (which === "give") return void scGive(i);
   if (which === "change") return void scToggle(`turn:${l.id}:${i}`, wrap, act);
   if (which === "again") {
     const ask = [...turns.slice(0, i)].reverse().find((x) => x.role === "user");
@@ -2226,156 +2486,109 @@ function exAiCount(l) {
   if (l?.kind === "mission" || l?.kind === "research") return new Set(Object.values(l.tasks || {}).map((t) => t.agentName || t.provider).filter(Boolean)).size;
   return 0;
 }
-// The answer card's header line (kind, how many AIs, the cost so far, Open live view) and the steps fold.
+// 0.5.0 (Chris: chat like the Claude app): while the AIs work the answer shows one compact line ("Mission · 3 AIs ·
+// step 2 of 3 · $0.002 so far ▾") that opens to the steps (#ops-panel: Pause, Stop and Open live view are inside).
+// Simple and Expert share it. A paused mission opens the steps by itself, so its edit form is in sight.
+function workLine(l, busy) {
+  const parts = [];
+  if (!l?.id) return busy ? "Starting..." : "";
+  parts.push(EX_KIND[l.kind] || "Answer");
+  const n = exAiCount(l);
+  if (n > 1) parts.push(`${n} AIs`);
+  const tasks = Object.values(l.tasks || {});
+  if (l.kind === "mission" || l.kind === "research") {
+    const done = tasks.filter((t) => ["done", "failed"].includes(t.status)).length;
+    if (busy) parts.push(l.status === "paused" ? "paused" : l.status === "scheduled" ? "queued" : tasks.length ? `step ${Math.min(done + 1, tasks.length)} of ${tasks.length}` : (l.kind === "research" ? "researching" : "planning"));
+    else if (tasks.length) parts.push(`${tasks.length} step${tasks.length === 1 ? "" : "s"}`);
+  } else if (l.kind === "council" && l.council) {
+    const answered = Object.values(l.council.answers || {}).filter((a) => a?.text).length;
+    if (busy) parts.push(answered ? `${answered} answered` : "asking");
+  } else if (busy) {
+    const prim = l.primary ? l.agents?.[l.primary] : null;
+    parts.push(prim?.provider ? `${pname(prim.provider)} is writing` : "writing");
+  }
+  const cost = Number(l.mission?.cost ?? l.council?.cost ?? 0);
+  if (cost > 0 || l.kind === "mission" || l.kind === "council") parts.push(`${money(cost, !cost || cost >= 0.01 ? 2 : cost >= 0.001 ? 3 : 4)}${busy ? " so far" : ""}`);
+  return parts.join(" · ");
+}
 function paintExHead() {
-  const card = $("#ex-answer");
+  const card = $("#ex-answer") || $("#simple-answer");
   if (!card) return;
   const l = S.live || {};
   const busy = runBusy() || ["scheduled", "paused"].includes(l.status);
   // the answer's buttons wait until the answer is done
-  const chat = card.closest(".ex-chat");
+  const chat = card.closest(".ex-chat, .sc-chat");
   if (chat && chat.dataset.busy !== (busy ? "1" : "0")) chat.dataset.busy = busy ? "1" : "0";
-  const kind = $("#ex-kind");
-  if (kind) kind.textContent = l.id ? (EX_KIND[l.kind] || "Answer") : "Answer";
-  const n = exAiCount(l);
-  const ais = $("#ex-ais");
-  if (ais) { ais.textContent = n > 1 ? `${n} AIs` : ""; ais.hidden = n < 2; }
-  const costEl = $("#ex-cost");
-  const cost = Number(l.mission?.cost ?? l.council?.cost ?? 0);
-  if (costEl) { costEl.textContent = l.id && (cost > 0 || l.kind === "mission" || l.kind === "council") ? `${money(cost, 4)}${busy ? " so far" : ""}` : ""; costEl.hidden = !costEl.textContent; }
   const live = $("#ex-live");
   if (live) live.hidden = !l.id;
   const tasks = Object.keys(l.tasks || {}).length;
   const steps = ((l.kind === "mission" || l.kind === "research") && (tasks || busy)) || (l.kind === "council" && !!l.council);
-  const open = S.exStepsOpen?.[l.id];
-  const fold = steps && !busy && open !== true;
-  card.dataset.steps = !steps ? "none" : fold ? "fold" : "open";
+  const pick = S.exStepsOpen?.[l.id];
+  const open = steps && (pick ?? l.status === "paused") === true;
+  card.dataset.steps = !steps ? "none" : open ? "open" : "fold";
+  const line = $("#cb-work");
+  const text = (busy || steps) && l.id ? workLine(l, busy) : "";
+  if (line) {
+    line.hidden = !text;
+    line.dataset.busy = busy ? "1" : "0";
+    const tx = $("#cb-work-text");
+    if (tx && tx.textContent !== text) tx.textContent = text;
+  }
   const btn = $("#ex-steps-btn");
   if (btn) {
-    btn.hidden = !steps || busy;
-    const what = l.kind === "council" ? "the AIs' answers" : `steps${tasks ? ` (${tasks})` : ""}`;
-    btn.textContent = fold ? `Show ${what}` : `Hide ${what}`;
-    btn.setAttribute("aria-expanded", String(!fold));
+    btn.disabled = !steps;
+    btn.setAttribute("aria-expanded", String(open));
+    btn.title = !steps ? "" : open ? "Hide the steps" : (l.kind === "council" ? "Show the AIs' answers" : "Show the steps");
+    const caret = $("#cb-work-caret");
+    if (caret) caret.hidden = !steps;
   }
 }
-function exMoreToggle(on) {
-  const panel = $("#view .ex-panel");
-  if (!panel) return;
-  const want = on ?? !panel.classList.contains("more-open");
-  panel.classList.toggle("more-open", want);
-  S.exMoreOpen = want;
-  const b = $("#ex-more-btn");
-  if (b) { b.setAttribute("aria-expanded", String(want)); b.textContent = want ? "Fewer options" : "More options"; }
-}
+// More options in the chat box (the "..." pop-up). A menu item that points at a tool in there opens it first.
+function exMoreToggle(on) { cbPop("cb-more-pop", on); }
 function renderCommand(v) {
   if (S.uiMode !== "expert") return renderSimpleChat(v);
-  const modeSel = S.cmdMode || "auto";
   const mainOpen = !!S.scOpen?.[`main:${S.live?.id || ""}`];
   const mainAll = !!S.scOpen?.[`all:${S.live?.id || ""}`];
   const was = $("#sc-scroll");
   const keep = was ? { top: was.scrollTop, end: was.scrollHeight - was.scrollTop - was.clientHeight < 6 } : null;
-  const when = S.whenMode || "now";
+  // 0.5.0 (Chris: chat like the Claude app): the Expert chat page is the Simple chat page with more in the mode menu.
+  // The greeting and the box sit mid page on a new chat; the run modes, Priority, When, the check and the cap are in the
+  // box's mode menu (#run-mode buttons live there); Preview route, Prompts, the project and the SSN line are under "...".
   v.innerHTML = `
-  <div class="ex-chat" id="ex-chat" data-state="${scState()}">
+  <div class="ex-chat chat2" id="ex-chat" data-state="${scState()}">
     <div class="sc-scroll" id="sc-scroll">
       <div class="sc-col">
         <div id="graduate-slot"></div>
-        <div class="sc-resume" id="sc-resume"></div>
-        <div class="ex-empty" id="ex-empty">
-          <h2 class="ex-hello" id="cmd-mode-banner" data-mode-banner="${esc(S.cmdShortcut || "")}">${esc(commandHeading(S.cmdShortcut, S.uiMode))}</h2>
-          <p class="ex-sub">Tell your AIs what you want in the box below. Pick how to run it on top of the box.</p>
+        <div class="ex-empty sc-empty" id="ex-empty">
+          <h2 class="ex-hello cb-hello" id="ex-hello">${esc(chatGreeting(greetName()))}</h2>
+          <p class="cb-modeline" id="cmd-mode-banner" data-mode-banner="${esc(S.cmdShortcut || "")}" ${S.cmdShortcut ? "" : "hidden"}>${esc(commandHeading(S.cmdShortcut, S.uiMode))}</p>
           <div id="pp-popular"></div>
           <div id="ex-home"></div>
         </div>
         <div class="sc-thread" id="sc-thread">
           <div class="sc-head"><button type="button" class="sc-new" id="sc-new" title="Start a new chat. This one stays in History.">New chat</button></div>
           <div class="sc-me ex-me" id="sc-q" hidden></div>
-          <div class="sc-ai" id="ex-answer" data-steps="none" ${S.live?.id || S.make?.active ? "" : "hidden"}>
-            <div class="sc-card">
-              <h3 class="sc-who ex-who"><b id="ex-kind">Answer</b><span class="ex-chip" id="ex-ais" hidden></span><span class="ex-chip" id="ex-cost" hidden></span><span id="out-head"></span><span class="ex-who-acts"><button type="button" class="ex-link" id="ex-steps-btn" aria-controls="ops-panel" hidden>Hide steps</button><button type="button" class="ex-link" id="ex-live" hidden>Open live view</button></span></h3>
-              <div class="ops ex-steps" id="ops-panel">
-                <h3 class="ex-steps-h"><span class="ex-lo-title">Live ops</span> <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button></h3>
-                <div class="graph-wrap" id="graph"></div>
-                <div id="tasks" class="tasks"></div>
-                <div id="council"></div>
-              </div>
-              <div class="md" id="out-md"></div>
-              <div class="sc-check" id="sc-check"></div>
-              <div id="cc-fail-slot"></div>
-              <div id="out-follow"></div>
-            </div>
-            ${scButtonsHtml("", mainOpen)}
-            <div class="sc-changes${mainAll ? " sc-all" : ""}" id="sc-changes" ${mainOpen ? "" : "hidden"}>
-              ${scChangesTop(mainAll)}
-              <div id="sc-mm-slot"></div>
-              <div id="deliv-extras"></div>
-              ${scAllBtn(mainAll)}
-            </div>
-          </div>
+          ${chatAnswerHtml(true, mainOpen, mainAll)}
           <div id="sc-turns" aria-live="polite"></div>
         </div>
       </div>
     </div>
-    <div class="orders ex-orders">
-      <div class="ex-panel${S.exMoreOpen ? " more-open" : ""}">
-        <h3 class="ex-sr">Marching orders</h3>
-        <div id="route" class="route ex-route" style="display:none"></div>
-        <div id="ex-chatting"></div><!-- 0.4.39 (merge of the Team page): "Chatting with <agent>" shows here, not inside the closed More options -->
-        <div class="ex-more" id="ex-more">
-          <div class="row ex-more-row">
-            <label class="row small" style="gap:6px"><input type="checkbox" id="qa" ${S.settings.qa !== false ? "checked" : ""}> AI-to-AI QA</label>
-            <label class="row small" style="gap:6px">Cap $<input type="number" id="budget" value="${S.settings.missionBudget || 2}" step="0.5" min="0.1" style="width:70px;padding:4px 6px"></label>
-            <button class="btn sm" id="cc-get-free-expert" type="button" title="One-click links to free AI keys. Ollama and LM Studio are found by themselves.">Get free AIs</button>
-          </div>
-          ${projectField()}
-          <div id="cc-composer-ais" class="composer-ais" aria-label="Connected AIs"></div>
-          <div id="cmd-extras"></div>
-        </div>
-        <div class="ex-box" id="ex-box">
-          <div class="seg ex-pills" id="run-mode" role="group" aria-label="How to run it">
-            <button data-m="auto" class="${modeSel === "auto" ? "on" : ""}" title="Meldmind picks Single, Mission or Council for you and says which">Auto team</button>
-            <button data-m="single" class="${modeSel === "single" ? "on" : ""}" title="Best single AI for the job">Single</button>
-            <button data-m="council" class="${modeSel === "council" ? "on" : ""}" title="Several AIs answer, review each other, chair writes the verdict">Council</button>
-            <button data-m="mission" class="${modeSel === "mission" ? "on" : ""}" title="Plan, assign to specialists, check, put together">Mission${S.license?.limits?.missions ? "" : ' <span class="cc-pro-mark" aria-label="Part of Pro">Pro</span>'}</button>
-            <button data-m="research" class="${modeSel === "research" ? "on" : ""}" title="Search the web and answer with numbered sources">Research</button>
-            <button data-m="opinion" class="${modeSel === "opinion" ? "on" : ""}" title="Two AIs answer the same orders. Differences are shown in plain words. Both answers stay.">Second opinion</button>
-          </div>
-          <textarea id="orders" rows="2" aria-label="Marching orders" aria-describedby="mask-line" placeholder="Tell your AIs what you want. One line is enough.">${esc(S.lastOrders || "")}</textarea>
-          <div class="ex-chips-slot" id="ex-chips-slot"></div>
-          <div class="ex-row" id="ex-row">
-            <button class="btn sm" type="button" id="vo-mic" data-simple-mic aria-pressed="false">Mic</button>
-            <span class="ex-slot" id="ex-upload-slot"></span>
-            <select id="cost-mode" class="ex-select" aria-label="Priority">${PRIORITY.map(([m, label]) => `<option value="${m}" ${priorityNow() === m ? "selected" : ""}>${label}</option>`).join("")}</select>
-            <select id="when-mode" class="ex-select" aria-label="When"><option value="now" ${when === "now" ? "selected" : ""}>Now</option><option value="offpeak" ${when === "offpeak" ? "selected" : ""}>Off-peak</option></select>
-            ${freeOnlyHtml(true)}
-            <span class="ex-gap"></span>
-            <button type="button" class="ex-link" id="preview">Preview route</button>
-            <button class="btn sm" id="stop-research" type="button" style="display:none" title="Stop this deep research run">Stop</button>
-            <button class="btn sm" id="stop-chat" type="button" style="display:none" title="Stop this answer. What is written so far is kept.">Stop</button>
-            <button class="btn primary" id="go" ${runBusy() ? "disabled" : ""}>${runBusy() ? "Still working..." : "Send orders"}</button>
-          </div>
-        </div>
-        <div class="ex-help small" id="ex-help">
-          <span class="hint" id="mask-line" role="note">${esc(maskNotice(S.lastOrders || ""))}</span>
-          <span class="hint" id="send-hint" role="note">Ctrl+Enter sends.</span>
-          <span id="ex-prompts-slot"></span>
-          <button type="button" class="ex-link" id="ex-more-btn" aria-expanded="${S.exMoreOpen ? "true" : "false"}" aria-controls="ex-more">${S.exMoreOpen ? "Fewer options" : "More options"}</button>
-          <span class="right dim" id="cls-hint"></span>
-          <span class="small dim" id="cc-auto-line" role="status" aria-live="polite">${esc(S.autoLine || "")}</span>
-        </div>
-      </div>
-    </div>
+    ${chatBoxHtml(true)}
   </div>`;
   graph = new AgentGraph($("#graph"));
   syncGraph(true);
   graph.onNodeClick = (id) => { S.view = "settings"; S.focusProvider = id; render(); };
   for (const [pid, n] of Object.entries(S.activeByProvider)) if (n > 0 && !quietProvider(P(pid))) graph.activate(pid, "working");
   refreshGraphUsage();
-  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdModeExplicit = true; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; head.textContent = commandHeading(S.cmdShortcut, S.uiMode); } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); });
-  // 0.4.38: Priority and When are small selects in the chat box's bottom row (they were button rows)
+  // 0.5.0: a pick in the mode menu updates the chip ("Council mode ▾") and closes the menu
+  $("#run-mode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; S.cmdMode = b.dataset.m; S.cmdModeExplicit = true; S.cmdShortcut = COMMAND_MODES[b.dataset.m] ? b.dataset.m : ""; const head = $("#cmd-mode-banner"); if (head) { head.dataset.modeBanner = S.cmdShortcut; head.textContent = commandHeading(S.cmdShortcut, S.uiMode); head.hidden = !S.cmdShortcut; } $$("#run-mode button").forEach((x) => x.classList.toggle("on", x === b)); markSeg($("#run-mode")); markTabs(); const lab = $("#cb-mode-label"); if (lab) lab.innerHTML = teamLabelHtml(); if (e.isTrusted) cbPop("cb-menu", false); });
+  // 0.4.38: Priority and When are small selects (0.5.0: in the mode menu)
   $("#cost-mode").addEventListener("change", (e) => { S.costMode = e.target.value; });
   $("#when-mode").addEventListener("change", (e) => { S.whenMode = e.target.value; });
   markSeg($("#run-mode"));
+  wireChatBox(v);
+  watchChanges();
+  wireOpsButtons();
   wireProjectPicker();
   $("#orders").addEventListener("input", (e) => { S.lastOrders = e.target.value; const note = $("#mask-line"); if (note) note.textContent = maskNotice(e.target.value); });
   // 0.4.38: Ctrl+Enter is the person sending, so it can go on in the same chat (see scFollowOk), as in Simple
@@ -2385,9 +2598,28 @@ function renderCommand(v) {
   $("#stop-research")?.addEventListener("click", stopResearch);
   $("#preview").addEventListener("click", previewRoute);
   $("#cc-get-free-expert")?.addEventListener("click", () => window.CC.freeAis?.open?.());
-  $("#ex-more-btn")?.addEventListener("click", () => exMoreToggle());
   v.querySelector(".ex-chat").addEventListener("click", onExpertChatClick);
-  $("#abort").addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
+  renderOps();
+  renderExtras("command", "#cmd-extras");
+  renderComposerAis();
+  syncSendButton();
+  // a menu item that points at a tool under More options (Search, Upload) opens the "..." pop-up first
+  if (S.navFocus) { const target = document.querySelector(S.navFocus); if (target?.closest("#cb-more-pop")) exMoreToggle(true); else if (target?.closest("#cb-menu")) cbPop("cb-menu", true); }
+  focusNavTarget();
+  if (S.focusOrders) { S.focusOrders = false; $("#orders")?.focus(); }
+  const sc = $("#sc-scroll");
+  if (keep && sc) sc.scrollTop = keep.end ? sc.scrollHeight : keep.top;
+}
+// The Expert chat's clicks: New chat, the steps fold, Open live view, and the answer buttons (shared with Simple).
+function onExpertChatClick(e) {
+  const t = e.target;
+  if (t.closest?.("#ex-live")) { window.CC.go("liveview"); return; }
+  if (t.closest?.("#cb") || (t.closest?.("#ops-panel") && !t.closest?.("#ex-steps-btn"))) return;
+  onSimpleChatClick(e);
+}
+// Pause, Resume and Stop inside the steps (both pages).
+function wireOpsButtons() {
+  $("#abort")?.addEventListener("click", () => { if (!S.live.id) return; if (S.live.kind === "research") return stopResearch(); api(`/mission/${S.live.id}/abort`, { method: "POST" }).catch((e) => toast(e.message, true)); });
   $("#ops-pause")?.addEventListener("click", async () => {
     if (!S.live.id) return;
     try { await api(`/mission/${S.live.id}/pause`, { method: "POST" }); }
@@ -2398,29 +2630,6 @@ function renderCommand(v) {
     try { await api(`/mission/${S.live.id}/resume`, { method: "POST" }); toast("Mission resumed."); }
     catch (e) { toast(e.message, true); }
   });
-  renderOps();
-  renderExtras("command", "#cmd-extras");
-  renderComposerAis();
-  // a menu item that points at a tool under More options (Search, Upload) opens the fold first
-  if (S.navFocus) { const target = document.querySelector(S.navFocus); if (target?.closest("#ex-more")) exMoreToggle(true); }
-  focusNavTarget();
-  if (S.focusOrders) { S.focusOrders = false; $("#orders")?.focus(); }
-  const sc = $("#sc-scroll");
-  if (keep && sc) sc.scrollTop = keep.end ? sc.scrollHeight : keep.top;
-}
-// The Expert chat's clicks: New chat, the steps fold, Open live view, and the answer buttons (shared with Simple).
-function onExpertChatClick(e) {
-  const t = e.target;
-  if (t.closest?.("#ex-steps-btn")) {
-    const id = S.live?.id || "";
-    const card = $("#ex-answer");
-    S.exStepsOpen = { ...(S.exStepsOpen || {}), [id]: card?.dataset.steps === "fold" };
-    paintExHead();
-    return;
-  }
-  if (t.closest?.("#ex-live")) { window.CC.go("liveview"); return; }
-  if (t.closest?.("#ex-more") || t.closest?.(".ex-box") || t.closest?.("#ops-panel")) return;
-  onSimpleChatClick(e);
 }
 function syncGraph(force = false) {
   if (!graph || S.view !== "command") return;
@@ -2458,7 +2667,8 @@ function addAiChip(box) {
   b.addEventListener("click", addAnAi);
   box.appendChild(b);
 }
-function renderOps() { if (S.uiMode !== "expert") { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
+// 0.5.0: Simple's chat draws #ops-panel too (the steps behind the working line), so it is painted the same way
+function renderOps() { if (S.uiMode !== "expert" && !$("#ops-panel")) { renderOutput(); return; } renderOpsHead(); renderTasks(); renderCouncil(); renderOutput(); }
 // Idle Live ops is one line. The graph shows only while a run is going.
 function syncOpsPanel() {
   const panel = $("#ops-panel"); if (!panel) return;
@@ -2486,9 +2696,10 @@ function syncResearchStop() {
   show(resume, mission && l.status === "paused");
   show(abort, researchLive || missionLive || (mission && l.status === "paused"));
   if (abort) {
-    abort.textContent = researchLive ? "Stop" : "abort";
-    abort.title = researchLive ? "Stop this deep research run" : "";
+    abort.textContent = "Stop"; // 0.5.0: it read "abort" for a Mission next to Pause
+    abort.title = researchLive ? "Stop this deep research run" : "Stop this mission";
   }
+  syncSendButton(); // 0.5.0: the round Send button gives its place to Stop while a run can be stopped
 }
 function renderOpsHead() {
   const h = $("#ops-head");
@@ -2512,6 +2723,8 @@ function triesHtml(t) {
 }
 function renderTasks() {
   const box = $("#tasks"); if (!box) return;
+  // 0.5.0: Simple draws the steps too, and a run restored from elsewhere can come without a tasks map
+  if (!S.live.tasks) S.live.tasks = {};
   const tasks = Object.values(S.live.tasks);
   if (S.live.kind === "mission" && S.live.status === "scheduled" && S.live.mission?.scheduledFor) { box.innerHTML = `<div class="empty" style="color:var(--amber)">Queued for ${new Date(S.live.mission.scheduledFor).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })} · ${esc(S.live.mission.reason || "")}<br><span class="hint">Click Stop to cancel.</span></div>`; return; }
   if ((S.live.kind !== "mission" && S.live.kind !== "research") || !tasks.length) { box.innerHTML = (S.live.kind === "mission" || S.live.kind === "research") && (S.live.status === "planning" || S.live.status === "running") && !tasks.length ? `<div class="empty">${S.live.kind === "research" ? "Researching…" : "Planning…"}</div>` : ""; return; }
@@ -2621,7 +2834,8 @@ function renderOutput() {
   const paintFollow = (html) => { if (follow) follow.innerHTML = html || ""; };
   if (!l.id) { o.innerHTML = S.uiMode === "simple" ? `<div class="empty">Say what you want in the box. Meldmind picks an AI, and the answer shows up here.</div>` : `<div class="empty">Send orders to see the team work. Single = best AI for the job. Council = several AIs answer and judge each other. Mission = plan, assign, QA, assemble. Second opinion asks two AIs and keeps both answers.</div>`; h.textContent = ""; paintFollow(""); paintFailure(); return; }
   // 0.4.37: the Simple card says "Answer · Nova"; Expert keeps who and which model
-  h.textContent = prim ? (S.uiMode === "expert" ? `Written by ${pname(prim.provider)} · ${prim.model}` : pname(prim.provider)) : "";
+  // 0.5.0 (Chris: chat like the Claude app): the small label over the answer reads "Meldmind · <AI>" (Expert adds the model)
+  h.textContent = prim ? (S.uiMode === "expert" ? `${pname(prim.provider)} · ${prim.model}` : pname(prim.provider)) : (l.kind && l.kind !== "single" ? (EX_KIND[l.kind] || "") : "");
   // out of API credits: the waiting box (single chat, and council seats in Simple mode, where seats are not shown)
   const subWait = subWaitingHtml(l);
   if (subWait) {
@@ -2777,23 +2991,28 @@ function outputFollowHtml() {
   blocks.push(jobReply());
   return blocks.join("");
 }
+// 0.5.0 (panel 0438 item 2: "Preview route never closes and squeezes the Expert chat"): the route card has a Close, and
+// it also closes when the box text changes or the order is sent (hideRoute)
+const ROUTE_X = `<button type="button" class="cb-route-x" data-route-close aria-label="Close the route preview" title="Close">&times;</button>`;
+function hideRoute() { const r = $("#route"); if (r && r.style.display !== "none") { r.style.display = "none"; r.innerHTML = ""; } }
 async function previewRoute() {
+  cbPopsClose();
   const prompt = $("#orders").value.trim();
   const box = $("#route");
   // 0.4.27 (panel item 12b): with an empty box this did nothing at all, so the header's "Preview route" looked dead.
   if (!prompt) {
-    if (box) { box.style.display = ""; box.innerHTML = `<span class="muted">Type what you want first. Preview route then shows which AI would take it and about what it costs.</span>`; box.scrollIntoView?.({ block: "nearest" }); }
+    if (box) { box.style.display = ""; box.innerHTML = `${ROUTE_X}<span class="muted">Type what you want first. Preview route then shows which AI would take it and about what it costs.</span>`; box.scrollIntoView?.({ block: "nearest" }); }
     $("#orders")?.focus();
     return;
   }
-  box.style.display = ""; box.innerHTML = `<span class="muted">Classifying…</span>`;
+  box.style.display = ""; box.innerHTML = `${ROUTE_X}<span class="muted">Classifying…</span>`;
   box.scrollIntoView?.({ block: "nearest" });
   try {
     const r = await api(`/route?prompt=${encodeURIComponent(prompt)}&mode=${encodeURIComponent(S.costMode || S.settings.defaultMode)}`);
     S.routePreview = r;
     const c = r.classification, best = r.ranked[0];
     const d = r.defer;
-    box.innerHTML = `<div><b>${esc(c.summary || c.capability)}</b> <span class="chip">${c.capability}</span> <span class="chip">difficulty ${c.difficulty}</span> ${c.needWeb ? '<span class="chip violet">needs web</span>' : ""}</div>
+    box.innerHTML = `${ROUTE_X}<div><b>${esc(c.summary || c.capability)}</b> <span class="chip">${c.capability}</span> <span class="chip">difficulty ${c.difficulty}</span> ${c.needWeb ? '<span class="chip violet">needs web</span>' : ""}</div>
       <div class="small" style="margin-top:6px">Best fit: <b style="color:${pcolor(best?.provider)}">${esc(best?.name || "none available")}</b> ≈ ${money(best?.estCost || 0, 4)} per call${best?.discount ? ` <span class="chip green">${best.discount.pct}% off now</span>` : ""}${best?.warnings?.length ? ` <span class="chip amber" title="${esc(best.warnings.join("; "))}">health −${best.healthPenalty}</span>` : ""} · council of 4 ≈ ${money(r.councilEstimate, 3)}</div>
       ${r.cheaper?.advice ? `<div class="adv">${esc(r.cheaper.advice)}</div>` : ""}
       ${r.cheaper?.batchNote ? `<div class="adv">${esc(r.cheaper.batchNote)}</div>` : ""}
@@ -2804,7 +3023,7 @@ async function previewRoute() {
       ${(r.apps || []).length ? `<div class="small" style="margin-top:4px">Allowed programs: ${(r.apps || []).slice(0, 4).map((m) => `${esc(m.name)} ${m.score}`).join(" · ")}</div>` : ""}
       ${r.whoWillRead ? `<div class="small" style="margin-top:6px"><b>${esc(r.whoWillRead.heading || "Who will read this")}</b>: ${r.whoWillRead.readers?.length ? `${r.whoWillRead.readers.map((x) => esc(x.name)).join(", ")}. ` : ""}${esc(r.whoWillRead.note || "Nothing is sent until you click.")}</div>` : ""}`;
     $("#cls-hint").textContent = c.source === "heuristic" ? "classified locally" : `classified by ${c.source}`;
-  } catch (e) { box.innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
+  } catch (e) { box.innerHTML = `${ROUTE_X}<span style="color:var(--red)">${esc(e.message)}</span>`; }
 }
 const BUSY_STATUS = new Set(["running", "planning", "assembling"]);
 function runBusy() {
@@ -2836,8 +3055,16 @@ function syncSendButton() {
     const stoppable = busy && (S.stopId || (S.live?.id && (kind === "single" || kind === "mission")));
     stop.style.display = stoppable ? "" : "none";
   }
+  // 0.5.0 (Chris: chat like the Claude app): in the chat box Send is a round button that becomes Stop while it works
+  // (#stop-chat or #stop-research takes its place); a Council, which cannot be stopped, shows Send greyed out
+  const label = busy ? "Still working..." : (S.uiMode === "simple" ? "Send" : "Send orders");
   g.disabled = busy;
-  g.textContent = busy ? "Still working..." : (S.uiMode === "simple" ? "Send" : "Send orders");
+  if (g.closest("#cb")) {
+    g.setAttribute("aria-label", label); // an icon button: the words are its label for screen readers
+    const research = $("#stop-research");
+    const stopping = busy && ((stop && stop.style.display !== "none") || (research && research.style.display !== "none"));
+    g.hidden = !!stopping;
+  } else g.textContent = label;
   g.setAttribute("aria-busy", busy ? "true" : "false");
 }
 async function confirmRisky(text) {
@@ -2888,8 +3115,7 @@ function askNotify() {
 let lastGoClick = 0, goDownAt = 0;
 // a real click always sends (sendOrders ignores a press while a run is busy)
 // 0.4.37: a press the person made (not a feature calling go.click()) may go on in the same Simple chat (scFollowOk)
-function pressSend(e) { lastGoClick = Date.now(); S.sendByPerson = e ? !!e.isTrusted : true; sendOrders(); }
-document.addEventListener("pointerdown", (e) => { if (e.button === 0 && e.target?.closest?.("#go")) goDownAt = Date.now(); }, true);
+function pressSend(e) { lastGoClick = Date.now(); S.sendByPerson = e ? !!e.isTrusted : true; sendOrders(); }document.addEventListener("pointerdown", (e) => { if (e.button === 0 && e.target?.closest?.("#go")) goDownAt = Date.now(); }, true);
 document.addEventListener("pointerup", (e) => {
   // the button was rebuilt between press and release, so the browser never made a click: send on the release
   const down = goDownAt;
@@ -2907,6 +3133,7 @@ async function sendOrders() {
   const byPerson = !!S.sendByPerson; S.sendByPerson = false;
   if (runBusy()) return;
   const prompt = $("#orders").value.trim(); if (!prompt) return toast("Type the orders first", true);
+  hideRoute(); // 0.5.0 (panel 0438 item 2): the route preview closes once the order goes
   try { window.CC?.promptSuggest?.sent?.(); } catch {} // the suggestions list closes on Send
   // 0.4.37 (Chris: one chat column): typed after a finished answer, it goes on in the same chat's thread
   if (byPerson && scFollowOk(prompt)) { if (!(await confirmRisky(prompt))) return; return sendSimpleFollow(prompt); }

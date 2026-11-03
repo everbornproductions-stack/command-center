@@ -639,6 +639,14 @@ function paint() {
     line.innerHTML = `${esc(status.line || NO_KEY_LINE)} <a href="#" id="vt-keys">Open the keys screen</a>`;
     line.querySelector("#vt-keys").addEventListener("click", (e) => { e.preventDefault(); window.CC.openSettings("keys"); });
   } else if (!line.hidden) { line.hidden = true; line.textContent = ""; }
+  // 0.5.0 (Chris: chat like the Claude app): the chat pages hide this bar (web/chat.css) unless it waits for a yes. The
+  // box's mic and its More options carry Talk, and one quiet line under the box says what Talk heard and is doing.
+  const cv = document.getElementById("cb-voice");
+  if (cv) { const txt = talkOn || waiting ? `${STATE_LABEL[s]}. ${el.textContent}` : ""; cv.hidden = !txt; if (cv.textContent !== txt) cv.textContent = txt; }
+  const ct = document.getElementById("cb-talk");
+  if (ct) { ct.setAttribute("aria-pressed", talkOn ? "true" : "false"); ct.textContent = talkOn ? "Stop talking" : "Talk out loud"; }
+  const ch = document.getElementById("cb-hands");
+  if (ch) ch.checked = !!cfg.handsFree;
 }
 
 // A button anywhere: <button data-voice-action="open_screen" data-voice-args='{"screen":"mindmedia"}'>

@@ -15,7 +15,9 @@ export const SIMPLE_VIEWS = new Set(["command", "projects", "settings", "setup",
 // The Simple chat page shows only the chat box, My day, a few starters, and recent
 // chats. These are the only Command widgets it draws: voice wires the Mic button and
 // desk lists recent chats. Every other widget is Expert only.
-export const SIMPLE_COMMAND = new Set(["voice", "desk", "chat-history"]);
+// 0.5.0 (Chris: chat like the Claude app): the box's round + is the Upload in both modes, so orders-input draws in Simple
+// too (its Upload button sits out of sight behind the +; its voice line waits under More options).
+export const SIMPLE_COMMAND = new Set(["voice", "desk", "chat-history", "orders-input"]);
 
 // Starter buttons shown under the Simple chat box.
 export const SIMPLE_STARTER_COUNT = 3;

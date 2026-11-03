@@ -57,11 +57,14 @@ test("browser: in the Expert chat the run bar folds into the box, the pills and 
     assert.equal(await t.page.evaluate(() => !!document.getElementById("mac-runbar") || !!document.getElementById("mac-rb-modes")), false, "the bar folded into the box");
 
     // 2. Clicking the Council pill sets CC.S.cmdMode and lights only that pill.
+    // 0.5.0 (chat like the Claude app): the pills and Priority live in the box's mode menu ("Auto team"); open it first
+    await t.page.click("#sc-team");
     await t.page.click('.ex-box #run-mode button[data-m="council"]');
     await t.page.waitForFunction(() => window.CC.S.cmdMode === "council", null, { timeout: 20000 });
     assert.deepEqual(await t.page.evaluate(() => [...document.querySelectorAll("#run-mode button.on")].map((b) => b.dataset.m)), ["council"]);
 
     // 3. Choosing a priority in the box's select sets CC.S.costMode.
+    await t.page.click("#sc-team");
     await t.page.selectOption("#cost-mode", "max");
     await t.page.waitForFunction(() => window.CC.S.costMode === "max", null, { timeout: 20000 });
     assert.equal(await t.page.inputValue("#cost-mode"), "max");

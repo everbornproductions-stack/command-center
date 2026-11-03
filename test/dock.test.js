@@ -208,7 +208,7 @@ test("Expert opens in Auto team and the news rail starts minimized under 1500px"
   try {
     await t.page.waitForFunction(() => { if (window.CC.S.uiMode === "expert") return true; document.querySelector("#mode-expert")?.click(); return false; }, null, { timeout: WAIT() * 2, polling: 700 });
     await t.page.evaluate(() => window.CC.go("command"));
-    await t.page.waitForSelector("#run-mode", { timeout: WAIT() });
+    await t.page.waitForSelector("#run-mode", { state: "attached", timeout: WAIT() }); // 0.5.0: in the box's mode menu
     assert.equal(await t.page.getAttribute("#run-mode button.on", "data-m"), "auto");
     await t.page.waitForFunction(() => !document.querySelector("#cc-rail") || document.querySelector("#cc-rail").dataset.min === "1", null, { timeout: WAIT() });
   } finally { await t.close(); }

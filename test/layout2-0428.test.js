@@ -115,7 +115,7 @@ for (const [width, height] of [[1366, 800], [1440, 900]]) {
         await t.page.waitForTimeout(100);
         if (await t.page.evaluate(() => { const v = document.getElementById("sc-scroll"); return v.scrollTop + v.clientHeight >= v.scrollHeight - 2; })) break;
       }
-      await t.page.click("#ex-more-btn");
+      await t.page.click("#cb-more");
       await t.page.waitForTimeout(400);
       await t.page.evaluate(() => document.getElementById("cc-get-free-expert")?.scrollIntoView({ block: "nearest" }));
       await t.page.waitForTimeout(300);
@@ -416,7 +416,8 @@ test("item 10: no text under 12 px on Command, Credits, Live view and Subscripti
 test("source: the fixes stay in place and add no dashes", () => {
   assert.match(read("web", "mac", "css", "inside.css"), /#app #view:has\(> \.cmd\) \{\s*overflow-x: hidden;\s*overflow-y: auto;/);
   // 0.4.37 (Simple chat layout): the folding chat box (item 3a) gave way to the short pinned box in web/chat.css
-  assert.match(read("web", "chat.css"), /\.sc-chat \.orders \{ flex: none;/);
+  // 0.5.0 (chat like the Claude app): the pinned box of both chat pages
+  assert.match(read("web", "chat.css"), /#app #view #cb \{ flex: none;/);
   assert.match(read("web", "app.js"), /cc\.keepModeNote:/);
   for (const f of [["web", "mac", "css", "shell.css"], ["web", "mac", "css", "inside.css"], ["web", "mac", "css", "flow.css"], ["web", "mac", "parts", "flow.js"], ["web", "mac", "data", "flow.js"]]) {
     assert.equal(/[–—]/.test(read(...f)), false, `${f.join("/")} has no dashes`);

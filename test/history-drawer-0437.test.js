@@ -261,7 +261,14 @@ test("item 5: the Just chat bar reads at 4.5 : 1 or better in Simple dark (1440 
       await t.page.addStyleTag({ content: "#cc-startup,#cc-look-offer,#demo-bar,#cc-desktop-prompt,.cc-tour-invite,#update-bar,#upd-fail,#cc-expert-card{display:none!important}" });
       await t.page.waitForSelector("#mf-chat-card", { state: "visible", timeout: WAIT });
       await t.page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getTiming?.().iterations === Infinity), null, { timeout: WAIT });
-      const list = await paintedContrast(t.page, "#mf-chat-card b, #mf-chat-card small", { max: 2 });
+      // on the CI runner a passing toast covered one line for a moment: clear toasts and measure again, with a deadline
+      let list = [];
+      for (const end = Date.now() + WAIT; Date.now() < end;) {
+        await t.page.evaluate(() => document.querySelectorAll("#toasts .toast").forEach((e) => e.remove()));
+        list = await paintedContrast(t.page, "#mf-chat-card b, #mf-chat-card small", { max: 2 });
+        if (list.length === 2) break;
+        await t.page.waitForTimeout(500);
+      }
       assert.equal(list.length, 2, `${theme}: both lines measured`);
       for (const x of list) assert.ok(x.ratio >= 4.5, `${theme}: ${x.ratio} "${x.text}" fg ${x.fg} on ${x.bg}`);
     } finally { await t.close(); }

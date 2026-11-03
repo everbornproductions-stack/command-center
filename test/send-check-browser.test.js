@@ -55,12 +55,13 @@ test("browser: the banner names the AI that is out and the fix; Auto splits codi
     for (;;) { const f = (await t.api("/fallback")).json; if (f.skipped.some((x) => x.provider === "xai")) break; assert.ok(Date.now() < end, "xai remembered as out"); await sleep(250); }
     await t.page.click("#mode-expert");
     await goChat(t.page);
-    await t.page.waitForSelector("#run-mode", { timeout: 15000 });
+    await t.page.waitForSelector("#run-mode", { state: "attached", timeout: 15000 }); // 0.5.0: in the box's mode menu
     // 0.4.38 (Chris: Expert Command as a chat): the Grok chat above is the open chat now, and a typed Single would go on
     // in it as a follow-up; New chat makes this a new order, which is what the send check looks at
     await t.page.evaluate(() => window.CC.layout.newChat());
     await t.page.waitForFunction(() => !window.CC.S.live?.id && !!document.querySelector("#view .ex-chat #orders"), null, { timeout: 15000 });
     await t.page.fill("#orders", CODE);
+    await t.page.click("#sc-team");
     await t.page.click("#run-mode button[data-m=single]");
     await t.page.click("#go");
     await t.page.waitForSelector("#cc-send-banner", { timeout: 15000 });

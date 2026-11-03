@@ -61,6 +61,7 @@ function buildSide() {
     <nav class="side-nav" aria-label="Sidebar">
       <button type="button" class="side-item" id="side-chat" data-side="chat" title="Chat: ask anything"><i aria-hidden="true">&#128172;</i><span>Chat</span></button>
       <button type="button" class="side-item" id="side-make" data-side="make" title="Make something: a website, an image, a video, a campaign and more"><i aria-hidden="true">&#10022;</i><span>Make something</span></button>
+      <button type="button" class="side-item" id="side-team-nav" data-side="team" title="Team: your AI agents and the work you gave them"><i aria-hidden="true">&#129309;</i><span>Team</span></button>
       <button type="button" class="side-item" id="side-projects" data-side="projects" title="Projects"><i aria-hidden="true">&#9638;</i><span>Projects</span></button>
       <button type="button" class="side-item" id="side-mindmedia" data-side="mindmedia" title="MindMedia: everything you made"><i aria-hidden="true">&#9635;</i><span>MindMedia</span></button>
     </nav>
@@ -106,7 +107,7 @@ function paintSideActive(side = document.getElementById("cc-side")) {
   if (!side) return;
   const s = S();
   const making = document.body.dataset.macFlow === "on" || (s.scPage === "make" && !s.live?.id && !s.make?.active);
-  const cur = s.view === "command" && !s.openProject ? (making ? "make" : "chat") : s.view === "projects" ? "projects" : s.view === "mindmedia" ? "mindmedia" : "";
+  const cur = s.view === "command" && !s.openProject ? (making ? "make" : "chat") : s.view === "projects" ? "projects" : s.view === "mindmedia" ? "mindmedia" : s.view === "agents" ? "team" : "";
   side.querySelectorAll("[data-side]").forEach((el) => { const on = el.dataset.side === cur; if (el.classList.contains("active") !== on) el.classList.toggle("active", on); if (on) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current"); });
 }
 
@@ -117,7 +118,8 @@ function onSideClick(e) {
   if (b.dataset.chat) { openChat(b.dataset.chat); return; }
   if (b.dataset.sideAct === "orig") { runOriginal(b); return; }
   // 0.4.38 (0.4.37 panel item 2): every question goes on in the same chat, so New chat is a clear button at the top
-  const places = { "side-new": () => newChat(), "side-chat": openChatPage, "side-make": makeSomething, "side-projects": () => CC.go("projects"), "side-mindmedia": () => CC.go("mindmedia") };
+  // 0.5.0 (Chris: chat like the Claude app): Team is a sidebar row now (it stays in Settings and more too)
+  const places = { "side-new": () => newChat(), "side-chat": openChatPage, "side-make": makeSomething, "side-team-nav": () => CC.go("agents"), "side-projects": () => CC.go("projects"), "side-mindmedia": () => CC.go("mindmedia") };
   places[b.id]?.();
 }
 
@@ -261,14 +263,34 @@ async function loadRecent(force) {
   paintRecent();
   paintHomeTiles();
 }
+// 0.5.0 (Chris: chat like the Claude app): History in the sidebar is grouped under Pinned, Today, Yesterday and Earlier.
+// Shared with the Expert sidebar (web/mac/parts/expert.js), so both modes list it the same way.
+export function dayGroup(at, now = Date.now()) {
+  const d = new Date(now); d.setHours(0, 0, 0, 0);
+  const today = d.getTime();
+  const t = Number(at) || 0;
+  if (t >= today) return "Today";
+  if (t >= today - 86400000) return "Yesterday";
+  return "Earlier";
+}
+export function historyHtml(chats, { cls = "side-chat", empty = "" } = {}) {
+  if (!chats?.length) return empty;
+  const groups = [];
+  const by = {};
+  for (const c of chats) {
+    const g = c.pinned ? "Pinned" : dayGroup(c.at);
+    if (!by[g]) { by[g] = []; groups.push(g); }
+    by[g].push(c);
+  }
+  const order = ["Pinned", "Today", "Yesterday", "Earlier"].filter((g) => by[g]);
+  return order.map((g) => `<div class="side-day" role="presentation">${g}</div>${by[g].map((c) => `<button type="button" class="${cls}" role="listitem" data-chat="${esc(c.id)}" title="${esc(c.title)}"><i aria-hidden="true">${c.pinned ? "&#9733;" : "&#9679;"}</i><span>${esc(c.title)}</span></button>`).join("")}`).join("");
+}
 function paintRecent() {
   const box = document.getElementById("side-recent");
   if (!box) return;
-  box.innerHTML = st.chats.length
-    ? st.chats.map((c) => `<button type="button" class="side-chat" role="listitem" data-chat="${esc(c.id)}" title="${esc(c.title)}"><i aria-hidden="true">${c.pinned ? "&#9733;" : "&#9679;"}</i><span>${esc(c.title)}</span></button>`).join("")
-    : `<div class="side-empty">${document.getElementById("side-search")?.value ? "Nothing matches that." : "Your chats show up here. Every chat and mission is saved automatically."}</div>`;
+  box.innerHTML = historyHtml(st.chats, { empty: `<div class="side-empty">${document.getElementById("side-search")?.value ? "Nothing matches that." : "Your chats show up here. Every chat and mission is saved automatically."}</div>` });
 }
-async function openChat(id) {
+export async function openChat(id) {
   try {
     const m = await api(`/missions/${id}`);
     const s = S();
@@ -351,30 +373,16 @@ async function loadEstimate() {
   } catch { st.estimate = "Auto team"; }
   paintEstimate();
 }
+// 0.5.0 (Chris: chat like the Claude app): the mode chip in the box says just the mode ("Auto team ▾"); the price
+// guess ("Auto team, about $0.01 or less") is the first line of its menu
 function paintEstimate() {
-  const b = document.getElementById("sc-team");
+  const b = document.getElementById("cb-est");
   if (!b) return;
-  const open = b.getAttribute("aria-expanded") === "true";
-  // 0.4.21: a mode picked under More options replaces "Auto team" on the button
-  const picked = window.CC?.S?.simpleRunMode;
-  const base = `${st.estimate || "Auto team"}`;
-  const text = picked && picked !== "auto" ? base.replace(/^Auto team/, `${picked[0].toUpperCase()}${picked.slice(1)} mode`) : base;
-  const label = `${text} ${open ? "▴" : "▾"}`;
-  if (b.textContent !== label) b.textContent = label;
+  const text = st.estimate && st.estimate !== "Auto team" ? `${st.estimate}.` : "";
+  if (b.textContent !== text) b.textContent = text;
 }
 let estTimer = 0;
 function queueEstimate() { clearTimeout(estTimer); estTimer = setTimeout(loadEstimate, 700); }
-
-function setMore(on) {
-  const panel = document.querySelector("#view .sc-panel");
-  const b = document.getElementById("sc-team");
-  if (!panel || !b) return;
-  panel.classList.toggle("more-open", on);
-  document.body.classList.toggle("mm-more", on);
-  b.setAttribute("aria-expanded", String(on));
-  paintEstimate();
-  if (on) document.getElementById("sc-more")?.scrollIntoView({ block: "nearest" });
-}
 
 function fillChip(kind, text) {
   const box = document.getElementById("orders");
@@ -439,7 +447,6 @@ function onDocClick(e) {
   if (chip) { fillChip(chip.dataset.scChip); return; }
   const idea = t.closest?.("[data-sc-idea]");
   if (idea) { fillChip(idea.dataset.scIdea, idea.dataset.text); return; }
-  if (t.closest?.("#sc-team")) { setMore(!document.querySelector("#view .sc-panel")?.classList.contains("more-open")); return; }
   if (t.closest?.("#sc-live-open")) { seeLive(); return; }
   if (t.closest?.("#sc-media-all")) { CC.go("mindmedia"); return; }
   if (t.closest?.("#sc-built-open")) { openInPanel(); return; }
@@ -562,7 +569,7 @@ export function seeLive() {
   };
   paint();
   const timer = setInterval(paint, 800);
-  const close = () => { clearInterval(timer); document.removeEventListener("keydown", onKey, true); over.remove(); document.getElementById("sc-live-open")?.focus(); };
+  const close = () => { clearInterval(timer); document.removeEventListener("keydown", onKey, true); over.remove(); (document.getElementById("ex-live") || document.getElementById("sc-live-open"))?.focus(); };
   const onKey = (e) => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
   document.addEventListener("keydown", onKey, true);
   over.querySelector("#lo-close").addEventListener("click", close);
@@ -603,7 +610,7 @@ document.addEventListener("click", onDocClick);
 if (typeof MutationObserver === "function") new MutationObserver(() => paintSideActive()).observe(document.body, { attributes: true, attributeFilter: ["data-mac-flow"] });
 window.addEventListener("resize", () => { clearTimeout(onRender.t); onRender.t = setTimeout(() => { applySide(); queuePanel(); }, 120); });
 
-CC.layout = { refresh: () => applySide(), onRender, newChat, openChatPage, makeSomething, openInPanel, closePanel, seeLive, buildFeed, syncChat, sync: () => { syncChat(); queuePanel(); }, CHIPS, IDEAS, state: st };
+CC.layout = { refresh: () => applySide(), onRender, newChat, openChatPage, makeSomething, openInPanel, closePanel, seeLive, buildFeed, syncChat, sync: () => { syncChat(); queuePanel(); }, CHIPS, IDEAS, state: st, openChat, historyHtml, dayGroup, estimate: () => { paintEstimate(); loadEstimate(); } };
 // The first page is drawn before this module loads (and is not drawn again when no AI is connected yet), so catch up now.
 setTimeout(() => { try { onRender(S().view); } catch { /* the next render does it */ } }, 0);
 CC.register({
