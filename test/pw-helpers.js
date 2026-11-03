@@ -65,5 +65,5 @@ export async function goChat(page) {
   // lands in the old, detached box and the send sees an empty one ("Type the orders first"). Wait for it first.
   await page.waitForFunction(() => window.CC && window.CC.featuresReady === true, null, { timeout: 20000 }).catch(() => {});
   await page.evaluate(() => window.CC.go("command"));
-  await page.waitForSelector("#go", { timeout: 10000 });
+  await page.waitForSelector("#go", { timeout: 30000 }); // a slow CI runner took longer than 10 s to draw the chat
 }
