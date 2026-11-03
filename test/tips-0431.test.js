@@ -27,7 +27,8 @@ async function hoverTip(page, sel, repick = null) {
   for (let i = 0; i < 4 && !ok; i++) {
     if (i && repick) sel = (await repick()) || sel; // a redrawn bar has a new button: tag it again
     await page.mouse.move(5, 790);
-    await page.hover(sel);
+    // a button hidden by a redraw is tried again (repick) instead of waiting out the 30 s default
+    if (!(await page.hover(sel, { timeout: 5000 }).then(() => true, () => false))) continue;
     // the tip must belong to this button (a slow runner can redraw the bar between the hover and the show)
     ok = await page.waitForFunction((s) => { const b = document.getElementById("cc-tip"); const el = document.querySelector(s); return b && !b.hidden && b.classList.contains("on") && b.textContent.length > 3 && el?.getAttribute("aria-describedby") === "cc-tip"; }, sel, { timeout: 4000 }).then(() => true, () => false);
   }
@@ -52,10 +53,20 @@ for (const theme of ["dark", "light"]) {
       // 0.5.0 (chat like the Claude app): the run modes are in the box's mode menu ("Auto team"); open it
       await t.page.waitForSelector("#sc-team", { timeout: 20000 });
       await t.page.click("#sc-team");
-      const pick = async (m) => t.page.evaluate((mm) => {
+      const find = (m) => t.page.evaluate((mm) => {
         const el = [...document.querySelectorAll(`[data-m="${mm}"]`)].find((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && r.height > 0 && b.closest("[role=group]"); });
         if (!el) return null; el.dataset.testTip = mm; return `[data-test-tip="${mm}"]`;
       }, m);
+      // the menu can close between hovers (a redraw on the CI runner): open it again when the button is not showing
+      const pick = async (m) => {
+        let sel = await find(m);
+        for (let i = 0; i < 3 && !sel; i++) {
+          await t.page.click("#sc-team");
+          await t.page.waitForFunction((mm) => [...document.querySelectorAll(`[data-m="${mm}"]`)].some((b) => b.getBoundingClientRect().width > 0), m, { timeout: 5000 }).catch(() => {});
+          sel = await find(m);
+        }
+        return sel;
+      };
       await t.page.waitForFunction(() => [...document.querySelectorAll('[data-m="single"]')].some((b) => b.getBoundingClientRect().width > 0), null, { timeout: 20000 });
       for (const [m, re] of [["single", /^Single: one AI answers/], ["council", /^Council:/], ["mission", /^Mission:/]]) {
         const sel = await pick(m);

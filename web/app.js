@@ -357,7 +357,9 @@ function placeToasts() {
   }
   const feed = shown(document.getElementById("feed"));
   if (feed && feed.width > 160 && feed.right > innerWidth - 80) { delete body.dataset.toastAt; return; }
-  if (!bottomAbove([".cc-dock", "#vt-bar"])) { delete body.dataset.toastAt; return; }
+  // 0.5.0: with no chat dock or Talk bar down there (a page still drawing them), bottom right anyway: the default top right
+  // spot sits on the page's own buttons (CI: New artifact on Artifacts at 1024)
+  if (!bottomAbove([".cc-dock", "#vt-bar"])) { body.style.setProperty("--cc-toast-bottom", "16px"); body.dataset.toastAt = "bottom"; }
   // 0.4.36: a page with a box or button in that corner (Everyday inbox on a shorter screen): the toast moves up just
   // above it, a few times if need be, while it stays in the lower half; else below the title bar if that spot is clear.
   const start = body.style.getPropertyValue("--cc-toast-bottom");
