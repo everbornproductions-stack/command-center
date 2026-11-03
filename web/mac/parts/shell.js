@@ -209,10 +209,10 @@ export default {
       expertBtn?.classList.toggle("on", expert);
       simpleBtn?.setAttribute("aria-pressed", String(!expert));
       expertBtn?.setAttribute("aria-pressed", String(expert));
-      const words = expert ? "Show or hide the sidebar" : "Show or hide history";
+      const words = "Show or hide history"; // 0.5.1: History in both modes (the Expert sidebar has its own Hide button)
       sideBtn?.setAttribute("aria-label", words);
       if (sideBtn) sideBtn.title = words;
-      sideBtn?.setAttribute("aria-expanded", String(document.body.classList.contains("mac-sideopen")));
+      sideBtn?.setAttribute("aria-expanded", String(document.body.classList.contains("mac-sideopen") || !!document.getElementById("mac-history-drawer")?.classList.contains("open")));
     }
     function paintCrumb() {
       // 0.4.37 (Chris: Simple chat layout): Simple calls its chat page Chat, as the sidebar does
@@ -261,7 +261,7 @@ export default {
         paintCrumb();
         if (live) bus.emit("view", view);
       }
-      sideBtn?.setAttribute("aria-expanded", String(document.body.classList.contains("mac-sideopen")));
+      sideBtn?.setAttribute("aria-expanded", String(document.body.classList.contains("mac-sideopen") || !!document.getElementById("mac-history-drawer")?.classList.contains("open")));
       paintReady();
       paintUpgrade();
     }
@@ -317,12 +317,21 @@ export default {
     CLEANUPS.push(() => clearInterval(tick));
 
     // ---- buttons ----
+    // 0.5.1 (Chris: "in expert it opens and closes the side bar? we already have a button for the side bar"): the top left
+    // button opens History in both modes. Expert's sidebar keeps its own Hide (◀) and Show buttons.
+    const histOpen = () => !!document.getElementById("mac-history-drawer")?.classList.contains("open");
     on(sideBtn, "click", () => {
-      const open = document.body.classList.toggle("mac-sideopen");
+      const simple = (CC.uiMode?.() || "simple") === "simple";
+      const open = simple ? document.body.classList.toggle("mac-sideopen") : !histOpen();
       sideBtn.setAttribute("aria-expanded", String(open));
-      const panel = (CC.uiMode?.() || "simple") === "simple" ? "history" : "sidebar";
-      bus.emit("open", { panel, open });
+      bus.emit("open", { panel: "history", open });
     });
+    // the drawer also closes on Escape, an outside click or a pick: the button says so
+    const syncHistBtn = () => sideBtn?.setAttribute("aria-expanded", String(histOpen() || document.body.classList.contains("mac-sideopen")));
+    const histObs = new MutationObserver(syncHistBtn);
+    const watchDrawer = () => { const d = document.getElementById("mac-history-drawer"); if (d) histObs.observe(d, { attributes: true, attributeFilter: ["class"] }); return !!d; };
+    if (!watchDrawer()) setTimeout(watchDrawer, 1000);
+    CLEANUPS.push(() => histObs.disconnect());
     // The switch moves the real buttons, so settings and the per-project mode keep working.
     // 0.4.35 (Chris: "when clicking on Simple it should always go to the main part with the website, image, video,
     // campaign area"): Simple opens Chat and the choices every time, also when Simple is already on.
@@ -339,8 +348,7 @@ export default {
       if (e.key !== "Escape" || !document.body.classList.contains("mac-sideopen")) return;
       document.body.classList.remove("mac-sideopen");
       sideBtn?.setAttribute("aria-expanded", "false");
-      const panel = (CC.uiMode?.() || "simple") === "simple" ? "history" : "sidebar";
-      bus.emit("open", { panel, open: false });
+      bus.emit("open", { panel: "history", open: false });
     };
     // Capture phase: the History drawer stops Escape from bubbling once it has focus, which left the side marked open.
     document.addEventListener("keydown", onKey, true);
