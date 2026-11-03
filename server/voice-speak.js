@@ -4,11 +4,29 @@
 import { pickSpeechTarget } from "./speech.js";
 import { PROVIDERS } from "./registry.js";
 import { NO_KEY_LINE, sentences } from "../web/features/voice-actions.js";
+import { localVoice as realLocal } from "./voice-local.js";
 
 export { NO_KEY_LINE, sentences };
 
 const ELEVEN_VOICE = "21m00Tcm4TlvDq8ikWAM";
 const MAX_SPEAK = 1800;
+
+// 0.4.37 (Chris: voice too computer): a few paid voices to pick from (only used with paid voice on). OpenAI's docs name
+// marin and cedar as the best quality; the instructions field gives gpt-4o-mini-tts a warmer, calmer tone than alloy.
+export const PAID_VOICES = Object.freeze([
+  { id: "openai:marin", provider: "openai", voice: "marin", name: "Marin", gender: "female", note: "natural, OpenAI" },
+  { id: "openai:coral", provider: "openai", voice: "coral", name: "Coral", gender: "female", note: "warm, OpenAI" },
+  { id: "openai:cedar", provider: "openai", voice: "cedar", name: "Cedar", gender: "male", note: "natural, OpenAI" },
+  { id: "openai:ash", provider: "openai", voice: "ash", name: "Ash", gender: "male", note: "friendly, OpenAI" },
+  { id: "elevenlabs:21m00Tcm4TlvDq8ikWAM", provider: "elevenlabs", voice: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", gender: "female", note: "calm, ElevenLabs" },
+  { id: "elevenlabs:EXAVITQu4vr4xnSDxMaL", provider: "elevenlabs", voice: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", gender: "female", note: "soft, ElevenLabs" },
+  { id: "elevenlabs:JBFqnCBsd6RMkjVDRZzb", provider: "elevenlabs", voice: "JBFqnCBsd6RMkjVDRZzb", name: "George", gender: "male", note: "warm, ElevenLabs" },
+  { id: "elevenlabs:nPczCjzI2devNBz1zQrb", provider: "elevenlabs", voice: "nPczCjzI2devNBz1zQrb", name: "Brian", gender: "male", note: "deep, ElevenLabs" },
+]);
+export const OPENAI_TTS_MODEL = "gpt-4o-mini-tts";
+export const OPENAI_DEFAULT_VOICE = "marin";
+export const OPENAI_TTS_INSTRUCTIONS = "Speak in a warm, calm, friendly and natural tone, like a helpful colleague sitting next to the listener. Relaxed, even pace. Plain and clear, never salesy or robotic.";
+const paidPick = (id) => PAID_VOICES.find((v) => v.id === id) || null;
 
 function devRoot(id, fallback) {
   if (process.env.CC_PACKAGED === "1") return fallback;
@@ -23,9 +41,10 @@ const fail = (status, message, code) => Object.assign(new Error(message), { stat
 export const PAID_VOICE_OFF = "Instant voice uses paid keys. Turn on \"Use my OpenAI credits for voice\" in Settings to use it.";
 
 // What this PC can do right now, from which keys are saved. No key value is returned.
-export function talkStatus(has, saved = {}, { allowPaid = false } = {}) {
+export function talkStatus(has, saved = {}, { allowPaid = false, localReady = false } = {}) {
   const listen = pickSpeechTarget(has, allowPaid);
-  const speaker = !allowPaid ? "browser" : has("elevenlabs") ? "elevenlabs" : has("openai") ? "openai" : "browser";
+  const free = localReady ? "local" : "browser";
+  const speaker = !allowPaid ? free : has("elevenlabs") ? "elevenlabs" : has("openai") ? "openai" : free;
   const realtime = !allowPaid ? "" : has("openai") ? "openai" : (has("elevenlabs") && saved.elevenAgentId) ? "elevenlabs" : "";
   const anyKey = !!listen || !!realtime;
   return {
@@ -38,46 +57,63 @@ export function talkStatus(has, saved = {}, { allowPaid = false } = {}) {
   };
 }
 
-async function elevenSpeak(text, key, fetchImpl) {
+async function elevenSpeak(text, key, fetchImpl, { voice, speed } = {}) {
   const root = devRoot("elevenlabs", "https://api.elevenlabs.io");
-  const res = await fetchImpl(`${root}/v1/text-to-speech/${ELEVEN_VOICE}?output_format=mp3_44100_64`, {
+  const body = { text, model_id: "eleven_flash_v2_5" };
+  // ElevenLabs takes a speed from 0.7 to 1.2; 1 is left out so the voice keeps its own pace.
+  if (speed && speed !== 1) body.voice_settings = { speed: Math.min(1.2, Math.max(0.7, speed)) };
+  const res = await fetchImpl(`${root}/v1/text-to-speech/${encodeURIComponent(voice || ELEVEN_VOICE)}?output_format=mp3_44100_64`, {
     method: "POST",
     headers: { "xi-api-key": key, "content-type": "application/json", accept: "audio/mpeg" },
-    body: JSON.stringify({ text, model_id: "eleven_flash_v2_5" }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw fail(502, `ElevenLabs could not speak (${res.status}).`, "voice_speak");
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function openaiSpeak(text, key, fetchImpl) {
+async function openaiSpeak(text, key, fetchImpl, { voice } = {}) {
   const root = String(PROVIDERS.openai?.baseUrl || "https://api.openai.com/v1").replace(/\/$/, "");
   const res = await fetchImpl(`${root}/audio/speech`, {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: "gpt-4o-mini-tts", voice: "alloy", input: text, response_format: "mp3" }),
+    body: JSON.stringify({ model: OPENAI_TTS_MODEL, voice: voice || OPENAI_DEFAULT_VOICE, input: text, instructions: OPENAI_TTS_INSTRUCTIONS, response_format: "mp3" }),
   });
   if (!res.ok) throw fail(502, `OpenAI could not speak (${res.status}).`, "voice_speak");
   return Buffer.from(await res.arrayBuffer());
 }
 
-// ElevenLabs if there is a key, else OpenAI, else tell the page to use the built-in Windows or browser voice.
-// A provider that fails moves on to the next; the last step is always the built-in voice, then text only.
-// Both voices cost money, so they are tried only with allowPaid (paid voice turned on); otherwise the free built-in voice.
-export async function synthesize(text, { hasSecret, getSecret, fetchImpl = fetch, allowPaid = false } = {}) {
+// Paid voice on: the picked paid voice first (or ElevenLabs, then OpenAI), then the natural voice on this PC, then the
+// built-in Windows or browser voice. Paid voice off (the default): the natural voice on this PC when it is set up, else
+// the built-in voice. A step that fails moves on to the next. Both paid voices cost money, so they are tried only with
+// allowPaid. local = { ready(), speak(text, {voice, speed}) -> wav Buffer or null when Stop dropped it }.
+// prefs = { voice, speed, paidVoice } from the talk settings.
+export async function synthesize(text, { hasSecret, getSecret, fetchImpl = fetch, allowPaid = false, local = realLocal, prefs = {} } = {}) {
   const t = String(text || "").replace(/\u0000/g, "").trim().slice(0, MAX_SPEAK);
   if (!t) throw fail(400, "Nothing to say.", "voice_speak_empty");
   const has = typeof hasSecret === "function" && allowPaid ? hasSecret : () => false;
-  const tries = [["elevenlabs", elevenSpeak], ["openai", openaiSpeak]];
+  const pick = paidPick(prefs.paidVoice);
+  const fns = { elevenlabs: elevenSpeak, openai: openaiSpeak };
+  const order = pick?.provider === "openai" ? ["openai", "elevenlabs"] : ["elevenlabs", "openai"];
   const errors = [];
-  for (const [id, fn] of tries) {
+  for (const id of order) {
     if (!has(id)) continue;
     const key = getSecret?.(id)?.key;
     if (!key) continue;
     try {
-      const buf = await fn(t, key, fetchImpl);
+      const buf = await fns[id](t, key, fetchImpl, { voice: pick?.provider === id ? pick.voice : "", speed: prefs.speed });
       if (buf.length > 200) return { engine: id, mime: "audio/mpeg", audio: buf.toString("base64") };
       errors.push(`${id}: empty audio`);
     } catch (e) { errors.push(String(e.message || e)); }
+  }
+  let ready = false;
+  try { ready = !!local?.ready?.(); } catch { ready = false; }
+  if (ready) {
+    try {
+      const wav = await local.speak(t, { voice: prefs.voice, speed: prefs.speed });
+      if (wav === null) return { engine: "stopped" };
+      if (wav?.length > 200) return { engine: "local", mime: "audio/wav", audio: Buffer.from(wav).toString("base64") };
+      errors.push("local: empty audio");
+    } catch (e) { errors.push(`local: ${String(e?.message || e).slice(0, 200)}`); }
   }
   return { engine: "browser", text: t, errors };
 }
