@@ -1,0 +1,11 @@
+{
+  "bullets": [
+    "Continue this project now picks up where you left off. It opens the project's last chat with the whole conversation, or an unfinished Start a project build at its step, and your next message stays in that chat.",
+    "Better at telling a new subject from a follow-up. \"Give everyone a lunch break\" stays in the chat about the schedule, and \"Write a LinkedIn post\" after a review reply starts a new chat.",
+    "The Done page of Make something shows your result with the same clean buttons as the chat.",
+    "Messages no longer cover the tabs on Simple pages such as Team."
+  ],
+  "article": "docs/help/getting-started.md",
+  "heading": "Continue a project where you left off",
+  "body": "Continue this project now picks up where you left off. It opens the project's last chat with the whole conversation, or an unfinished Start a project build at its step, and your next message stays in that chat. Meldmind is also better at telling a new subject from a follow-up: a change to the last answer stays in the chat, and a new request such as a LinkedIn post starts a new chat. The Done page of Make something shows your result with the same clean buttons as the chat, and messages no longer cover the tabs on Simple pages such as Team."
+}

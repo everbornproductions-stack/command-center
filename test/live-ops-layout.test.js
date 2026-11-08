@@ -67,8 +67,8 @@ test("the answer card puts the steps above the answer, and the orders box is pin
   assert.match(card, /<div class="graph-wrap" id="graph"><\/div>` : ""\}\s*<div id="tasks" class="tasks"><\/div>\s*<div id="council"><\/div>/, "the Live Ops page still adopts the graph, steps and council with the panel");
   const chat = read("web", "chat.css");
   assert.match(chat, /#app #view #cb \{ flex: none;/);
-  assert.match(chat, /#app #view \.chat2 #ops-panel \{ display: none;/);
-  assert.match(chat, /#app #view \.chat2 \.cb-answer\[data-steps="open"\] #ops-panel \{ display: block; \}/);
+  assert.match(chat, /:is\(#app #view \.chat2, #mf-result\) #ops-panel \{ display: none;/);
+  assert.match(chat, /:is\(#app #view \.chat2, #mf-result\) \.cb-answer\[data-steps="open"\] #ops-panel \{ display: block; \}/);
 });
 
 test("Home: Welcome back sits under Live ops, and its rows use theme colours", () => {

@@ -2,7 +2,7 @@
 id: getting-started
 title: Getting started
 summary: First open, the top bar, Start a project, demo AIs, priorities, You saved, custom providers, and Appearance pictures.
-lastUpdatedVersion: 0.5.1
+lastUpdatedVersion: 0.5.2
 ---
 
 # Getting started
@@ -256,3 +256,7 @@ Simple and Expert now share one chat. Answers use the whole page, and one box at
 ## A natural voice, and History in one place (0.5.1)
 
 Meldmind can now speak in a warm, human-sounding voice that runs on this PC for free. Get it once in Settings > Voice (about 88 MB), pick one of 6 voices and a speed, and play a sample. The top left button opens History in Simple and Expert. Expert's sidebar keeps its own Hide button, and History no longer sits in the middle of it. History is also easier to read, with the same calm, even text sizes as the Expert sidebar.
+
+## Continue a project where you left off (0.5.2)
+
+Continue this project now picks up where you left off. It opens the project's last chat with the whole conversation, or an unfinished Start a project build at its step, and your next message stays in that chat. Meldmind is also better at telling a new subject from a follow-up: a change to the last answer stays in the chat, and a new request such as a LinkedIn post starts a new chat. The Done page of Make something shows your result with the same clean buttons as the chat, and messages no longer cover the tabs on Simple pages such as Team.

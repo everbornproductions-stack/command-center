@@ -121,7 +121,7 @@ test("web and server wiring is in place and has no em dashes", () => {
   const render = app.slice(app.indexOf("function render()"), app.indexOf("// Feature tabs register themselves"));
   assert.match(render, /syncProjectBar\(\)/);
   assert.match(app, /function continueProject/);
-  assert.match(app, /S\.lastOrders = String\(words\)/);
+  assert.match(app, /await openRun\(chat\.id\)/); // 0.5.2: Continue reopens the last chat, not the last words
   assert.match(app, /data-continue=/);
   assert.match(app, /data-del=/);
   assert.match(app, /label: "Undo"/);
