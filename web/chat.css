@@ -84,8 +84,8 @@ body:has(#view > .chat2) #vt-bar:not([data-state="waiting"]) { display: none !im
 
 .chat2 { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; height: 100%; width: 100%; color: var(--sc-text); background: var(--sc-canvas); position: relative; }
 .chat2 [hidden] { display: none !important; }
-#app #view .chat2 .sc-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 28px 24px 16px; overscroll-behavior: contain; }
-#app #view .chat2 .sc-col { max-width: 760px; margin: 0 auto; min-width: 0; }
+:is(#app #view .chat2, #mf-result) .sc-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 28px 24px 16px; overscroll-behavior: contain; }
+:is(#app #view .chat2, #mf-result) .sc-col { max-width: 760px; margin: 0 auto; min-width: 0; }
 .chat2 .md { overflow-wrap: anywhere; }
 .chat2 .md pre { overflow-x: auto; max-width: 100%; }
 
@@ -93,17 +93,17 @@ body:has(#view > .chat2) #vt-bar:not([data-state="waiting"]) { display: none !im
 .chat2[data-state="run"] .sc-empty, .chat2[data-state="empty"] .sc-thread { display: none; }
 #app #view .chat2[data-state="empty"]:not([data-page="make"]) { justify-content: center; padding-bottom: 6vh; }
 #app #view .chat2[data-state="empty"]:not([data-page="make"]) .sc-scroll { flex: 0 0 auto; overflow: visible; padding-top: 0; padding-bottom: 6px; }
-#app #view .chat2 .sc-empty:not(.sc-make) { text-align: center; margin: 0; }
-#app #view .chat2 .cb-hello { margin: 0 0 14px; padding: 0; border: 0; font-size: 1.875rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; color: var(--sc-text); text-transform: none; background: none; }
-#app #view .chat2 .cb-modeline { margin: -6px 0 10px; color: var(--sc-muted); font-size: .9375rem; }
+:is(#app #view .chat2, #mf-result) .sc-empty:not(.sc-make) { text-align: center; margin: 0; }
+:is(#app #view .chat2, #mf-result) .cb-hello { margin: 0 0 14px; padding: 0; border: 0; font-size: 1.875rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; color: var(--sc-text); text-transform: none; background: none; }
+:is(#app #view .chat2, #mf-result) .cb-modeline { margin: -6px 0 10px; color: var(--sc-muted); font-size: .9375rem; }
 /* Expert's old empty-page cards (Welcome back, popular prompts) are not drawn on the chat; History is in the sidebar */
-#app #view .chat2 :is(#pp-popular, #ex-home) { display: none; }
-#app #view .chat2 #graduate-slot:empty { display: none; }
+:is(#app #view .chat2, #mf-result) :is(#pp-popular, #ex-home) { display: none; }
+:is(#app #view .chat2, #mf-result) #graduate-slot:empty { display: none; }
 /* the classic look's Make something page keeps its chips, ideas and Made recently cards */
 .sc-empty.sc-make { margin-top: 6vh; text-align: left; }
 .sc-empty.sc-make .sc-hello { text-align: center; margin-bottom: 14px; }
 .sc-empty.sc-make .sc-chips { justify-content: center; margin-bottom: 18px; }
-#app #view .chat2 .sc-col:has(.sc-make) { max-width: 1100px; }
+:is(#app #view .chat2, #mf-result) .sc-col:has(.sc-make) { max-width: 1100px; }
 .chat2[data-page="make"] .cb-panel { max-width: 1100px; }
 #app #view .chat2[data-page="make"] #cb .cb-box #orders { min-height: 96px; }
 #app #view .chat2[data-page="make"] #cb #cb-make { display: none; }
@@ -114,19 +114,19 @@ body:has(#view > .chat2) #vt-bar:not([data-state="waiting"]) { display: none !im
 .chat2 .sc-head { display: none; justify-content: flex-end; margin: -12px 0 6px; }
 .sc-new { border: 0; background: transparent; color: var(--sc-muted); font: inherit; font-size: .8125rem; padding: 4px 8px; border-radius: 8px; cursor: pointer; }
 .sc-new:hover { background: var(--sc-soft); color: var(--sc-text); }
-#app #view .chat2 .sc-me { margin: 0 0 24px auto; max-width: 78%; width: fit-content; background: var(--sc-me); border: 1px solid var(--sc-me-line); color: var(--sc-text); padding: 10px 16px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1rem; line-height: 1.5; box-shadow: none; }
-#app #view .chat2 .sc-me.ex-me { white-space: normal; }
+:is(#app #view .chat2, #mf-result) .sc-me { margin: 0 0 24px auto; max-width: 78%; width: fit-content; background: var(--sc-me); border: 1px solid var(--sc-me-line); color: var(--sc-text); padding: 10px 16px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1rem; line-height: 1.5; box-shadow: none; }
+:is(#app #view .chat2, #mf-result) .sc-me.ex-me { white-space: normal; }
 .chat2 .ex-me .ex-tag { font-size: .75rem; color: var(--sc-muted); margin: 0 0 3px; }
 .chat2 .ex-me .ex-q { white-space: pre-wrap; overflow-wrap: anywhere; }
-#app #view .chat2 .sc-ai { display: block; margin: 0 0 28px; padding: 0; border: 0; background: transparent; box-shadow: none; max-width: none; }
+:is(#app #view .chat2, #mf-result) .sc-ai { display: block; margin: 0 0 28px; padding: 0; border: 0; background: transparent; box-shadow: none; max-width: none; }
 /* an answer is plain text, no card border */
-#app #view .chat2 .sc-card { background: transparent; border: 0; border-radius: 0; padding: 0; color: var(--sc-text); min-width: 0; box-shadow: none; }
-#app #view .chat2 .sc-card .md { font-size: 1rem; line-height: 1.6; color: var(--sc-text); }
+:is(#app #view .chat2, #mf-result) .sc-card { background: transparent; border: 0; border-radius: 0; padding: 0; color: var(--sc-text); min-width: 0; box-shadow: none; }
+:is(#app #view .chat2, #mf-result) .sc-card .md { font-size: 1rem; line-height: 1.6; color: var(--sc-text); }
 .chat2 .sc-card .md > :first-child { margin-top: 0; }
 .chat2 .sc-card .md > :last-child { margin-bottom: 0; }
-#app #view .chat2 .sc-card .md :is(h1, h2, h3) { font-size: 1.0625rem; margin: 14px 0 4px; color: var(--sc-text); }
-#app #view .chat2 .sc-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0 0 8px; padding: 0; border: 0; font-size: .8125rem; font-weight: 400; color: var(--sc-muted); text-transform: none; letter-spacing: 0; background: none; }
-#app #view .chat2 .sc-who b { color: var(--sc-muted); font-weight: 600; font-size: .8125rem; }
+:is(#app #view .chat2, #mf-result) .sc-card .md :is(h1, h2, h3) { font-size: 1.0625rem; margin: 14px 0 4px; color: var(--sc-text); }
+:is(#app #view .chat2, #mf-result) .sc-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0 0 8px; padding: 0; border: 0; font-size: .8125rem; font-weight: 400; color: var(--sc-muted); text-transform: none; letter-spacing: 0; background: none; }
+:is(#app #view .chat2, #mf-result) .sc-who b { color: var(--sc-muted); font-weight: 600; font-size: .8125rem; }
 .chat2 .sc-who span:not(:empty)::before { content: "\00b7"; margin-right: 6px; }
 .chat2 #out-follow:empty, .chat2 #cc-fail-slot:empty, .chat2 .sc-check:empty { display: none; }
 /* the answer check: a slim notice inside the answer */
@@ -140,29 +140,29 @@ body:has(#view > .chat2) #vt-bar:not([data-state="waiting"]) { display: none !im
 .sc-pending .reply-live { color: var(--sc-text); }
 
 /* ---------- the working line and the steps behind it ---------- */
-#app #view .chat2 .cb-work { margin: 0 0 10px; }
-#app #view .chat2 .cb-work-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 32px; padding: 5px 12px; border: 1px solid var(--sc-line-2); border-radius: 10px; background: var(--sc-card); color: var(--sc-text); font: inherit; font-size: .8125rem; font-weight: 500; cursor: pointer; box-shadow: none; text-align: left; }
-#app #view .chat2 .cb-work-btn:disabled { cursor: default; opacity: 1; }
-#app #view .chat2 .cb-work-btn:hover:not(:disabled) { border-color: var(--sc-acc); }
-#app #view .chat2 .cb-work-btn #cb-work-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:is(#app #view .chat2, #mf-result) .cb-work { margin: 0 0 10px; }
+:is(#app #view .chat2, #mf-result) .cb-work-btn { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 32px; padding: 5px 12px; border: 1px solid var(--sc-line-2); border-radius: 10px; background: var(--sc-card); color: var(--sc-text); font: inherit; font-size: .8125rem; font-weight: 500; cursor: pointer; box-shadow: none; text-align: left; }
+:is(#app #view .chat2, #mf-result) .cb-work-btn:disabled { cursor: default; opacity: 1; }
+:is(#app #view .chat2, #mf-result) .cb-work-btn:hover:not(:disabled) { border-color: var(--sc-acc); }
+:is(#app #view .chat2, #mf-result) .cb-work-btn #cb-work-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat2 .cb-pulse { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sc-muted); }
 .chat2 .cb-work[data-busy="1"] .cb-pulse { background: var(--green, #22c55e); animation: cb-pulse 1.2s ease-in-out infinite; }
 @keyframes cb-pulse { 50% { opacity: .35; } }
 /* the steps (#ops-panel; the Live Ops page adopts the same node) open from the working line */
-#app #view .chat2 #ops-panel { display: none; margin: 0 0 12px; padding: 4px 12px 8px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-soft); box-shadow: none; overflow: visible; max-height: none; color: var(--sc-text); }
-#app #view .chat2 .cb-answer[data-steps="open"] #ops-panel { display: block; }
-#app #view .chat2 #ops-panel > h3 { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin: 0; padding: 4px 0 0; border: 0; font-size: .8125rem; background: none; }
+:is(#app #view .chat2, #mf-result) #ops-panel { display: none; margin: 0 0 12px; padding: 4px 12px 8px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-soft); box-shadow: none; overflow: visible; max-height: none; color: var(--sc-text); }
+:is(#app #view .chat2, #mf-result) .cb-answer[data-steps="open"] #ops-panel { display: block; }
+:is(#app #view .chat2, #mf-result) #ops-panel > h3 { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin: 0; padding: 4px 0 0; border: 0; font-size: .8125rem; background: none; }
 .chat2 #ops-panel > h3 :is(.ex-lo-title, #ops-head) { display: none; }
-#app #view .chat2 #ops-panel > h3 > button { flex: none; width: auto; margin: 0; padding: 3px 9px; min-height: 0; border-radius: 6px; font-size: .75rem; font-weight: 600; }
-#app #view .chat2 #ops-panel .ex-link { border: 0; background: transparent; color: var(--sc-acc-text, var(--sc-text)); text-decoration: underline; cursor: pointer; }
+:is(#app #view .chat2, #mf-result) #ops-panel > h3 > button { flex: none; width: auto; margin: 0; padding: 3px 9px; min-height: 0; border-radius: 6px; font-size: .75rem; font-weight: 600; }
+:is(#app #view .chat2, #mf-result) #ops-panel .ex-link { border: 0; background: transparent; color: var(--sc-acc-text, var(--sc-text)); text-decoration: underline; cursor: pointer; }
 .chat2 #ops-panel :is(#graph, .lv-ops-foot) { display: none !important; }
-#app #view .chat2 #ops-panel #tasks { margin: 0; gap: 0; }
-#app #view .chat2 #ops-panel #tasks > .empty { padding: 8px 0; text-align: left; color: var(--sc-muted); font-size: .875rem; }
-#app #view .chat2 #ops-panel .task { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 4px 10px; padding: 7px 0; border: 0; border-bottom: 1px solid var(--sc-line); border-radius: 0; background: transparent; font-size: .875rem; color: var(--sc-text); }
-#app #view .chat2 #ops-panel .task:last-of-type { border-bottom: 0; }
+:is(#app #view .chat2, #mf-result) #ops-panel #tasks { margin: 0; gap: 0; }
+:is(#app #view .chat2, #mf-result) #ops-panel #tasks > .empty { padding: 8px 0; text-align: left; color: var(--sc-muted); font-size: .875rem; }
+:is(#app #view .chat2, #mf-result) #ops-panel .task { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 4px 10px; padding: 7px 0; border: 0; border-bottom: 1px solid var(--sc-line); border-radius: 0; background: transparent; font-size: .875rem; color: var(--sc-text); }
+:is(#app #view .chat2, #mf-result) #ops-panel .task:last-of-type { border-bottom: 0; }
 .chat2 #ops-panel .task > :is(.chip, .bar) { display: none; }
-#app #view .chat2 #ops-panel .task .who { font-family: inherit; font-size: .75rem; color: var(--sc-muted); }
-#app #view .chat2 #ops-panel .task .cost { font-size: .75rem; color: var(--sc-muted); }
+:is(#app #view .chat2, #mf-result) #ops-panel .task .who { font-family: inherit; font-size: .75rem; color: var(--sc-muted); }
+:is(#app #view .chat2, #mf-result) #ops-panel .task .cost { font-size: .75rem; color: var(--sc-muted); }
 .chat2 #ops-panel .task .st { width: 9px; height: 9px; }
 .chat2 #ops-panel .task-follow { grid-column: 2 / -1; }
 .chat2 #ops-panel .task-answer .md, .chat2 #ops-panel .ans .body { max-height: none; overflow: visible; }
@@ -174,13 +174,13 @@ body:has(#view > .chat2) #vt-bar:not([data-state="waiting"]) { display: none !im
 /* ---------- under each answer: the icon buttons and Make changes ---------- */
 /* the first answer's buttons wait until the run is done (a mission's answer is put together at the end) */
 #app #view .chat2[data-busy="1"] :is(#ex-answer, #simple-answer) > :is(.sc-acts, .sc-changes) { display: none; }
-#app #view .chat2 .sc-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 10px 0 0 -6px; }
-#app #view .chat2 .sc-acts .cb-ic { display: inline-grid; place-items: center; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--sc-muted); cursor: pointer; box-shadow: none; }
-#app #view .chat2 .sc-acts .cb-ic:hover:not(:disabled) { background: var(--sc-soft); color: var(--sc-text); }
-#app #view .chat2 .sc-acts .cb-change { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; min-height: 30px; padding: 4px 10px; border: 1px solid var(--sc-line-2); border-radius: 8px; background: transparent; color: var(--sc-text); font: inherit; font-size: .8125rem; font-weight: 500; cursor: pointer; box-shadow: none; }
-#app #view .chat2 .sc-acts .cb-change:hover, #app #view .chat2 .sc-acts .cb-change[aria-expanded="true"] { background: var(--sc-soft); }
+:is(#app #view .chat2, #mf-result) .sc-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 10px 0 0 -6px; }
+:is(#app #view .chat2, #mf-result) .sc-acts .cb-ic { display: inline-grid; place-items: center; width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--sc-muted); cursor: pointer; box-shadow: none; }
+:is(#app #view .chat2, #mf-result) .sc-acts .cb-ic:hover:not(:disabled) { background: var(--sc-soft); color: var(--sc-text); }
+:is(#app #view .chat2, #mf-result) .sc-acts .cb-change { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; min-height: 30px; padding: 4px 10px; border: 1px solid var(--sc-line-2); border-radius: 8px; background: transparent; color: var(--sc-text); font: inherit; font-size: .8125rem; font-weight: 500; cursor: pointer; box-shadow: none; }
+:is(#app #view .chat2, #mf-result) .sc-acts .cb-change:hover, :is(#app #view .chat2, #mf-result) .sc-acts .cb-change[aria-expanded="true"] { background: var(--sc-soft); }
 .chat2 .sc-acts :is(.cb-ic, .cb-change):focus-visible, .chat2 .sc-new:focus-visible { outline: 2px solid var(--sc-acc); outline-offset: 2px; }
-#app #view .chat2 .sc-changes { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-card); display: grid; gap: 8px; min-width: 0; color: var(--sc-text); }
+:is(#app #view .chat2, #mf-result) .sc-changes { margin: 10px 0 0; padding: 12px 14px; border: 1px solid var(--sc-line); border-radius: 12px; background: var(--sc-card); display: grid; gap: 8px; min-width: 0; color: var(--sc-text); }
 .sc-changes > :empty { display: none; }
 .sc-changes .answer-line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .sc-changes .mm-bar { margin: 0; border: 0; padding: 0; background: transparent; }
@@ -304,8 +304,8 @@ body:has(#vt-bar[data-state="listening"]) #app #view #cb #vo-mic { box-shadow: 0
 
 /* ---------- phones: the same column; the box keeps one row ---------- */
 @media (max-width: 760px) {
-  #app #view .chat2 .sc-scroll { padding: 16px 16px 10px; }
-  #app #view .chat2 .sc-head { display: flex; }
+  :is(#app #view .chat2, #mf-result) .sc-scroll { padding: 16px 16px 10px; }
+  :is(#app #view .chat2, #mf-result) .sc-head { display: flex; }
   #app #view #cb { padding: 6px 12px 8px; }
   #app #view #cb .cb-box { padding: 10px 10px 8px 14px; border-radius: 18px; gap: 6px; }
   #app #view #cb .cb-row { gap: 6px; }
@@ -314,8 +314,8 @@ body:has(#vt-bar[data-state="listening"]) #app #view #cb #vo-mic { box-shadow: 0
   #app #view #cb .cb-make { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; width: 100%; padding-bottom: 2px; }
   #app #view #cb .cb-make::-webkit-scrollbar { display: none; }
   #app #view #cb .cb-mk { padding: 5px 11px; font-size: .8125rem; }
-  #app #view .chat2 .cb-hello { font-size: 1.5rem; }
-  #app #view .chat2 .sc-me { max-width: 86%; }
+  :is(#app #view .chat2, #mf-result) .cb-hello { font-size: 1.5rem; }
+  :is(#app #view .chat2, #mf-result) .sc-me { max-width: 86%; }
 }
 @media (max-width: 480px) {
   #app #view #cb .cb-narrow-x { display: none; }

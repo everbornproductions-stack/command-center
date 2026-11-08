@@ -116,14 +116,32 @@ export const CHAT_NOTE = "Meldmind picks the best AI. Free AIs go first. Ctrl+En
 const BACK_WORDS = /\b(it|its|that|this|these|those|them|they|their|again|shorter|longer|simpler|shorten|lengthen|expand|more|less|instead|also|another|same|above|previous|earlier|rewrite|redo|reword|rephrase|change|edit|fix|add|remove|delete|drop|continue|translate|why|formal|casual|warmer|friendlier|tone|version|answer|reply)\b/i;
 const STOP_WORDS = new Set(["with", "that", "this", "from", "your", "have", "what", "about", "make", "write", "please", "need", "want", "some", "into", "then", "than", "just", "like", "would", "could", "should", "will", "there", "help", "give", "tell", "show", "list", "ideas", "short", "plan", "create", "build", "draft", "good", "best", "each", "only", "very", "much", "many", "next", "here", "when", "where", "which", "while", "being", "been", "were", "does", "doing", "for", "they", "my", "our"]);
 const topicWords = (s) => new Set((String(s || "").toLowerCase().match(/[a-z0-9']+/g) || []).filter((w) => w.length >= 4 && !STOP_WORDS.has(w)));
+// 0.5.2 (panel 050 item 2: 1 in 3 wrong): a back word anywhere ("a cover letter THAT highlights", "this Friday") kept new
+// requests in the old chat, and a follow-up with no shared word ("Give everyone a 30 minute lunch break") split off.
+// Now: a message that starts with a make verb (write, plan, make, give me...) or a question word is a new subject unless
+// it points back near its start ("Make IT warmer", "Is THAT enforceable") or shares a topic word with the chat; any
+// other message (an instruction about the answer: "Mention the new roof", "We have a toddler with us") goes on.
+const LEAD = /^(?:(?:now|ok|okay|so|and|also|next|then|please|hey|great|thanks|thank you)[,!.]?\s+)*/;
+const MAKE_START = /^(?:(?:can|could|would|will) you\s+|please\s+|help me\s+|i need you to\s+|i want you to\s+)?(write|plan|make|build|create|draft|design|generate|compose|give me|list|come up with|put together|brainstorm|outline|suggest|recommend|tell me|explain|find|summarize|translate)\b/;
+const ASK_START = /^(what|what's|whats|how|who|where|which|when|is|are|do|does|did|should|can|could|would|will)\b/;
+const NEAR_BACK = /\b(it|its|that|this|these|those|them|again|same|another|one|ones|more|less|shorter|longer|simpler|funnier|number|version|instead)\b/;
+const TIME_THIS = /\bthis (week|weekend|month|month's|year|year's|morning|afternoon|evening|monday|tuesday|wednesday|thursday|friday|saturday|sunday|season|quarter)\b/g;
 export function goesOn(text, earlier = []) {
-  const t = String(text || "").toLowerCase();
+  const t = String(text || "").toLowerCase().replace(/[‘’]/g, "'").trim();
   const words = t.match(/[a-z0-9']+/g) || [];
   if (words.length <= 3) return true;
-  if (BACK_WORDS.test(t)) return true;
   const mine = topicWords(t);
-  for (const e of earlier) for (const w of topicWords(e)) if (mine.has(w)) return true;
-  return false;
+  const shares = () => { for (const e of earlier) for (const w of topicWords(e)) if (mine.has(w)) return true; return false; };
+  const plain = t.replace(TIME_THIS, " ");
+  const body = plain.replace(LEAD, "");
+  const make = body.match(MAKE_START);
+  if (make) {
+    const after = (body.slice(make[0].length).match(/[a-z0-9']+/g) || []).slice(0, 3).join(" ");
+    return NEAR_BACK.test(after) || shares();
+  }
+  if (ASK_START.test(body)) return BACK_WORDS.test(plain) || shares();
+  // "Now one for 44 Pine Ave", "And for two dozen?", "Also one for closing": a connector up front goes on
+  return true;
 }
 
 // 0.4.37: quick changes for a reply further down the chat. Each one is sent as the next message in the same chat.

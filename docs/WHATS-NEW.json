@@ -1,4 +1,13 @@
 {
+  "0.5.2": {
+    "title": "What's new in Meldmind",
+    "bullets": [
+      "Continue this project now picks up where you left off. It opens the project's last chat with the whole conversation, or an unfinished Start a project build at its step, and your next message stays in that chat.",
+      "Better at telling a new subject from a follow-up. \"Give everyone a lunch break\" stays in the chat about the schedule, and \"Write a LinkedIn post\" after a review reply starts a new chat.",
+      "The Done page of Make something shows your result with the same clean buttons as the chat.",
+      "Messages no longer cover the tabs on Simple pages such as Team."
+    ]
+  },
   "0.5.1": {
     "title": "What's new in Meldmind",
     "bullets": [

@@ -353,6 +353,11 @@ function placeToasts() {
     if (!bars.length) { delete body.dataset.toastAt; return; }
     body.style.setProperty("--cc-toast-top", `${Math.round(Math.max(...bars.map((r) => r.bottom)) + 8)}px`);
     body.dataset.toastAt = "top";
+    // 0.5.2 (panel 050 item 6): under the title bar a toast covered the Team page's My agents and Prompts tabs. When it
+    // covers a page control there, it goes bottom right (above the chat dock when there is one), as Expert does.
+    if (!coveredControls().length) return;
+    if (!bottomAbove([".cc-dock", "#vt-bar"])) { body.style.setProperty("--cc-toast-bottom", "16px"); body.dataset.toastAt = "bottom"; }
+    if (coveredControls().length) body.dataset.toastAt = "top";
     return;
   }
   const feed = shown(document.getElementById("feed"));
@@ -1595,20 +1600,53 @@ function syncProjectBar() {
 }
 // One click: the project is selected, its last words are back in the box, and Chat is open
 // with the tools for that project one click away in the bar.
+// 0.5.2 (Chris, 11/03: "when clicking continue a project it just goes to a chat box and has no idea what i am talking
+// about"): Continue used to put the last request's words into an empty new chat (and for a Start a project build, an
+// internal step prompt), so the AI saw none of the earlier work, and the new-subject guess could split the next message
+// off again. Now it opens where the project left off: an unfinished Start a project build at its step, or the project's
+// last chat with its whole conversation, and the next message stays in that chat.
 async function continueProject(id) {
   const p = (S.projects || []).find((x) => x.id === id);
   if (!p) return;
   setWorkingProject(id);
-  const last = lastRunFor(S.missions, id);
-  let words = last?.title || "";
-  if (last?.id) {
-    try { const m = await api(`/missions/${last.id}`); words = m?.prompt || m?.question || words; } catch { /* the short title is enough */ }
-  }
-  if (words) S.lastOrders = String(words);
   S.openProject = null;
+  const chat = lastChatFor(S.missions, id);
+  const walk = await lastWalkFor(id);
+  if (walk && (!chat || (Number(walk.updatedAt || walk.createdAt) || 0) >= (Number(chat.startedAt) || 0)) && window.CC?.startProject?.openWalk) {
+    await window.CC.startProject.openWalk(walk.id);
+    toast(`Back in ${p.name}, at the step you stopped on.`);
+    return;
+  }
+  if (chat?.id) {
+    window.CC.makeChat?.reset?.();
+    S.lastOrders = "";
+    S.scPage = "chat"; S.scOpen = {};
+    await openRun(chat.id);
+    if (S.live?.id === chat.id) {
+      S.scKeep = chat.id;
+      if (S.uiMode === "simple" && window.CC.mac?.bus) window.CC.mac.bus.emit("chat", { open: true });
+      toast(`Back in ${p.name}. Your last chat is open: type to keep going.`);
+      return;
+    }
+  }
+  S.lastOrders = "";
+  S.live = newLive();
   S.view = "command";
   render();
-  toast(words ? `Back in ${p.name}. Your last request is in the box.` : `Back in ${p.name}.`);
+  toast(`Back in ${p.name}. New messages here use this project's notes.`);
+}
+// The project's newest chat, council or mission the person can see (not a Start a project step or an internal prompt).
+function lastChatFor(missions, projectId) {
+  const rows = visibleRuns((Array.isArray(missions) ? missions : []).filter((m) => m && m.projectId === projectId)).filter((m) => ["single", "council", "mission"].includes(m.kind));
+  return lastRunFor(rows, projectId);
+}
+// The project's newest Start a project build that is not done, or null.
+async function lastWalkFor(projectId) {
+  try {
+    const exp = S.uiMode === "expert" ? "expert" : "simple";
+    const walks = (await api(`/walkthrough?experience=${exp}`)).walks || [];
+    return walks.filter((w) => w && !w.example && w.projectId === projectId && w.stage && w.stage !== "done" && w.idea).sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))[0] || null;
+  } catch { return null; }
 }
 async function restoreDeleted(id) {
   try {
@@ -2246,6 +2284,8 @@ function scFollowOk(prompt) {
   if (projectIntent(prompt) || window.CC.makeChat?.intent?.(prompt)) return false;
   // 0.5.0 (panel 0438 item 3): a prompt picked from Prompts, or a new subject, starts a new chat (a new History row)
   if (S.scFresh) { S.scFresh = false; return false; }
+  // 0.5.2: the first message after Continue this project stays in the chat that Continue opened
+  if (S.scKeep) { const keep = S.scKeep === l.id; S.scKeep = ""; if (keep) return true; }
   const earlier = [scPrompt(l), ...scTurns(l).filter((t) => t.role === "user").map((t) => t.text || "")];
   if (!goesOn(prompt, earlier)) return false;
   return true;
