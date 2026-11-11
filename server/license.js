@@ -16,6 +16,7 @@ import { emit } from "./events.js";
 import { bindLicenseState, compareRows, evaluateGate, LIMITS } from "./feature-gate.js";
 import { LIFETIME_PLAN_ID } from "./price-config.js";
 import { signedInEmail } from "./signed-in-email.js";
+import { exchangeIdToken, sessionToken } from "./licence-session.js";
 import { scheduler } from "./perf/scheduler.js";
 import { isTrusted, sealOf, sealOnce, strictMode, verifyServerSig } from "./license-seal.js";
 
@@ -171,11 +172,12 @@ function rpcRows(j, all) {
 
 async function rpc(fn, body, opts = {}) {
   const all = !!opts.all;
-  if (HOSTED) return rest(`rpc/${fn}`, { method: "POST", body, token: ctx().token }).then((j) => rpcRows(j, all));
+  if (HOSTED) return rest(`rpc/${fn}`, { method: "POST", body, token: opts.token || ctx().token }).then((j) => rpcRows(j, all));
   const c = cloud();
   // legacy anon keys are JWTs and go in both headers; new publishable keys (sb_publishable_…) go in apikey only
   const headers = { apikey: c.anonKey, "content-type": "application/json" };
-  if (c.anonKey.startsWith("eyJ")) headers.authorization = `Bearer ${c.anonKey}`;
+  if (opts.token) headers.authorization = `Bearer ${opts.token}`; // a signed session: the server reads the confirmed email from it
+  else if (c.anonKey.startsWith("eyJ")) headers.authorization = `Bearer ${c.anonKey}`;
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 15000);
   try {
     const r = await fetch(`${c.url.replace(/\/$/, "")}/rest/v1/rpc/${fn}`, { method: "POST", headers, body: JSON.stringify(body), signal: ctl.signal });
@@ -288,10 +290,17 @@ export async function loadHostedLicense() {
 // Unlock by the signed-in email (Google or Microsoft one-click sign-in): no key to type. The licence
 // server looks up an active licence on that email (activate_license_by_email, see
 // supabase/migrations/20261025_stripe.sql) and registers this computer like a key check does.
+// The call carries the signed session (server/licence-session.js); the server ignores a typed email.
 // A key already on this copy stays unless the email licence is a higher tier or the key is not active.
 // Neither the email nor a key is logged. Offline grace works the same as for a key.
 const TIER_RANK = { free: 0, pro: 1, studio: 1, extreme: 2, owner: 3 };
 export const EMAIL_UNLOCK_RPC = "activate_license_by_email";
+
+// Called by the Google and Microsoft sign-in with the id_token from the provider's own reply.
+export async function startEmailSession(provider, idToken) {
+  if (HOSTED || !cloudConfigured()) return false;
+  return exchangeIdToken({ cloud: cloud(), provider, idToken });
+}
 
 export async function unlockByEmail() {
   if (!cloudConfigured()) return licenseState();
@@ -300,9 +309,16 @@ export async function unlockByEmail() {
   const l = lic();
   const stamp = l.stamp || 0;
   const now = Date.now();
+  // Proof first: the licence server answers only a signed session whose email is confirmed. Without
+  // one nothing is asked (no plan lookup by a typed or remembered address), and a key still works.
+  const token = await sessionToken({ cloud: cloud() });
+  if (!token) {
+    if (!(l.key && l.via !== "email")) saveLic({ message: "Sign in again to confirm your email, or enter your licence key." });
+    return licenseState();
+  }
   let r;
   try {
-    r = await rpc(EMAIL_UNLOCK_RPC, { p_email: email, p_device_id: l.deviceId, p_name: HOSTED ? "hub" : process.env.COMPUTERNAME || "PC", p_platform: HOSTED ? "web" : process.platform, p_version: VERSION });
+    r = await rpc(EMAIL_UNLOCK_RPC, { p_email: email, p_device_id: l.deviceId, p_name: HOSTED ? "hub" : process.env.COMPUTERNAME || "PC", p_platform: HOSTED ? "web" : process.platform, p_version: VERSION }, { token });
   } catch (e) {
     // The function may not be on the licence server yet. Offline grace keeps what we had.
     if (l.via === "email") saveLic({ lastError: e.message, checkedAt: now });

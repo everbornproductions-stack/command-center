@@ -29,3 +29,10 @@ Short lessons from shipping Meldmind. Read this before a release. Add new lesson
 
 - The lesson above was read from the page source only. In a browser, the Meldmind page script calls the GitHub releases API on load and rewrites the version, the Windows and Mac download links, and (from 2026-10-21) the Just released list from the latest release notes. Load the page in a browser before calling the site stale.
 - The site source is now in the private repo everbornproductions-stack/everborn-site (media in Drive, Everborn Cloud/everborn-site). It still deploys by zip upload to Cloudflare Pages; mirror live first.
+
+## 2026-10-25: Stripe unlock matched money, and the plan lookup trusted a typed email (0.4.19)
+
+- What failed (0.4.18 tester panel): a one-time Founder payment was matched by `amount_total`, so a promo code or sales tax made a paid charge with no unlock. Separately, `activate_license_by_email` was callable by anon with any email, so anyone could ask whether an address had a paid plan.
+- What fixed it: the plan now comes from the Checkout Session (`meldmind_plan` metadata, Payment Link id, then price or product id from the line items, read by the webhook with an optional read-only `STRIPE_READ_KEY`). The amount charged is never used. The email lookup reads the confirmed email from a signed Supabase session (migration 20261026_stripe_unlock_proof.sql, app side server/licence-session.js); anon can no longer run it, and every miss gives the same reply.
+- Rules: never decide what was bought from what was charged. Never let a client-supplied email stand in for proof of who it is. Tests that need a vault secret seal vault.bin the way the app does (DPAPI on Windows) instead of adding a test backdoor.
+- Local noise: test/mcp.test.js (HPE_INVALID_CHUNK_SIZE) fails on Chris's PC with or without this change, and `npm test` stops at the first failing group, so run the other files directly to see the rest.

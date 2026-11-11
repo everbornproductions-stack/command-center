@@ -3,6 +3,10 @@
 // Secrets:
 //   STRIPE_WEBHOOK_SECRET        the signing secret of the webhook endpoint (whsec_...), set with
 //                                `supabase secrets set`. Read from the environment only.
+//   STRIPE_READ_KEY              optional restricted key with read access to Checkout Sessions only.
+//                                Used to read a one-time session's line items so the plan is found by
+//                                price or product id when the event does not carry it. Set with
+//                                `supabase secrets set`; never written to a file or a log.
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY   provided by Supabase to the function
 // In Stripe (Developers, Webhooks) the endpoint is this function's URL, with these events:
 //   checkout.session.completed, invoice.paid, customer.subscription.updated,
@@ -16,6 +20,7 @@ import { verifyStripeSignature, processEvent } from "./logic.js";
 const SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
 const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+const READ_KEY = Deno.env.get("STRIPE_READ_KEY") ?? "";
 const FOUNDERS_EARLY_SEATS = 100;
 
 const db = {
@@ -51,6 +56,13 @@ const db = {
     const { error } = await supabase.from("licenses").update(patch).eq("id", id);
     if (error) throw new Error(`licenses update failed: ${error.code}`);
   },
+  async fetchLineItems(sessionId: string) {
+    if (!READ_KEY || !/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return null;
+    const r = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}/line_items?limit=10&expand[]=data.price.product`, { headers: { authorization: `Bearer ${READ_KEY}` } });
+    if (!r.ok) throw new Error(`line items read failed: ${r.status}`);
+    const j = await r.json();
+    return Array.isArray(j?.data) ? j.data : null;
+  },
   async countLifetime() {
     const { count } = await supabase.from("licenses").select("id", { count: "exact", head: true }).eq("source", "stripe").like("plan", "lifetime-%");
     return count ?? 0;
@@ -74,6 +86,7 @@ Deno.serve(async (req) => {
   try {
     const r = await processEvent(event, db);
     console.log(`stripe-webhook: ${event.type} -> ${r.status}${r.reason ? ` (${r.reason})` : ""}`);
+    if (r.status === "unresolved") console.warn(`stripe-webhook: paid session ${r.sessionId} has no plan id in the event and STRIPE_READ_KEY is not set; Stripe will retry`);
     if (r.needsEmail) console.warn("stripe-webhook: a licence was created without a buyer email; fix it by hand");
     if (typeof r.founderCount === "number" && r.founderCount >= FOUNDERS_EARLY_SEATS) {
       console.warn(`stripe-webhook: ${r.founderCount} lifetime founders. The first ${FOUNDERS_EARLY_SEATS} seats are gone; change the founder Payment Link price in Stripe.`);

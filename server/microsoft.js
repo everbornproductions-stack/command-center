@@ -108,7 +108,7 @@ export async function finish({ code, state } = {}) {
   if (extra.length) throw fail(400, "The sign-in granted more than Meldmind asked for. Nothing was saved.", { code: "scope" });
   const { assertServiceSlots } = await import("./service-limit.js");
   await assertServiceSlots(["outlook"]);
-  rememberIdentity("microsoft", tok.id_token);
+  if (rememberIdentity("microsoft", tok.id_token)) { try { await (await import("./license.js")).startEmailSession("microsoft", tok.id_token); } catch { /* no proof: the key still works */ } }
   await setSecret(VAULT_ID, { key: "oauth", access: tok.access_token, refresh: tok.refresh_token || null, expiresAt: tok.expires_in ? Date.now() + Number(tok.expires_in) * 1000 : null });
   const d = mdoc(); d.scopes = got.map(short); d.connectedAt = Date.now(); d.needsSignIn = false; save(d);
   emit("log", { text: `Microsoft connected (${granted().map((k) => SCOPE_LABEL[k]).join(", ")}). The token is in the vault.` });
@@ -133,6 +133,7 @@ export async function accessToken() {
 
 export async function disconnect() {
   forgetIdentity("microsoft");
+  import("./licence-session.js").then((m) => m.clearSession()).catch(() => {});
   await setSecret(VAULT_ID, null);
   save({ scopes: [], connectedAt: null, needsSignIn: false });
   emit("log", { text: "Microsoft disconnected. Its tokens were removed from the vault." });

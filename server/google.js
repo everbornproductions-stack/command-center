@@ -204,7 +204,7 @@ export async function finish({ code, state } = {}) {
     return view();
   }
   const cur = secret() || {};
-  rememberIdentity("google", tok.id_token);
+  if (rememberIdentity("google", tok.id_token)) { try { await (await import("./license.js")).startEmailSession("google", tok.id_token); } catch { /* no proof: the key still works */ } }
   await setSecret(VAULT_ID, { key: "oauth", clientSecret: cur.clientSecret || null, access: tok.access_token, refresh: tok.refresh_token || null, expiresAt });
   const d = gdoc(); d.scopes = scopes; d.connectedAt = Date.now(); d.needsSignIn = false; d.via = p.via || null; saveDoc(d);
   emit("log", { text: `Google connected for the browser helper (${granted().map((k) => SCOPE_LABEL[k]).join(", ")}). The token is in the vault.` });
@@ -213,6 +213,7 @@ export async function finish({ code, state } = {}) {
 
 export async function disconnect() {
   forgetIdentity("google");
+  import("./licence-session.js").then((m) => m.clearSession()).catch(() => {});
   const cur = secret();
   await setSecret(VAULT_ID, cur?.clientSecret ? { key: "oauth", clientSecret: cur.clientSecret } : null);
   const d = gdoc(); d.scopes = []; d.connectedAt = null; d.needsSignIn = false; d.via = null; saveDoc(d);
