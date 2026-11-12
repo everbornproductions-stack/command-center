@@ -202,6 +202,37 @@ export function priceSource(modelId) {
   return livePrices[modelId] ? "live" : "built-in";
 }
 
+// A price someone actually knows for a model that has none in the table (a custom provider's or a new one):
+// the person's own override, else the live list price. null when neither exists.
+export function knownPrice(modelId) {
+  let o = null;
+  try { o = overrides()[modelId] || null; } catch { o = null; }
+  const l = livePrices[modelId] || null;
+  const inp = Number(o?.in ?? l?.in), out = Number(o?.out ?? l?.out);
+  if (!o && !l) return null;
+  if (!Number.isFinite(inp) && !Number.isFinite(out)) return null;
+  return { in: Number.isFinite(inp) ? inp : 0, out: Number.isFinite(out) ? out : 0 };
+}
+// A price ladder for one provider's models (new and custom providers). Combined price = in + 3 * out.
+// The priciest third is "flagship", the cheapest third "economy", the rest "balanced". One priced model is
+// "balanced"; two are "flagship" and "economy". Equal prices share a tier. A model with no price keeps its tier.
+const hasPrice = (m) => !!m && (Number.isFinite(Number(m.in)) && m.in !== null && m.in !== "" || Number.isFinite(Number(m.out)) && m.out !== null && m.out !== "");
+export function tierByPrice(models) {
+  const list = Array.isArray(models) ? models.map((m) => ({ ...m })) : [];
+  const priced = list.filter(hasPrice).map((m) => ({ m, p: (Number(m.in) || 0) + 3 * (Number(m.out) || 0) })).sort((a, b) => b.p - a.p);
+  const n = priced.length;
+  if (!n) return list;
+  if (n === 1) { priced[0].m.tier = "balanced"; return list; }
+  const edge = Math.max(1, Math.round(n / 3));
+  priced.forEach((x, i) => {
+    const prev = priced[i - 1];
+    if (prev && prev.p === x.p) { x.m.tier = prev.m.tier; return; } // equal prices share a tier
+    x.m.tier = i < edge ? "flagship" : i >= n - edge ? "economy" : "balanced";
+  });
+  if (priced[0].p === priced[n - 1].p) for (const x of priced) x.m.tier = "balanced"; // one price for all: no ladder
+  return list;
+}
+
 export function findModel(modelId) {
   for (const p of TEXT_PROVIDERS) {
     const m = p.models.find((x) => x.id === modelId);

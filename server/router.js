@@ -2,7 +2,7 @@
 // Score = learned capability (baseline + what the council taught us) minus a cost penalty
 // whose weight depends on the mode. Providers that are red or have no key are excluded.
 // With a track record for the task type (server/brain.js, Phase 28) quality, cost and speed come from it.
-import { CAPABILITIES, PROVIDERS, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice, findModel, isLiteModel, isLongOutputJob } from "./registry.js";
+import { CAPABILITIES, PROVIDERS, TEXT_PROVIDERS, estimateCost, estimateCostAt, activeDiscount, nextDiscountStart, modelPrice, findModel, isLiteModel, isLongOutputJob, knownPrice, livePrice, tierByPrice } from "./registry.js";
 import { demosHidden, realAiCanAnswer } from "./demo-visibility.js";
 import { hasSecret } from "./vault.js";
 import { doc, putDoc, ctx } from "./store.js";
@@ -61,6 +61,19 @@ export function fastFreeFirst(list) {
   const freeAfter = list.findIndex((m, i) => i > firstSlow && !isSlowAgent(m) && costTier(m.provider, m.model) <= 1);
   if (freeAfter < 0) return list; // already behind every free row
   return [...rest.slice(0, lastFree + 1), ...slow, ...rest.slice(lastFree + 1)];
+}
+
+// Triage tiers (four gates). A trivial job raises the cost weight and lifts economy models a little; a top job
+// cuts the cost weight and lifts flagships a little. Standard (2) and hard (3) jobs are not touched.
+export const TIER_TUNING = { trivialCostScale: 1.5, economyBonus: 4, topCostWeight: 0.25, flagshipBonus: 6 };
+const TIER_RANK = { economy: 1, balanced: 2, flagship: 3 };
+// Equal scores between models of different registry tiers: the cheaper one goes first, unless the job is
+// high stakes, where the bigger model goes first. Same tier or an unknown tier keeps today's order.
+export function tieBreak(a, b, stakes = false) {
+  const ra = TIER_RANK[a?.modelTier] || 0, rb = TIER_RANK[b?.modelTier] || 0;
+  if (!ra || !rb || ra === rb) return 0;
+  if (stakes) return rb - ra;
+  return ((a.estCost || 0) - (b.estCost || 0)) || (ra - rb);
 }
 
 const skills = () => doc("skills", () => ({})); // { modelId: { capability: { wins, total } } }
@@ -138,6 +151,24 @@ function routeOverlay() {
   } catch { return []; }
 }
 
+// A custom provider's ladder from the prices known right now (live prices can arrive after it was registered).
+// A model with no known price keeps the tier it was registered with. Built-in tiers never change.
+function customTiers(p) {
+  if (!p?.custom) return null;
+  const rows = p.models.map((m) => { const pr = knownPrice(m.id); return { id: m.id, tier: m.tier || (m.default ? "balanced" : "economy"), in: pr ? pr.in : null, out: pr ? pr.out : null }; });
+  return new Map(tierByPrice(rows).map((m) => [m.id, m.tier]));
+}
+// The tier for a model-watch row: from the provider's price ladder when the row has a saved or live price,
+// else the tier of the model it replaces.
+function overlayTier(p, row, donor) {
+  const saved = Number.isFinite(row.in) || Number.isFinite(row.out);
+  const live = livePrice(row.id);
+  if (!saved && !live) return donor.tier;
+  const price = saved ? { in: Number.isFinite(row.in) ? row.in : 0, out: Number.isFinite(row.out) ? row.out : 0 } : { in: Number(live.in) || 0, out: Number(live.out) || 0 };
+  const ladder = tierByPrice([...p.models.filter((m) => m.id !== row.id).map((m) => { const pr = modelPrice(m.id); return { id: m.id, tier: m.tier, in: pr.in, out: pr.out }; }), { id: row.id, tier: donor.tier, ...price }]);
+  return ladder.find((m) => m.id === row.id)?.tier || donor.tier;
+}
+
 export function availableModels() {
   const routes = routeOverlay();
   const out = [];
@@ -147,10 +178,11 @@ export function availableModels() {
     if (p.demo && (!keyed || demosHidden())) continue; // pretend AIs leave once a real AI is connected
     const hidden = new Set(routes.filter((r) => r.provider === p.id).map((r) => r.hide));
     const d = activeDiscount(p.id);
+    const ladder = customTiers(p);
     for (const m of p.models) {
       if (hidden.has(m.id)) continue;
       const pr = modelPrice(m.id);
-      out.push({ provider: p.id, providerName: p.name, color: p.color, model: m.id, name: m.name, tier: m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), baseCaps: m.caps, available: keyed && st.status !== "red", keyed, status: st.status, statusDetail: st.detail, balance: st.balance || null, discount: d ? { pct: d.pct, name: d.name } : null, web: !!m.web });
+      out.push({ provider: p.id, providerName: p.name, color: p.color, model: m.id, name: m.name, tier: ladder?.get(m.id) || m.tier, in: pr.in, out: pr.out, caps: learnedCaps(m.id, m.caps), baseCaps: m.caps, available: keyed && st.status !== "red", keyed, status: st.status, statusDetail: st.detail, balance: st.balance || null, discount: d ? { pct: d.pct, name: d.name } : null, web: !!m.web });
     }
     for (const r of routes) {
       if (r.provider !== p.id || out.some((x) => x.model === r.model.id)) continue;
@@ -159,7 +191,8 @@ export function availableModels() {
       const prIn = r.model.in == null || r.model.in === "" ? NaN : Number(r.model.in);
       const prOut = r.model.out == null || r.model.out === "" ? NaN : Number(r.model.out);
       const price = { in: Number.isFinite(prIn) ? prIn : donor.in, out: Number.isFinite(prOut) ? prOut : donor.out };
-      out.push({ provider: p.id, providerName: p.name, color: p.color, model: r.model.id, name: r.model.name || r.model.id, tier: donor.tier, in: price.in, out: price.out, caps: learnedCaps(r.model.id, donor.caps), baseCaps: donor.caps, available: keyed && st.status !== "red", keyed, status: st.status, statusDetail: st.detail, balance: st.balance || null, discount: d ? { pct: d.pct, name: d.name } : null, web: false });
+      const tier = overlayTier(p, { id: r.model.id, in: prIn, out: prOut }, donor);
+      out.push({ provider: p.id, providerName: p.name, color: p.color, model: r.model.id, name: r.model.name || r.model.id, tier, in: price.in, out: price.out, caps: learnedCaps(r.model.id, donor.caps), baseCaps: donor.caps, available: keyed && st.status !== "red", keyed, status: st.status, statusDetail: st.detail, balance: st.balance || null, discount: d ? { pct: d.pct, name: d.name } : null, web: false });
     }
   }
   for (const row of extraRouteModels()) out.push(row);
@@ -170,10 +203,19 @@ export function availableModels() {
 // needTools: the step must use files or tools itself, so a slow agent app is not held back.
 // longOutput: the step writes a long answer (code, a page, a document); the smallest lite models sit out while
 // another model can take it. Left out, it follows the task type (code, or writing that is not trivial).
-export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false, includeApps = false, needTools = false, longOutput = null }) {
+// providers: only models of these provider ids are ranked (after the availability filters). Left out, every provider.
+// gates: the triage gates from classify(); gates.stakes breaks a tie between tiers toward the bigger model.
+export function rank({ capability = "reasoning", difficulty = 2, mode = "balanced", exclude = [], needWeb = false, estIn = 1500, estOut = 800, when = new Date(), small = false, includeApps = false, needTools = false, longOutput = null, providers = null, gates = null }) {
   mode = normalizeMode(mode) || "balanced";
   const long = longOutput == null ? (!small && isLongOutputJob({ capability, difficulty })) : !!longOutput;
-  const weight = costWeight(mode);
+  // Triage tiers: a trivial job leans on price and economy models, a top job on quality and flagships.
+  // Standard and hard jobs keep the weights they always had.
+  const level = Number(difficulty);
+  let weight = costWeight(mode);
+  if (level === 1) weight *= TIER_TUNING.trivialCostScale;
+  else if (level >= 4) weight = Math.min(weight, TIER_TUNING.topCostWeight);
+  const tierBonus = (m) => (level === 1 && m.tier === "economy" ? TIER_TUNING.economyBonus : level >= 4 && m.tier === "flagship" ? TIER_TUNING.flagshipBonus : 0);
+  const only = Array.isArray(providers) && providers.length ? new Set(providers.map(String)) : null;
   const covered = !!needWeb && searchCoversAnyModel();
   let list = availableModels().filter((m) => m.available && !exclude.includes(m.model) && (!needWeb || covered || m.web) && !isBlockedFree(m) && !isBlockedFree(PROVIDERS[m.provider]));
   // Allowed programs are scored with the same formula, then listed after the text models.
@@ -203,6 +245,8 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
   // 0.4.21 Gemini check: a 429 or a 503 benches ONE model of a provider ("provider:model"), not all of them.
   // Checked after Free only, so a bench never empties the list while a model that can answer is left.
   if (Object.keys(bench).length && list.some((m) => !bench[modelKey(m.provider, m.model)])) list = list.filter((m) => !bench[modelKey(m.provider, m.model)]);
+  // Provider-only pin: stay inside the named providers. Empty means nothing there can take the job.
+  if (only) list = list.filter((m) => only.has(m.provider));
   // Max quality keeps the best model each connected AI offers. Spend caps above still apply.
   // Prefer-free is skipped so a cheaper model does not replace that flagship.
   if (mode === "max") list = bestModelEach(list, capability);
@@ -244,13 +288,16 @@ export function rank({ capability = "reasoning", difficulty = 2, mode = "balance
     const meta = PROVIDERS[m.provider];
     const localFree = isLocalFree(m, meta);
     const record = learned ? { jobs: learned.jobs, quality: learned.quality, base: learned.base, confidence: learned.confidence, avgCost: learned.avgCost, avgSec: learned.avgSec, failRate: learned.failRate, speedPenalty: speed } : null;
-    return { ...m, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, tier, ...(localFree && freeFirst ? { localFirst: true } : {}), plan, localFree, skipped: skipReason, learned: record, ...(slowAgent ? { slowAgent: true } : {}), score: +(q - penalty - health - speed + bonus + fast - slowAgent).toFixed(1) };
+    const ladder = tierBonus(m);
+    return { ...m, modelTier: m.tier, estCost: free ? 0 : +cost.toFixed(5), listCost: +estimateCost(m.model, estIn, estOut).toFixed(5), quality: +quality.toFixed(1), healthPenalty: health, warnings, free, tier, ...(localFree && freeFirst ? { localFirst: true } : {}), plan, localFree, skipped: skipReason, learned: record, ...(slowAgent ? { slowAgent: true } : {}), ...(ladder ? { tierBonus: ladder } : {}), score: +(q - penalty - health - speed + bonus + fast - slowAgent + ladder).toFixed(1) };
   };
+  // `tier` on a scored row is the cost tier (0 this PC .. 3 paid); `modelTier` is the registry tier.
+  const byScore = (a, b) => (b.score - a.score) || tieBreak(a, b, !!gates?.stakes);
   const scored = list.map(scoreOf);
-  let ordered = placePlanRows(applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort((a, b) => b.score - a.score)), mode === "max" ? false : readPreferFree()), mode));
+  let ordered = placePlanRows(applyLocalFirst(applyPreferFree(keepCheapestSeller(scored.sort(byScore)), mode === "max" ? false : readPreferFree()), mode));
   if (!needTools && FAST_FIRST_MODES.has(mode)) ordered = fastFreeFirst(ordered);
   if (includeApps) {
-    const appRows = extraRouteModels().filter((m) => m && m.kind === "app" && m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m));
+    const appRows = extraRouteModels().filter((m) => m && m.kind === "app" && m.available && !exclude.includes(m.model) && (!needWeb || m.web) && !isBlockedFree(m) && (!only || only.has(m.provider)));
     if (appRows.length) ordered = ordered.concat(appRows.map(scoreOf).sort((a, b) => b.score - a.score));
   }
   return applyTune(ordered);
@@ -297,7 +344,41 @@ const KEYWORDS = {
   analysis: /\b(analy|evaluate|assess|review|audit|pros and cons|decide|strategy|plan)\b/i,
 };
 
+// Triage (four gates). Difficulty 1 trivial (one obvious answer, no judgment), 2 standard (well scoped, needs
+// competence), 3 hard (gate A or gate B), 4 top (both, or high stakes). Gate C says a concrete do-this verb has a
+// named target; gate D is money, security, legal, production or anything that cannot be undone.
+const TIER_NAMES = { 1: "trivial", 2: "standard", 3: "hard", 4: "top" };
+export const GATE_KEYS = ["ambiguous", "large", "execution", "stakes"];
+const clampLevel = (d, dflt = 2) => { const n = Math.round(Number(d)); return Math.min(4, Math.max(1, Number.isFinite(n) && n !== 0 ? n : dflt)); };
+export function tierName(difficulty) {
+  return TIER_NAMES[clampLevel(difficulty)];
+}
+const GATE_A = /\b(figure out|somehow|why (?:does|do|did|is|are|was|were|would|can't|won't|doesn't|isn't)|not sure|best way|investigate|root cause|explore|brainstorm|come up with|what should|how should|sometimes|intermittent(?:ly)?|unclear|any ideas)\b/i;
+const GATE_B = /\b(entire|across (?:all|every|the (?:whole|entire))|whole (?:system|app|codebase|project|site|repo|checkout|stack|pipeline)|every (?:file|page|screen|module)|all (?:the )?(?:files|pages|screens|modules|services)|many files|refactor(?:ing)?|end-to-end|codebase|cross-system|architecture|overhaul|comprehensive|detailed|complete|full)\b/i;
+const GATE_C_VERB = /\b(rename|fix|add|change|update|remove|delete|replace|move|create|write|implement|build|make|convert|translate|edit|set|bump|insert|format|sort|capitali[sz]e|refactor)\b/i;
+const GATE_C_TARGET = /([\w./-]+\.(?:js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|cs|cpp|c|h|css|scss|html|json|md|yml|yaml|sql|sh|ps1|txt|csv|xlsx|docx)\b)|`[^`]+`|"[^"]+"|'[^']{2,}'|\b(?:function|method|class|variable|file|component|button|field|column|table|endpoint|route|header|heading|title|label|tab|page|setting|toggle)\b/i;
+const GATE_D = /\b(payments?|billing|security|legal|contracts?|(?:to|in|on|into) production|production (?:deploy|server|database|db|data|env(?:ironment)?|site|outage)|deploy(?:s|ing|ment)?|delete|deleting|migrate|migration|tax(?:es)?)\b/i;
+// Stakes count only when the person asks for something to be done. A plain question that mentions tax or a
+// contract ("What is the tax rate in CA?") is not a high-stakes job, and "video production" is not a deploy.
+const STAKES_ACTION = /\b(rename|fix|add|change|update|remove|delete|replace|move|create|write|implement|build|make|convert|edit|set|insert|run|process|charge|refund|send|wire|transfer|deploy|ship|publish|file|sign|cancel|drop|wipe|migrate|pay|merge|release|push|submit|execute|apply)\b/i;
+const TRIVIAL_VERB = /\b(rename|typo|spelling|capitali[sz]e|lowercase|uppercase|reword|swap|bump)\b/i;
+const andList = (parts) => parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0] || "";
+// A short plain phrase for why the job got its tier. No em-dashes.
+export function triageReason(difficulty, gates = {}, { stakesWord = "", trivialEdit = false, long = false } = {}) {
+  const d = clampLevel(difficulty);
+  const g = gates || {};
+  const stakes = g.stakes ? `high stakes${stakesWord ? ` (${stakesWord.toLowerCase()})` : ""}` : "";
+  if (d >= 3) {
+    if (trivialEdit && g.stakes && !g.ambiguous && !g.large) return `small edit but ${stakes}`;
+    const parts = [g.ambiguous ? "open-ended" : "", g.large ? (long && !g.ambiguous ? "long and wide in scope" : "cross-system") : "", stakes].filter(Boolean);
+    if (parts.length) return andList(parts);
+    return d >= 4 ? "needs the strongest model" : "needs careful work";
+  }
+  if (d === 2) return g.execution ? "clear single-file task" : "well-scoped, needs competence";
+  return g.execution ? "clear single-file edit" : "short with one obvious answer";
+}
 export function heuristicClassify(prompt) {
+  prompt = String(prompt ?? "");
   let capability = "reasoning";
   let best = 0;
   for (const [cap, re] of Object.entries(KEYWORDS)) {
@@ -305,8 +386,42 @@ export function heuristicClassify(prompt) {
     if (n > best) { best = n; capability = cap; }
   }
   const len = prompt.length;
-  const difficulty = len > 1200 || /\b(detailed|comprehensive|complete|full|entire|end-to-end)\b/i.test(prompt) ? 3 : len > 250 ? 2 : 1;
-  return { capability, difficulty, needWeb: /\b(latest|today|current|news|2026|price of|this week)\b/i.test(prompt), source: "heuristic" };
+  const long = len > 1200;
+  const stakesHit = STAKES_ACTION.test(prompt) ? prompt.match(GATE_D) : null;
+  const gates = {
+    ambiguous: GATE_A.test(prompt),
+    large: long || GATE_B.test(prompt),
+    execution: GATE_C_VERB.test(prompt) && GATE_C_TARGET.test(prompt),
+    stakes: !!stakesHit,
+  };
+  const trivialEdit = gates.execution && TRIVIAL_VERB.test(prompt) && len <= 250;
+  let difficulty;
+  if (gates.stakes) difficulty = trivialEdit && !gates.ambiguous && !gates.large ? 3 : 4;
+  else if (gates.ambiguous && gates.large) difficulty = 4;
+  else if (gates.ambiguous || gates.large) difficulty = 3;
+  else if (len > 250 || (gates.execution && !trivialEdit)) difficulty = 2;
+  else difficulty = 1;
+  const reason = triageReason(difficulty, gates, { stakesWord: stakesHit?.[0] || "", trivialEdit, long });
+  return { capability, difficulty, gates, needWeb: /\b(latest|today|current|news|2026|price of|this week)\b/i.test(prompt), source: "heuristic", reason };
+}
+
+// Strip what a model might add to a short line: control characters, em and en dashes, extra spaces.
+const cleanLine = (v, max) => (typeof v === "string" ? v : "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s*[\u2014\u2013]\s*/g, ", ").replace(/\s+/g, " ").trim().slice(0, max);
+// The model's answer, checked: a known capability, difficulty 1..4, boolean gates (the heuristic fills a missing
+// one), and stakes stays on when a stakes word is in the prompt, so a money or delete job is never treated lightly.
+export function cleanClassification(j, h, source) {
+  if (!j || typeof j !== "object" || !CAPABILITIES.includes(j.capability) || j.capability === "fast") return null;
+  let difficulty = clampLevel(j.difficulty, h.difficulty);
+  const gates = {};
+  const own = (k) => typeof j.gates?.[k] === "boolean" && j.gates[k];
+  for (const k of GATE_KEYS) gates[k] = typeof j.gates?.[k] === "boolean" ? j.gates[k] : !!h.gates?.[k];
+  // The model's own gates set a floor: both A and B is top, A or B or stakes is at least hard.
+  // Gates filled in from the heuristic never move the model's difficulty.
+  if (own("ambiguous") && own("large")) difficulty = 4;
+  else if (own("ambiguous") || own("large") || own("stakes")) difficulty = Math.max(difficulty, 3);
+  if (h.gates?.stakes) gates.stakes = true;
+  const reason = cleanLine(j.reason, 120) || triageReason(difficulty, gates);
+  return { capability: j.capability, difficulty, gates, needWeb: j.needWeb === true, summary: cleanLine(j.summary, 80), reason, source };
 }
 
 // Ask the cheapest model to classify; fall back to keywords.
@@ -318,17 +433,29 @@ export async function classify(prompt, { onCall } = {}) {
     const t0 = Date.now();
     // a small job: free tiers first, and a stand-in if the cheap model's provider is out of credits (Phase 26)
     const r = await completeFallback({ allowStandIn: true,
-      provider: m.provider, model: m.model, maxTokens: 200,
-      system: `Classify the user's request. Reply with JSON only: {"capability": one of ${JSON.stringify(CAPABILITIES.filter((c) => c !== "fast"))}, "difficulty": 1|2|3 (1 trivial, 2 normal, 3 hard/long), "needWeb": boolean (true only if the answer depends on live/current information), "summary": "<=8 words"}`,
+      provider: m.provider, model: m.model, maxTokens: 300,
+      system: `Classify the user's request. Reply with JSON only: {"capability": one of ${JSON.stringify(CAPABILITIES.filter((c) => c !== "fast"))}, "difficulty": 1|2|3|4, "gates": {"ambiguous": boolean, "large": boolean, "execution": boolean, "stakes": boolean}, "needWeb": boolean (true only if the answer depends on live/current information), "summary": "<=8 words", "reason": "<=8 plain words on why this difficulty"}
+Gates: ambiguous = the goal is loosely defined and needs discovery or planning ("figure out", "why does", "not sure", "best way"). large = it spans whole systems, many files or a long piece of work ("entire", "across all", "refactor", "end-to-end"). execution = a concrete do-this request with a named target (a file, a function, a field). stakes = money, billing, security, legal, contracts, production, deleting, migrating or tax.
+Difficulty: 1 trivial (one obvious answer, no judgment). 2 standard (well-scoped, needs competence). 3 hard (ambiguous or large). 4 top (ambiguous and large, or high stakes).`,
       messages: [{ role: "user", content: prompt.slice(0, 4000) }],
     }, { role: "classify", small: true, cls: { capability: "fast", difficulty: 1 }, mode: "economy", tools: false });
     onCall?.({ provider: r.provider, model: r.model, usage: r.usage, ms: Date.now() - t0, role: "classify" });
-    const j = extractJson(r.text);
-    if (j?.capability && CAPABILITIES.includes(j.capability)) {
-      return { capability: j.capability, difficulty: Math.min(3, Math.max(1, Number(j.difficulty) || 2)), needWeb: !!j.needWeb, summary: j.summary || "", source: m.model };
-    }
+    const c = cleanClassification(extractJson(r.text), h, m.model);
+    if (c) return c;
   } catch {}
   return h;
+}
+
+// What the person sees: the tier, the task type, the classifier's summary and why. `note` is added to the reason
+// (for example when a provider-only pick had nothing ready). A task type with no gates gets the heuristic's gates.
+export function triageOf(cls, { note = "", prompt = "" } = {}) {
+  const base = cls && typeof cls === "object" ? cls : {};
+  const h = !base.gates || !base.reason ? heuristicClassify(prompt) : null;
+  const difficulty = clampLevel(base.difficulty, h?.difficulty || 2);
+  const gates = {};
+  for (const k of GATE_KEYS) gates[k] = !!(base.gates ? base.gates[k] : h?.gates?.[k]);
+  const reason = base.reason && Number(base.difficulty) === difficulty ? base.reason : triageReason(difficulty, gates);
+  return { difficulty, tier: tierName(difficulty), capability: base.capability || h?.capability || "reasoning", summary: base.summary || "", reason: note ? `${reason}; ${note}` : reason, source: base.source || "heuristic", gates };
 }
 
 // Plain-English "do it for less" advice for a prompt.

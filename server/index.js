@@ -34,7 +34,7 @@ import { noteKeySaved, stampAfterCheck, startCreditHealthLoop, describePause, pa
 import { accessFor } from "./provider-access.js";
 import { planInfo } from "./plans.js";
 import "./tips.js";
-import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, learnedDeltas, skillTable, deferAdvice, nextDiscountWindow } from "./router.js";
+import { availableModels, rank, classify, heuristicClassify, cheaperRoute, learnedCaps, learnedDeltas, skillTable, deferAdvice, nextDiscountWindow, triageOf } from "./router.js";
 import { whoWillRead } from "./readers.js";
 import { learnedStrengths } from "./added-caps.js";
 import { normalizeMode, outputShape } from "./modes.js";
@@ -634,9 +634,14 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   // 0.4.21 Gemini check: a person's own pick of an AI never gets another provider silently. Auto and
   // every unpinned route set allowStandIn, so they keep working exactly as before.
   const standInOk = !(provider && model) || allowStandIn === true;
+  let triageNote = "";
   if (!provider || !model) {
     cls = given || await classify(prompt, { onCall: (c) => recordCall({ ...c, missionId: id }) });
-    let ranked = rank({ ...cls, mode: priority });
+    // A provider with no model: stay inside that provider. When nothing there can take the job, the normal
+    // ranking picks, and the triage line says so.
+    let ranked = provider ? rank({ ...cls, mode: priority, providers: [provider] }) : [];
+    if (provider && !ranked.length) triageNote = `${PROVIDERS[provider]?.name || localRouteName(provider) || String(provider).slice(0, 40)} had no model ready, so another AI took it`;
+    if (!ranked.length) ranked = rank({ ...cls, mode: priority });
     if (skipProvider) ranked = ranked.filter((m) => m.provider !== skipProvider);
     const best = ranked[0];
     const pausedPick = best ? describePause(best.provider) : null;
@@ -651,7 +656,10 @@ async function runChatBody({ prompt, provider, model, projectId, search, searchM
   }
   let agent = `${id}:${provider}`;
   const taskType = () => (cls ||= given || heuristicClassify(prompt));
-  const m = { id, kind: "single", prompt, projectId: projectId || null, private: !!isPrivate, status: "running", startedAt: Date.now(), provider, model, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], getDone: grantView(id), ...(toneId ? { tone: toneId } : {}), ...(customAgent ? { customAgent } : {}) };
+  // Triage (four gates) rides on the run, so the answer can say which tier the job was and why.
+  // A pinned model is not classified again; its triage comes from the local heuristic.
+  const triage = triageOf(cls || given || heuristicClassify(prompt), { note: triageNote, prompt });
+  const m = { id, kind: "single", prompt, projectId: projectId || null, private: !!isPrivate, status: "running", startedAt: Date.now(), provider, model, triage, cost: 0, deliverable: "", sources: [], toolCalls: [], fallbacks: [], getDone: grantView(id), ...(toneId ? { tone: toneId } : {}), ...(customAgent ? { customAgent } : {}) };
   const title = (customAgent ? `${customAgent.name}: ${prompt}` : prompt).slice(0, 90);
   emit("mission.update", { mission: { ...m, title, tasks: [] } });
   // live web search: numbered results go into the prompt; the answer cites them as [n]
@@ -784,7 +792,7 @@ async function api(req, res, url) {
     const ranked = rankedAll.filter((m) => m.kind !== "app").slice(0, 6);
     const best = ranked[0];
     const search = previewSearch({ prompt, needWeb: !!cls.needWeb, provider: best?.provider, model: best?.model });
-    return json(res, 200, { classification: cls, ranked, apps, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt), search, whoWillRead: whoWillRead({ prompt, mode, classification: cls }) });
+    return json(res, 200, { classification: cls, triage: triageOf(cls, { prompt }), ranked, apps, cheaper: cheaperRoute(cls), defer: deferAdvice(cls, mode), councilEstimate: ranked.slice(0, 4).reduce((a, m) => a + m.estCost, 0) * 2.4, agent: grokbotRoute(prompt), browserHelper: browserRoute(prompt), search, whoWillRead: whoWillRead({ prompt, mode, classification: cls }) });
   }
   if (method === "GET" && p === "/models") return json(res, 200, availableModels());
 
