@@ -1838,6 +1838,7 @@ function chatAnswerHtml(expert, mainOpen, mainAll) {
   return `<div class="sc-ai cb-answer" id="${expert ? "ex-answer" : "simple-answer"}" data-steps="none" ${S.live?.id || S.make?.active ? "" : "hidden"}>
             <div class="sc-card">
               <h3 class="sc-who"><b>Meldmind</b><span id="out-head"></span></h3>
+              <div class="small dim" id="out-triage" hidden></div>
               <div class="cb-work" id="cb-work" hidden><button type="button" class="cb-work-btn" id="ex-steps-btn" aria-expanded="false" aria-controls="ops-panel"><i class="cb-pulse" aria-hidden="true"></i><span id="cb-work-text"></span><span class="cb-caret" id="cb-work-caret" aria-hidden="true">&#9662;</span></button></div>
               <div class="ops ex-steps cb-steps" id="ops-panel">
                 <h3 class="ex-steps-h"><span class="ex-lo-title">Live ops</span> <span id="ops-head" class="right"></span><button class="ghost small" id="ops-pause" type="button" style="display:none" title="Pro. Pause, edit the steps that have not finished, then resume.">Pause</button><button class="ghost small" id="ops-resume" type="button" style="display:none">Resume</button><button class="ghost small" id="abort" type="button" aria-label="Stop" style="display:none;color:var(--red)">Stop</button><button type="button" class="ex-link" id="ex-live">Open live view</button></h3>
@@ -2836,6 +2837,9 @@ function renderOutput() {
   // 0.4.37: the Simple card says "Answer · Nova"; Expert keeps who and which model
   // 0.5.0 (Chris: chat like the Claude app): the small label over the answer reads "Meldmind · <AI>" (Expert adds the model)
   h.textContent = prim ? (S.uiMode === "expert" ? `${pname(prim.provider)} · ${prim.model}` : pname(prim.provider)) : (l.kind && l.kind !== "single" ? (EX_KIND[l.kind] || "") : "");
+  // the triage under it: which tier the job was and why ("Triage: Standard · clear single-file task")
+  const tri = $("#out-triage");
+  if (tri) { const line = triageLine(l.mission?.triage); tri.textContent = line; tri.hidden = !line || !l.id; }
   // out of API credits: the waiting box (single chat, and council seats in Simple mode, where seats are not shown)
   const subWait = subWaitingHtml(l);
   if (subWait) {
@@ -2871,6 +2875,12 @@ function renderOutput() {
   if (finished && text && S.uiMode === "simple" && simpleAnswer) revealAnswer(l.id);
   if (finished && text && S.uiMode === "expert" && exAnswer) revealAnswer(l.id);
   if (S.uiMode === "expert" && panel && !panel.hidden && text) showExpertAnswer(l.id, panel);
+}
+// "Triage: Hard · open-ended and cross-system" from the run's triage, or "" when there is none.
+function triageLine(t) {
+  if (!t || typeof t !== "object" || !t.tier) return "";
+  const tier = String(t.tier);
+  return `Triage: ${tier.charAt(0).toUpperCase()}${tier.slice(1)}${t.reason ? ` · ${t.reason}` : ""}`;
 }
 // Simple says who answered. With two AI companies, or one OpenRouter key, it offers Ask a council.
 function paintAnswerLine(l, text) {
@@ -3013,6 +3023,7 @@ async function previewRoute() {
     const c = r.classification, best = r.ranked[0];
     const d = r.defer;
     box.innerHTML = `${ROUTE_X}<div><b>${esc(c.summary || c.capability)}</b> <span class="chip">${c.capability}</span> <span class="chip">difficulty ${c.difficulty}</span> ${c.needWeb ? '<span class="chip violet">needs web</span>' : ""}</div>
+      ${triageLine(r.triage) ? `<div class="small dim" style="margin-top:4px">${esc(triageLine(r.triage))}</div>` : ""}
       <div class="small" style="margin-top:6px">Best fit: <b style="color:${pcolor(best?.provider)}">${esc(best?.name || "none available")}</b> ≈ ${money(best?.estCost || 0, 4)} per call${best?.discount ? ` <span class="chip green">${best.discount.pct}% off now</span>` : ""}${best?.warnings?.length ? ` <span class="chip amber" title="${esc(best.warnings.join("; "))}">health −${best.healthPenalty}</span>` : ""} · council of 4 ≈ ${money(r.councilEstimate, 3)}</div>
       ${r.cheaper?.advice ? `<div class="adv">${esc(r.cheaper.advice)}</div>` : ""}
       ${r.cheaper?.batchNote ? `<div class="adv">${esc(r.cheaper.batchNote)}</div>` : ""}
