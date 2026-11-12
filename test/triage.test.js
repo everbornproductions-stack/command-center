@@ -50,6 +50,15 @@ test("heuristicClassify: four gates and a plain reason", () => {
   // a short question stays trivial; one stakes word on a tiny edit is hard, not top
   assert.equal(heuristicClassify("What is the capital of France?").difficulty, 1);
   assert.equal(heuristicClassify("Rename the delete button label to Remove").difficulty, 3);
+  // a stakes word in a plain question, or "production" as in video production, is not a high-stakes job
+  const taxQ = heuristicClassify("What is the tax rate in CA?");
+  assert.equal(taxQ.gates.stakes, false, taxQ.reason);
+  assert.equal(taxQ.difficulty, 1, taxQ.reason);
+  const reel = heuristicClassify("Write a caption for our video production reel");
+  assert.equal(reel.gates.stakes, false, reel.reason);
+  assert.ok(reel.difficulty <= 2, reel.reason);
+  assert.equal(heuristicClassify("Deploy the new pricing page to production").gates.stakes, true);
+  assert.equal(heuristicClassify("Delete the old invoices table in production").gates.stakes, true);
   // the old callers' shape is still there
   for (const r of [rename, feature, wide, pay]) {
     assert.ok(["reasoning", "code", "writing", "research", "creative", "analysis", "math"].includes(r.capability));

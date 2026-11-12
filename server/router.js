@@ -357,7 +357,10 @@ const GATE_A = /\b(figure out|somehow|why (?:does|do|did|is|are|was|were|would|c
 const GATE_B = /\b(entire|across (?:all|every|the (?:whole|entire))|whole (?:system|app|codebase|project|site|repo|checkout|stack|pipeline)|every (?:file|page|screen|module)|all (?:the )?(?:files|pages|screens|modules|services)|many files|refactor(?:ing)?|end-to-end|codebase|cross-system|architecture|overhaul|comprehensive|detailed|complete|full)\b/i;
 const GATE_C_VERB = /\b(rename|fix|add|change|update|remove|delete|replace|move|create|write|implement|build|make|convert|translate|edit|set|bump|insert|format|sort|capitali[sz]e|refactor)\b/i;
 const GATE_C_TARGET = /([\w./-]+\.(?:js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|cs|cpp|c|h|css|scss|html|json|md|yml|yaml|sql|sh|ps1|txt|csv|xlsx|docx)\b)|`[^`]+`|"[^"]+"|'[^']{2,}'|\b(?:function|method|class|variable|file|component|button|field|column|table|endpoint|route|header|heading|title|label|tab|page|setting|toggle)\b/i;
-const GATE_D = /\b(payments?|billing|security|legal|contracts?|production|delete|deleting|migrate|migration|tax(?:es)?)\b/i;
+const GATE_D = /\b(payments?|billing|security|legal|contracts?|(?:to|in|on|into) production|production (?:deploy|server|database|db|data|env(?:ironment)?|site|outage)|deploy(?:s|ing|ment)?|delete|deleting|migrate|migration|tax(?:es)?)\b/i;
+// Stakes count only when the person asks for something to be done. A plain question that mentions tax or a
+// contract ("What is the tax rate in CA?") is not a high-stakes job, and "video production" is not a deploy.
+const STAKES_ACTION = /\b(rename|fix|add|change|update|remove|delete|replace|move|create|write|implement|build|make|convert|edit|set|insert|run|process|charge|refund|send|wire|transfer|deploy|ship|publish|file|sign|cancel|drop|wipe|migrate|pay|merge|release|push|submit|execute|apply)\b/i;
 const TRIVIAL_VERB = /\b(rename|typo|spelling|capitali[sz]e|lowercase|uppercase|reword|swap|bump)\b/i;
 const andList = (parts) => parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0] || "";
 // A short plain phrase for why the job got its tier. No em-dashes.
@@ -384,7 +387,7 @@ export function heuristicClassify(prompt) {
   }
   const len = prompt.length;
   const long = len > 1200;
-  const stakesHit = prompt.match(GATE_D);
+  const stakesHit = STAKES_ACTION.test(prompt) ? prompt.match(GATE_D) : null;
   const gates = {
     ambiguous: GATE_A.test(prompt),
     large: long || GATE_B.test(prompt),
