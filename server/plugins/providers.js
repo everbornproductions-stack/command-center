@@ -8,7 +8,7 @@
 // Desktop / local mode only for now; a hosted hub refuses custom providers (one PROVIDERS table is shared).
 import crypto from "node:crypto";
 import { HOSTED, doc, putDoc } from "../store.js";
-import { PROVIDERS, TEXT_PROVIDERS } from "../registry.js";
+import { PROVIDERS, TEXT_PROVIDERS, knownPrice, tierByPrice } from "../registry.js";
 import { setSecret, getSecret } from "../vault.js";
 import { checkProvider, getStatus } from "../health.js";
 import { recheckProvider, stampAfterCheck, describePause } from "../pause.js";
@@ -102,8 +102,17 @@ function toProvider(e, i = 0) {
     links: { keys: e.keysUrl || null, console: e.baseUrl.replace(/\/v\d+.*$/, "") || null },
     statusApi: null,
     addedCapabilities: e.capabilities || [], addedSource: e.capabilitiesSource || "general",
-    models: (e.models || []).map((m, j) => ({ id: m, name: m, tier: j === 0 ? "balanced" : "economy", in: 0, out: 0, caps: capsFor(e.capabilities), default: j === 0 })),
+    models: customModels(e),
   };
+}
+// The first model is "balanced" and the rest "economy" until a price is known (the person's own override or a
+// live list price). Priced models then get a real ladder from tierByPrice; unpriced ones keep that default.
+export function customModels(e) {
+  const rows = (e.models || []).map((m, j) => {
+    const pr = knownPrice(m);
+    return { id: m, name: m, tier: j === 0 ? "balanced" : "economy", in: pr ? pr.in : null, out: pr ? pr.out : null, caps: capsFor(e.capabilities), default: j === 0 };
+  });
+  return tierByPrice(rows).map((m) => ({ ...m, in: m.in ?? 0, out: m.out ?? 0 }));
 }
 function register(e, i) {
   if (isBlockedFree(e)) return;
